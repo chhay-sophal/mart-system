@@ -42,6 +42,7 @@ export default function SettingsPage() {
   }, [storeId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     loadBakongCredential();
   }, [load, loadBakongCredential]);

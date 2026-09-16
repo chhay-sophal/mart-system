@@ -8,6 +8,9 @@ const PROACTIVE_REFRESH_MS = 12 * 60 * 1000;
 
 const AuthContext = createContext(null);
 
+// Splitting this hook into its own file to satisfy Fast Refresh would touch
+// every one of its importers (essentially every page) for a DX-only rule.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
@@ -18,7 +21,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [stores, setStores] = useState([]);
   const [currentStoreId, setCurrentStoreId] = useState(null);
-  const [status, setStatus] = useState('loading'); // 'loading' | 'authenticated' | 'anonymous'
+  // Computed directly from localStorage rather than flipped post-mount — if
+  // there's no stored refresh token there's nothing to resume, so 'anonymous'
+  // is correct from the very first render.
+  const [status, setStatus] = useState(() =>
+    localStorage.getItem(REFRESH_TOKEN_KEY) ? 'loading' : 'anonymous'
+  ); // 'loading' | 'authenticated' | 'anonymous'
   const refreshTimerRef = useRef(null);
 
   const applyTokens = useCallback((accessToken, refreshToken) => {
@@ -84,10 +92,7 @@ export function AuthProvider({ children }) {
   // rather than forcing a fresh login every page reload.
   useEffect(() => {
     const raw = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!raw) {
-      setStatus('anonymous');
-      return;
-    }
+    if (!raw) return;
 
     (async () => {
       try {
