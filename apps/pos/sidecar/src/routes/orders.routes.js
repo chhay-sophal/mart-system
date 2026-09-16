@@ -67,7 +67,13 @@ router.post('/api/orders/checkout', (req, res) => {
         amountPaidUsd: amount_paid_usd,
         amountPaidKhr: amount_paid_khr,
         changeGivenKhr,
-        ...(khqr_data?.md5_hash ? { khqrMd5Hash: khqr_data.md5_hash } : {}),
+        ...(khqr_data?.md5_hash
+          ? {
+              khqrMd5Hash: khqr_data.md5_hash,
+              khqrQrString: khqr_data.qr_string,
+              ...(khqr_data.bank_name ? { khqrBankName: khqr_data.bank_name } : {}),
+            }
+          : {}),
       });
     }
 

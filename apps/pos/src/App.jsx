@@ -413,6 +413,14 @@ export default function App() {
       total_amount: totalUsd,
       amount_paid_usd: totalUsd,
       amount_paid_khr: 0,
+      // Bug fix: khqrDetails was received but never forwarded, so the sidecar
+      // never recorded which QR/md5 this sale actually paid via — meaning it
+      // could never sync a PaymentTransaction for it either.
+      khqr_data: {
+        md5_hash: khqrDetails.md5_hash,
+        qr_string: khqrDetails.qr_string,
+        currency: khqrDetails.currency,
+      },
     };
 
     try {

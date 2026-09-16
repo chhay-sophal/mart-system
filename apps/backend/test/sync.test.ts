@@ -119,6 +119,31 @@ describe("POST /api/sync/push", () => {
       .send({ events: [saleEvent()] });
     expect(res.status).toBe(401);
   });
+
+  it("creates a PaymentTransaction when the sale carries KHQR details", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }],
+        paymentMethod: "KHQR",
+        khqrMd5Hash: "abc123md5",
+        khqrQrString: "00020101...khqr-string",
+      },
+    });
+
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(res.body.results[0].status).toBe("applied");
+
+    const transaction = await prisma.paymentTransaction.findUnique({ where: { md5Hash: "abc123md5" } });
+    expect(transaction).toMatchObject({
+      orderId: res.body.results[0].orderId,
+      qrString: "00020101...khqr-string",
+      status: "PAID",
+    });
+  });
 });
 
 describe("GET /api/sync/pull", () => {

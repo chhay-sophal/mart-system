@@ -68,6 +68,22 @@ async function applySaleCompleted(
     });
   }
 
+  if (payload.khqrMd5Hash) {
+    // By the time a sale reaches sync, payment already cleared (POS polled
+    // Bakong and only calls checkout once it saw PAID) — record it as such.
+    await tx.paymentTransaction.create({
+      data: {
+        orderId: order.id,
+        md5Hash: payload.khqrMd5Hash,
+        qrString: payload.khqrQrString ?? "",
+        bankName: payload.khqrBankName ?? null,
+        currency: "USD",
+        amount: toDecimal(payload.totalAmount),
+        status: "PAID",
+      },
+    });
+  }
+
   return order.id;
 }
 

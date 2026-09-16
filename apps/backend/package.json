@@ -19,6 +19,7 @@
   "dependencies": {
     "@mart-system/shared-types": "workspace:*",
     "@prisma/client": "^6.16.3",
+    "bakong-khqr": "^1.0.20",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

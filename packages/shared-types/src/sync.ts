@@ -11,6 +11,8 @@ export interface SaleCompletedPayload {
   amountPaidKhr: number;
   changeGivenKhr: number;
   khqrMd5Hash?: string;
+  khqrQrString?: string;
+  khqrBankName?: string;
 }
 
 export interface SaleVoidedPayload {

@@ -82,6 +82,7 @@ model Store {
   settings       StoreSetting[]
   transfersFrom  StockTransfer[] @relation("TransferFromStore")
   transfersTo    StockTransfer[] @relation("TransferToStore")
+  bakongCredential BakongCredential?
 }
 
 model User {
@@ -232,6 +233,18 @@ model OrderItem {
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
+}
+
+// Deliberately its own model, not fields on Store — a cached bearer token must
+// never ride along on the generic GET /api/stores responses any staff role can
+// already read.
+model BakongCredential {
+  storeId           String    @id
+  registeredEmail   String?
+  apiToken          String?
+  apiTokenUpdatedAt DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model PaymentTransaction {
