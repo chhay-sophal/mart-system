@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { requireAccessToken } from "../../middleware/requireAccessToken";
-import { negativeStockQuerySchema } from "./reports.schema";
-import { listNegativeStock } from "./reports.service";
+import { dailySummaryQuerySchema, negativeStockQuerySchema } from "./reports.schema";
+import { getDailySummary, listNegativeStock } from "./reports.service";
 
 export const reportsRouter: Router = Router();
 
@@ -15,5 +15,14 @@ reportsRouter.get(
   asyncHandler(async (req, res) => {
     const { storeId } = negativeStockQuerySchema.parse(req.query);
     res.json(await listNegativeStock(req.user!, storeId));
+  })
+);
+
+reportsRouter.get(
+  "/reports/daily-summary",
+  requireAccessToken,
+  asyncHandler(async (req, res) => {
+    const { storeId, date_from, date_to } = dailySummaryQuerySchema.parse(req.query);
+    res.json(await getDailySummary(req.user!, { storeId, dateFrom: new Date(date_from), dateTo: new Date(date_to) }));
   })
 );

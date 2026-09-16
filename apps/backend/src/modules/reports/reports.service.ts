@@ -1,5 +1,6 @@
 import { prisma } from "../../prisma";
 import { forbidden } from "../../lib/httpError";
+import { toApiNumber } from "../../lib/money";
 import { listStoresForUser } from "../stores/stores.service";
 
 type ReportUser = { id: string; isSuperAdmin: boolean };
@@ -45,4 +46,94 @@ export async function listNegativeStock(user: ReportUser, storeId?: string) {
       };
     })
   );
+}
+
+/** Ported from online-pos/backend-desktop/server.js:495-550, one store at a time, using Prisma instead of raw SQL. */
+async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
+  const exchangeRateSetting = await prisma.storeSetting.findUnique({
+    where: { storeId_key: { storeId, key: "exchange_rate" } },
+  });
+  const rate = exchangeRateSetting ? Number(exchangeRateSetting.value) : 4100;
+  const toUsd = (amount: number, currency: string) => (currency === "KHR" ? amount / rate : amount);
+
+  const orders = await prisma.order.findMany({
+    where: { storeId, isDeleted: false, createdAt: { gte: dateFrom, lt: dateTo } },
+  });
+
+  const orderCount = orders.length;
+  const totalRevenue = orders.reduce((sum, order) => sum + toApiNumber(order.totalAmount), 0);
+  const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
+
+  const byMethodMap = new Map<string, { count: number; total: number }>();
+  for (const order of orders) {
+    const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0 };
+    entry.count += 1;
+    entry.total += toApiNumber(order.totalAmount);
+    byMethodMap.set(order.paymentMethod, entry);
+  }
+  const byMethod = [...byMethodMap.entries()]
+    .map(([paymentMethod, v]) => ({ paymentMethod, count: v.count, total: v.total }))
+    .sort((a, b) => b.total - a.total);
+
+  const orderIds = orders.map((order) => order.id);
+  const items = orderIds.length
+    ? await prisma.orderItem.findMany({ where: { orderId: { in: orderIds } }, include: { product: true } })
+    : [];
+
+  const productIds = [...new Set(items.map((item) => item.productId))];
+  const storeProducts = productIds.length
+    ? await prisma.storeProduct.findMany({ where: { storeId, productId: { in: productIds } } })
+    : [];
+  const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: toApiNumber(sp.costPrice), currency: sp.currency }]));
+
+  const productAgg = new Map<string, { name: string; qty: number; revenue: number }>();
+  let grossProfit = 0;
+
+  for (const item of items) {
+    const priceUsd = toUsd(toApiNumber(item.priceAtSale), item.currency);
+    const lineRevenue = priceUsd * item.quantity;
+
+    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0 };
+    agg.qty += item.quantity;
+    agg.revenue += lineRevenue;
+    productAgg.set(item.productId, agg);
+
+    const costInfo = costByProductId.get(item.productId);
+    const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
+    grossProfit += (priceUsd - costUsd) * item.quantity;
+  }
+
+  const topProducts = [...productAgg.entries()]
+    .map(([productId, v]) => ({ productId, name: v.name, totalQty: v.qty, revenue: v.revenue }))
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .slice(0, 5);
+
+  return { storeId, orderCount, totalRevenue, avgOrder, grossProfit, byMethod, topProducts };
+}
+
+export async function getDailySummary(
+  user: ReportUser,
+  { storeId, dateFrom, dateTo }: { storeId?: string; dateFrom: Date; dateTo: Date }
+) {
+  const storeIds = await resolveAccessibleStoreIds(user, storeId);
+  const stores = await prisma.store.findMany({ where: { id: { in: storeIds } } });
+  const nameById = new Map(stores.map((store) => [store.id, store.name]));
+
+  const byStore = await Promise.all(
+    storeIds.map(async (id) => ({ ...(await computeStoreDailySummary(id, dateFrom, dateTo)), storeName: nameById.get(id) ?? "" }))
+  );
+
+  const combinedOrderCount = byStore.reduce((sum, s) => sum + s.orderCount, 0);
+  const combinedRevenue = byStore.reduce((sum, s) => sum + s.totalRevenue, 0);
+  const combinedGrossProfit = byStore.reduce((sum, s) => sum + s.grossProfit, 0);
+
+  return {
+    byStore,
+    combined: {
+      orderCount: combinedOrderCount,
+      totalRevenue: combinedRevenue,
+      avgOrder: combinedOrderCount > 0 ? combinedRevenue / combinedOrderCount : 0,
+      grossProfit: combinedGrossProfit,
+    },
+  };
 }
