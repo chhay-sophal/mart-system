@@ -1,0 +1,89 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Khmer", sans-serif;
+  --font-display: "Kantumruy Pro", "Plus Jakarta Sans", sans-serif;
+}
+
+/* Force all headers to use the modern unlooped display font automatically */
+@utility headings {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+:root {
+  --text: #475569; /* Slate 600 - slightly darker for clear reading text */
+  --text-h: #0f172a; /* Slate 900 - crisp dark header text */
+  --bg: #f8fafc; /* Slate 50 - clean app background */
+  --border: #e2e8f0; /* Slate 200 - subtle modern borders */
+  --code-bg: #f1f5f9;
+  --accent: #4f46e5; /* Indigo 600 */
+  --accent-bg: rgba(79, 70, 229, 0.1);
+  --accent-border: rgba(79, 70, 229, 0.4);
+  --shadow:
+    rgba(0, 0, 0, 0.05) 0 1px 2px 0;
+
+  /* Map variables to modern custom fonts */
+  --sans: var(--font-sans);
+  --heading: var(--font-display);
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 14px/150% var(--sans); /* Compact standard font size for dashboard layouts */
+  letter-spacing: -0.01em;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #94a3b8;
+    --text-h: #f8fafc;
+    --bg: #0f172a;
+    --border: #1e293b;
+    --code-bg: #1e293b;
+    --accent: #818cf8;
+    --accent-bg: rgba(129, 140, 248, 0.15);
+    --accent-border: rgba(129, 140, 248, 0.4);
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; /* Prevents awkward browser elastic bounce scrolling */
+}
+
+/* IMPROVED: Removed hardcoded width and centering constraints so app scales beautifully */
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Clean utility fade-in for input drawer dropdowns */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out forwards;
+}

@@ -1,39 +1,32 @@
-// Phase 0 spike: confirms `@yao-pkg/pkg` can bundle this sidecar (including sql.js's
-// wasm asset) when its dependencies live in a pnpm workspace's symlinked node_modules.
-// Not the real POS sidecar yet — that's ported from online-pos/backend-desktop in Phase 2.
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const express = require('express');
-const cors = require('cors');
-const initSqlJs = require('sql.js');
+require('dotenv').config();
 
-async function main() {
-  // Under pkg, WASM lives in the virtual snapshot filesystem, but
-  // WebAssembly.instantiate needs a real OS path — extract it once.
-  let wasmDir;
-  if (process.pkg) {
-    const wasmSrc = path.join(__dirname, 'node_modules/sql.js/dist/sql-wasm.wasm');
-    const wasmDest = path.join(os.tmpdir(), 'sql-wasm.wasm');
-    fs.writeFileSync(wasmDest, fs.readFileSync(wasmSrc));
-    wasmDir = os.tmpdir();
-  } else {
-    wasmDir = path.join(__dirname, 'node_modules/sql.js/dist/');
-  }
+const db = require('./src/db');
+const { createApp } = require('./src/app');
 
-  const SQL = await initSqlJs({
-    locateFile: (file) => path.join(wasmDir, file),
+const PORT = process.env.PORT ? Number(process.env.PORT) : 0;
+
+async function start() {
+  await db.init();
+
+  const app = createApp();
+  const server = app.listen(PORT, '127.0.0.1', () => {
+    const actualPort = server.address().port;
+    console.log(`PORT:${actualPort}`);
+    console.log(`Mart System POS sidecar running on port ${actualPort}`);
+    console.log(`Data: ${db.DB_PATH}`);
   });
-  const db = new SQL.Database();
-  db.run('CREATE TABLE IF NOT EXISTS ping (id INTEGER PRIMARY KEY, message TEXT)');
 
-  const app = express();
-  app.use(cors());
-  app.get('/health', (_req, res) => res.json({ ok: true }));
-
-  const server = app.listen(0, () => {
-    console.log(`PORT:${server.address().port}`);
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use.`);
+      process.exit(1);
+    } else {
+      throw err;
+    }
   });
 }
 
-main();
+start().catch((err) => {
+  console.error('Failed to start POS sidecar:', err);
+  process.exit(1);
+});
