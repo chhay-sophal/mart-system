@@ -42,6 +42,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [exportedFile, setExportedFile] = useState(null);
   const [cloudFolder, setCloudFolder] = useState('');
   const [cloudFolderSaving, setCloudFolderSaving] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
 
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -49,6 +50,23 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     fetchSettings();
     fetchBackups();
   }, []);
+
+  // Polled only while this tab is open — the push/pull loop itself only logs
+  // failures to the sidecar's own (invisible, background-process) console;
+  // this is the surface an actual store owner/cashier can see.
+  useEffect(() => {
+    if (activeSection !== 'sync') return;
+    const fetchSyncStatus = async () => {
+      try {
+        setSyncStatus(await client.get('/api/sync/status'));
+      } catch {
+        setSyncStatus(null);
+      }
+    };
+    fetchSyncStatus();
+    const interval = setInterval(fetchSyncStatus, 10_000);
+    return () => clearInterval(interval);
+  }, [activeSection, client]);
 
   useEffect(() => {
     if (!IS_TAURI) return;
@@ -561,6 +579,19 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                         {isPaired ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
                         {isPaired ? 'Connected — sales sync to the backend automatically.' : 'Not connected — this terminal is offline-only.'}
                       </div>
+                      {isPaired && syncStatus && (syncStatus.pendingCount > 0 || syncStatus.failedCount > 0) && (
+                        <div className="flex flex-col gap-1 text-xs font-semibold rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle size={14} />
+                            {syncStatus.pendingCount > 0 && `${syncStatus.pendingCount} sale(s) waiting to sync`}
+                            {syncStatus.pendingCount > 0 && syncStatus.failedCount > 0 && ' — '}
+                            {syncStatus.failedCount > 0 && `${syncStatus.failedCount} failed, retrying`}
+                          </div>
+                          {syncStatus.lastError && (
+                            <p className="text-[10px] font-normal text-amber-600 dark:text-amber-500 pl-5">{syncStatus.lastError}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

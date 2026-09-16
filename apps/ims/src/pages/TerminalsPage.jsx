@@ -8,6 +8,14 @@ function formatDate(value) {
   return new Date(value).toLocaleString();
 }
 
+// Comfortably clears the backend's 60s lastSeenAt write-throttle (requireTerminal.ts)
+// plus normal jitter, while still meaning "recent."
+const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+
+function isOnline(terminal) {
+  return Boolean(terminal.lastSeenAt) && Date.now() - new Date(terminal.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
+}
+
 export default function TerminalsPage() {
   const { storeId } = useOutletContext();
   const [terminals, setTerminals] = useState([]);
@@ -89,6 +97,7 @@ export default function TerminalsPage() {
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Paired</th>
               <th className="px-4 py-2">Last seen</th>
+              <th className="px-4 py-2">Sync</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -96,13 +105,13 @@ export default function TerminalsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : terminals.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400" colSpan={6}>
                   No terminals paired yet.
                 </td>
               </tr>
@@ -112,6 +121,15 @@ export default function TerminalsPage() {
                   <td className="px-4 py-2">{t.name}</td>
                   <td className="px-4 py-2 text-slate-500">{formatDate(t.pairedAt)}</td>
                   <td className="px-4 py-2 text-slate-500">{formatDate(t.lastSeenAt)}</td>
+                  <td className="px-4 py-2">
+                    {!t.isActive ? (
+                      <span className="text-slate-300">—</span>
+                    ) : (
+                      <span className={isOnline(t) ? 'text-emerald-600' : 'text-amber-600'}>
+                        {isOnline(t) ? 'Online' : 'Offline'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2">
                     <span className={t.isActive ? 'text-emerald-600' : 'text-slate-400'}>
                       {t.isActive ? 'Active' : 'Inactive'}

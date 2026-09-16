@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { HttpError } from "../lib/httpError";
+import { logger } from "../lib/logger";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
@@ -22,6 +23,6 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     }
   }
 
-  console.error(err);
+  logger.error({ err }, "Unhandled error");
   return res.status(500).json({ error: "Internal server error" });
 }

@@ -2,6 +2,7 @@ import type { Currency } from "@mart-system/shared-types";
 import { prisma } from "../../prisma";
 import { notFound } from "../../lib/httpError";
 import { toApiNumber, toDecimal } from "../../lib/money";
+import { logger } from "../../lib/logger";
 import type { BulkImportRow } from "./products.schema";
 import type { createProductSchema, updateProductSchema } from "./products.schema";
 import type { z } from "zod";
@@ -251,7 +252,7 @@ export async function bulkImportProducts(
         });
         result.imported += 1;
       } catch (err) {
-        console.error("bulkImportProducts row failed", err);
+        logger.error({ err, storeId }, "bulkImportProducts row failed");
         result.errors += 1;
       }
     }

@@ -1,5 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
+import pinoHttp from "pino-http";
+import { logger } from "./lib/logger";
 import { authRouter } from "./modules/auth/auth.routes";
 import { storesRouter } from "./modules/stores/stores.routes";
 import { productsRouter } from "./modules/products/products.routes";
@@ -16,6 +18,8 @@ export function buildApp(): Express {
 
   app.use(cors());
   app.use(express.json());
+  // /health is polled frequently (uptime checks, dev startup probes) — excluded so it doesn't drown out real request logs.
+  app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === "/health" } }));
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
 

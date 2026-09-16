@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { verifyDeviceSecret } from "../lib/hash";
 import { unauthorized } from "../lib/httpError";
+import { logger } from "../lib/logger";
 
 const LAST_SEEN_THROTTLE_MS = 60_000;
 
@@ -25,7 +26,7 @@ export async function requireTerminal(req: Request, _res: Response, next: NextFu
       // P2025 (row gone by the time this fire-and-forget write lands) is a benign
       // race, not a bug — e.g. the terminal was deactivated/removed mid-request.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") return;
-      console.error("Failed to update terminal lastSeenAt", err);
+      logger.error({ err, terminalId: terminal.id }, "Failed to update terminal lastSeenAt");
     });
   }
 
