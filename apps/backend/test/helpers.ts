@@ -18,7 +18,6 @@ const TABLES = [
   "StoreSetting",
   "User",
   "Store",
-  "Organization",
 ];
 
 export async function resetDatabase() {
@@ -29,12 +28,10 @@ export const FIXTURE_PASSWORD = "TestPassw0rd!";
 export const FIXTURE_PIN = "1234";
 export const FIXTURE_TERMINAL_SECRET = "test-terminal-secret";
 
-/** Creates one organization + one store + one admin (password+PIN) + one paired terminal, for tests that need a working baseline. */
+/** Creates one store + one admin (password+PIN) + one paired terminal, for tests that need a working baseline. */
 export async function seedFixtures() {
-  const organization = await prisma.organization.create({ data: { name: "Test Org" } });
-
   const store = await prisma.store.create({
-    data: { code: "TEST", name: "Test Store", organizationId: organization.id },
+    data: { code: "TEST", name: "Test Store" },
   });
 
   const admin = await prisma.user.create({
@@ -62,32 +59,12 @@ export async function seedFixtures() {
     },
   });
 
-  return { organization, store, admin, terminal };
-}
-
-/** Creates a second organization + store, for tests proving cross-tenant isolation. */
-export async function seedOtherOrgStore() {
-  const organization = await prisma.organization.create({ data: { name: "Other Test Org" } });
-  const store = await prisma.store.create({
-    data: { code: "OTHER", name: "Other Store", organizationId: organization.id },
-  });
-  return { organization, store };
-}
-
-/** Creates a second store within an existing organization, for tests proving same-org sharing/multi-store staff. */
-export async function seedSiblingStore(organizationId: string) {
-  return prisma.store.create({
-    data: { code: "SIBLING", name: "Sibling Store", organizationId },
-  });
+  return { store, admin, terminal };
 }
 
 export async function addProduct(storeId: string, opts: { name: string; price: number; stock: number }) {
-  const { organizationId } = await prisma.store.findUniqueOrThrow({
-    where: { id: storeId },
-    select: { organizationId: true },
-  });
   const product = await prisma.product.create({
-    data: { organizationId, name: opts.name, defaultPrice: opts.price, currency: "USD" },
+    data: { name: opts.name, defaultPrice: opts.price, currency: "USD" },
   });
   const storeProduct = await prisma.storeProduct.create({
     data: { storeId, productId: product.id, stock: opts.stock, currency: "USD" },

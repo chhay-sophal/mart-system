@@ -49,7 +49,6 @@ async function assertPinAvailable(storeId: string, pin: string, excludeUserId?: 
 export async function createStaff(storeId: string, input: CreateStaffInput) {
   if (input.pin) await assertPinAvailable(storeId, input.pin);
 
-  const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { organizationId: true } });
   const existingUser = await prisma.user.findUnique({ where: { email: input.email } });
 
   if (existingUser) {
@@ -57,15 +56,6 @@ export async function createStaff(storeId: string, input: CreateStaffInput) {
       where: { userId_storeId: { userId: existingUser.id, storeId } },
     });
     if (existingRole) throw conflict("This user already has a role at this store");
-
-    // A user with roles elsewhere is only safe to attach if every one of
-    // those roles is within this same organization — otherwise an admin
-    // could pull a completely unrelated tenant's staff into their own store
-    // just by knowing an email address.
-    const otherOrgRole = await prisma.userStoreRole.findFirst({
-      where: { userId: existingUser.id, store: { organizationId: { not: store.organizationId } } },
-    });
-    if (otherOrgRole) throw conflict("This user is already part of a different organization");
 
     const role = await prisma.userStoreRole.create({
       data: {

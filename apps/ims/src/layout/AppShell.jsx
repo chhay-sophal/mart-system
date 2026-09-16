@@ -18,12 +18,6 @@ function navLinkClass({ isActive }) {
 export default function AppShell() {
   const { user, stores, currentStoreId, setCurrentStoreId, logout } = useAuth();
 
-  // Grouping by organizationId only actually shows up for a platform
-  // superadmin whose store list spans multiple tenants — a regular user's
-  // stores all belong to their own single organization.
-  const organizationIds = new Set(stores.map((store) => store.organizationId));
-  const groupByOrganization = organizationIds.size > 1;
-
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--border)] bg-white">
@@ -46,23 +40,11 @@ export default function AppShell() {
                 onChange={(e) => setCurrentStoreId(e.target.value)}
                 className="border border-[var(--border)] rounded-lg px-2 py-1 text-sm"
               >
-                {groupByOrganization
-                  ? [...organizationIds].map((orgId, index) => (
-                      <optgroup key={orgId} label={`Organization ${index + 1}`}>
-                        {stores
-                          .filter((store) => store.organizationId === orgId)
-                          .map((store) => (
-                            <option key={store.id} value={store.id}>
-                              {store.name}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))
-                  : stores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.name}
-                      </option>
-                    ))}
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
               </select>
             )}
             <span className="text-sm text-slate-500">{user?.email}</span>

@@ -65,28 +65,15 @@ export async function getProduct(storeId: string, productId: string) {
 
 export async function createProduct(storeId: string, input: CreateProductInput) {
   const row = await prisma.$transaction(async (tx) => {
-    const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { organizationId: true } });
-    const barcode = input.barcode ?? null;
-
-    // Reuse a sibling store's catalog entry within the same organization
-    // instead of creating a duplicate — matches bulkImportProducts below,
-    // and keeps barcode collisions scoped to the tenant, not the platform.
-    const existingProduct = barcode
-      ? await tx.product.findFirst({ where: { organizationId: store.organizationId, barcode, isDeleted: false } })
-      : null;
-
-    const product =
-      existingProduct ??
-      (await tx.product.create({
-        data: {
-          organizationId: store.organizationId,
-          name: input.name,
-          barcode,
-          category: input.category ?? null,
-          defaultPrice: toDecimal(input.price),
-          currency: input.currency as Currency,
-        },
-      }));
+    const product = await tx.product.create({
+      data: {
+        name: input.name,
+        barcode: input.barcode ?? null,
+        category: input.category ?? null,
+        defaultPrice: toDecimal(input.price),
+        currency: input.currency as Currency,
+      },
+    });
 
     return tx.storeProduct.create({
       data: {
@@ -196,9 +183,6 @@ export async function bulkImportProducts(
   const result: BulkImportResult = { imported: 0, updated: 0, skipped: 0, errors: 0 };
 
   await prisma.$transaction(async (tx) => {
-    const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { organizationId: true } });
-    const organizationId = store.organizationId;
-
     for (const row of rows) {
       const name = toTrimmedStringOrNull(row.name);
       const price = toNumber(row.price);
@@ -215,7 +199,7 @@ export async function bulkImportProducts(
 
       try {
         const existing = barcode
-          ? await tx.product.findFirst({ where: { organizationId, barcode, isDeleted: false } })
+          ? await tx.product.findFirst({ where: { barcode, isDeleted: false } })
           : null;
 
         if (existing && updateExisting) {
@@ -233,7 +217,7 @@ export async function bulkImportProducts(
         }
 
         const product = await tx.product.create({
-          data: { organizationId, name, barcode, defaultPrice: toDecimal(price), currency },
+          data: { name, barcode, defaultPrice: toDecimal(price), currency },
         });
         await tx.storeProduct.create({
           data: { storeId, productId: product.id, stock, costPrice: toDecimal(costPrice), currency },

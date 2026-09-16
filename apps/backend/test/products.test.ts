@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
-import { hashPassword } from "../src/lib/hash";
 import {
   FIXTURE_PASSWORD,
   FIXTURE_PIN,
@@ -10,8 +9,6 @@ import {
   addCashier,
   resetDatabase,
   seedFixtures,
-  seedOtherOrgStore,
-  seedSiblingStore,
 } from "./helpers";
 
 const app = buildApp();
@@ -68,11 +65,11 @@ describe("product CRUD", () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
-    // A second store in a completely different organization — created directly
+    // A second store the admin also has no reason to see products from — created directly
     // via Prisma since Phase 1 has no HTTP "create store" endpoint (stores are pre-provisioned).
-    const { store: otherStore } = await seedOtherOrgStore();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
     const otherProduct = await prisma.product.create({
-      data: { organizationId: otherStore.organizationId, name: "Other Store Item", defaultPrice: 1, currency: "USD" },
+      data: { name: "Other Store Item", defaultPrice: 1, currency: "USD" },
     });
     await prisma.storeProduct.create({
       data: { storeId: otherStore.id, productId: otherProduct.id, stock: 5 },
@@ -144,75 +141,6 @@ describe("bulk import", () => {
     expect(list.body).toHaveLength(1);
     expect(list.body[0].name).toBe("Updated");
     expect(list.body[0].stock).toBe(9);
-  });
-
-  it("shares one catalog entry across sibling stores in the same organization", async () => {
-    const { store, organization, admin } = await seedFixtures();
-    const token = await loginAsAdmin();
-    const siblingStore = await seedSiblingStore(organization.id);
-    await prisma.userStoreRole.create({ data: { userId: admin.id, storeId: siblingStore.id, role: "ADMIN" } });
-
-    await request(app)
-      .post(`/api/stores/${store.id}/products/bulk-import`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ products: [{ name: "Chips", barcode: "SHARED-1", price: "1.00", stock: "5" }] });
-
-    const res = await request(app)
-      .post(`/api/stores/${siblingStore.id}/products/bulk-import`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        products: [{ name: "Chips (Renamed)", barcode: "SHARED-1", price: "1.50", stock: "3" }],
-        updateExisting: true,
-      });
-    expect(res.body).toEqual({ imported: 0, updated: 1, skipped: 0, errors: 0 });
-
-    const productCount = await prisma.product.count({ where: { organizationId: organization.id, barcode: "SHARED-1" } });
-    expect(productCount).toBe(1);
-
-    const siblingList = await request(app)
-      .get(`/api/stores/${siblingStore.id}/products`)
-      .set("Authorization", `Bearer ${token}`);
-    expect(siblingList.body[0].name).toBe("Chips (Renamed)");
-    expect(siblingList.body[0].stock).toBe(3);
-  });
-
-  it("never merges catalogs across two different organizations sharing the same barcode", async () => {
-    const { store: storeA } = await seedFixtures();
-    const { store: storeB } = await seedOtherOrgStore();
-    const tokenA = await loginAsAdmin();
-
-    // storeB's admin: created directly, since the fixture admin (storeA's org) has no role there.
-    const adminB = await prisma.user.create({
-      data: { email: "adminB@test.local", name: "Admin B", passwordHash: await hashPassword(FIXTURE_PASSWORD) },
-    });
-    await prisma.userStoreRole.create({ data: { userId: adminB.id, storeId: storeB.id, role: "ADMIN" } });
-    const loginB = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "adminB@test.local", password: FIXTURE_PASSWORD });
-    const tokenB = loginB.body.accessToken as string;
-
-    await request(app)
-      .post(`/api/stores/${storeA.id}/products/bulk-import`)
-      .set("Authorization", `Bearer ${tokenA}`)
-      .send({ products: [{ name: "Org A Widget", barcode: "COLLIDE-1", price: "1.00", stock: "5" }] });
-
-    // Import the identical barcode into storeB's (unrelated) org — proves it
-    // creates its own row instead of finding/attaching to Org A's product.
-    const bImport = await request(app)
-      .post(`/api/stores/${storeB.id}/products/bulk-import`)
-      .set("Authorization", `Bearer ${tokenB}`)
-      .send({ products: [{ name: "Org B Widget", barcode: "COLLIDE-1", price: "9.00", stock: "1" }] });
-    expect(bImport.body).toEqual({ imported: 1, updated: 0, skipped: 0, errors: 0 });
-
-    const productsWithBarcode = await prisma.product.findMany({ where: { barcode: "COLLIDE-1" } });
-    expect(productsWithBarcode).toHaveLength(2);
-    expect(new Set(productsWithBarcode.map((p) => p.organizationId)).size).toBe(2);
-
-    const storeAList = await request(app)
-      .get(`/api/stores/${storeA.id}/products`)
-      .set("Authorization", `Bearer ${tokenA}`);
-    expect(storeAList.body).toHaveLength(1);
-    expect(storeAList.body[0].name).toBe("Org A Widget");
   });
 });
 

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
-import { FIXTURE_PASSWORD, addCashier, resetDatabase, seedFixtures, seedOtherOrgStore, seedSiblingStore } from "./helpers";
+import { FIXTURE_PASSWORD, addCashier, resetDatabase, seedFixtures } from "./helpers";
 
 const app = buildApp();
 
@@ -36,14 +36,14 @@ describe("staff management", () => {
     expect(list.body.map((s: { email: string }) => s.email)).toContain("cashier1@test.local");
   });
 
-  it("attaches a new role to an existing user at a sibling store in the same organization", async () => {
-    const { store, organization } = await seedFixtures();
+  it("attaches a new role to an existing user instead of duplicating the account", async () => {
+    const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
-    const siblingStore = await seedSiblingStore(organization.id);
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
 
     await request(app)
-      .post(`/api/stores/${siblingStore.id}/staff`)
+      .post(`/api/stores/${otherStore.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
       .send({ email: "multi@test.local", name: "Multi Store", password: "Passw0rd!!", role: "INVENTORY" });
 
@@ -57,34 +57,6 @@ describe("staff management", () => {
 
     const userCount = await prisma.user.count({ where: { email: "multi@test.local" } });
     expect(userCount).toBe(1);
-  });
-
-  it("rejects attaching a user who already has a role at a different organization's store", async () => {
-    const { store } = await seedFixtures();
-    const token = await loginAsAdmin();
-
-    const { store: otherOrgStore } = await seedOtherOrgStore();
-
-    // Set up the pre-existing cross-org role directly — the requesting admin
-    // has no access to otherOrgStore, so this can't go through the API under test.
-    const crossOrgUser = await prisma.user.create({
-      data: { email: "cross-org@test.local", name: "Cross Org", passwordHash: "unused" },
-    });
-    await prisma.userStoreRole.create({
-      data: { userId: crossOrgUser.id, storeId: otherOrgStore.id, role: "INVENTORY" },
-    });
-
-    const res = await request(app)
-      .post(`/api/stores/${store.id}/staff`)
-      .set("Authorization", `Bearer ${token}`)
-      .send({ email: "cross-org@test.local", name: "Cross Org", password: "Passw0rd!!", role: "ADMIN" });
-
-    expect(res.status).toBe(409);
-
-    const roleCount = await prisma.userStoreRole.count({
-      where: { user: { email: "cross-org@test.local" }, storeId: store.id },
-    });
-    expect(roleCount).toBe(0);
   });
 
   it("rejects creating a duplicate role for the same user at the same store", async () => {
