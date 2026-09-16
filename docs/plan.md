@@ -149,7 +149,7 @@ Catalog/price changes only ever flow backend/IMS → POS, never the other way.
 
 1. **Bakong multi-merchant token model** — confirm whether the Bakong Open API cleanly supports independent tokens per store's registered email before finalizing the per-store `PaymentTransaction`/token-cache design (today's code assumes one global token).
 2. **Terminal device credential lifetime** — a terminal offline for weeks still needs to authenticate its sync push on reconnect; decide long-lived device API key vs. a refresh scheme that tolerates long dormancy before Phase 4.
-3. **pkg + pnpm/Turborepo interaction** — validate in Phase 0, not Phase 6.
+3. ~~**pkg + pnpm/Turborepo interaction**~~ — **validated in Phase 0, resolved.** `@yao-pkg/pkg` bundles `sql.js`'s wasm asset correctly under a pnpm workspace (symlinked `node_modules`) same as plain npm, *as long as* the existing `process.pkg` runtime workaround in `backend-desktop/server.js:620-638` (extract the wasm to `os.tmpdir()` before calling `WebAssembly.instantiate`, since it can't read pkg's virtual snapshot filesystem directly) is carried over — it is not optional boilerplate, omitting it reproduces a "File ... was not included into executable" error regardless of package manager. Confirmed via `apps/pos/sidecar` spike.
 4. **sql.js scaling** on the POS terminal as local order history grows — confirm acceptable, plan pruning if not.
 
 ## Verification approach
