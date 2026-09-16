@@ -7,6 +7,7 @@ import { staffRouter } from "./modules/staff/staff.routes";
 import { terminalsRouter } from "./modules/terminals/terminals.routes";
 import { syncRouter } from "./modules/sync/sync.routes";
 import { paymentsRouter } from "./modules/payments/payments.routes";
+import { reportsRouter } from "./modules/reports/reports.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function buildApp(): Express {
@@ -24,6 +25,7 @@ export function buildApp(): Express {
   app.use("/api", terminalsRouter);
   app.use("/api", syncRouter);
   app.use("/api", paymentsRouter);
+  app.use("/api", reportsRouter);
 
   app.use(errorHandler);
 

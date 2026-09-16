@@ -2,8 +2,9 @@ import { Router } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { requireAccessToken } from "../../middleware/requireAccessToken";
 import { requireRole } from "../../middleware/requireRole";
-import { bulkImportSchema, createProductSchema, updateProductSchema } from "./products.schema";
+import { adjustStockSchema, bulkImportSchema, createProductSchema, updateProductSchema } from "./products.schema";
 import {
+  adjustStock,
   bulkImportProducts,
   createProduct,
   deleteProduct,
@@ -83,5 +84,15 @@ productsRouter.delete(
   asyncHandler(async (req, res) => {
     await deleteProduct(req.params.storeId!, req.params.productId!);
     res.status(204).end();
+  })
+);
+
+productsRouter.post(
+  "/stores/:storeId/products/:productId/adjust-stock",
+  requireAccessToken,
+  requireRole([...MANAGE_ROLES]),
+  asyncHandler(async (req, res) => {
+    const { correctedStock } = adjustStockSchema.parse(req.body);
+    res.json(await adjustStock(req.params.storeId!, req.params.productId!, correctedStock));
   })
 );

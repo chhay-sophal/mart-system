@@ -36,6 +36,10 @@ const bulkImportRowSchema = z.object({
   stock: z.unknown().optional(),
 });
 
+export const adjustStockSchema = z.object({
+  correctedStock: z.number().int(),
+});
+
 export const bulkImportSchema = z.object({
   products: z.array(bulkImportRowSchema).min(1),
   updateExisting: z.boolean().default(false),

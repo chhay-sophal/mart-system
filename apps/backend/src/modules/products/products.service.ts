@@ -148,6 +148,30 @@ export async function deleteProduct(storeId: string, productId: string) {
   await prisma.product.update({ where: { id: productId }, data: { isDeleted: true } });
 }
 
+/**
+ * Sets a store's stock to a manager-supplied corrected count, leaving an
+ * audit-tracked ADJUSTMENT ledger row — unlike the plain PUT above, which
+ * writes StoreProduct.stock directly with no ledger entry. Used by the
+ * negative-stock reconciliation report to make it actionable, not just a list.
+ */
+export async function adjustStock(storeId: string, productId: string, correctedStock: number) {
+  const existing = await getStoreProductOrThrow(storeId, productId);
+  const delta = correctedStock - existing.stock;
+
+  const row = await prisma.$transaction(async (tx) => {
+    await tx.stockMovement.create({
+      data: { storeId, productId, delta, reason: "ADJUSTMENT", refType: "RECONCILIATION" },
+    });
+    return tx.storeProduct.update({
+      where: { storeId_productId: { storeId, productId } },
+      data: { stock: correctedStock },
+      include: STORE_PRODUCT_INCLUDE,
+    });
+  });
+
+  return toProductView(row);
+}
+
 // --- Bulk import, ported from online-pos/backend-desktop/server.js:165-204 ---
 
 function toTrimmedStringOrNull(value: unknown): string | null {

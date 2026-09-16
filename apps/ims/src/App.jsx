@@ -6,6 +6,7 @@ import ProductsPage from './pages/ProductsPage.jsx';
 import StaffPage from './pages/StaffPage.jsx';
 import TerminalsPage from './pages/TerminalsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import ReconciliationPage from './pages/ReconciliationPage.jsx';
 
 export default function App() {
   const { status } = useAuth();
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/terminals" element={<TerminalsPage />} />
+        <Route path="/reconciliation" element={<ReconciliationPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/products" replace />} />
       </Route>
