@@ -56,6 +56,31 @@ function generateUuid() {
   return crypto.randomUUID();
 }
 
+/**
+ * Appends one outbox row. Called from inside the same transaction as the
+ * order/void write it records, so a sale is never persisted without its sync
+ * event also being queued (or vice versa) — they commit or roll back together.
+ */
+function enqueueOutboxEvent(eventType, payload) {
+  const nextSeq = (query('SELECT COALESCE(MAX(sequence_no), 0) + 1 as n FROM outbox_events')[0]?.n) ?? 1;
+  run(
+    'INSERT INTO outbox_events (event_id, terminal_id, sequence_no, event_type, payload, status, retry_count, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
+    [generateUuid(), getSyncSetting('sync_terminal_id'), nextSeq, eventType, JSON.stringify(payload), 'PENDING', localNow()]
+  );
+}
+
+function getSyncSetting(key) {
+  return query('SELECT value FROM store_settings WHERE key = ?', [key])[0]?.value ?? null;
+}
+
+function getSyncConfig() {
+  const backendUrl = getSyncSetting('sync_backend_url');
+  const terminalId = getSyncSetting('sync_terminal_id');
+  const deviceSecret = getSyncSetting('sync_device_secret');
+  if (!backendUrl || !terminalId || !deviceSecret) return null;
+  return { backendUrl, terminalId, deviceSecret };
+}
+
 // Schema ported from online-pos/backend-desktop/server.js, plus two tables that
 // stay unused until Phase 4's sync engine (outbox_events, sync_state) and a
 // client_order_uuid column on orders — added now so the schema doesn't need to
@@ -150,6 +175,9 @@ function runMigrations() {
   if (!productCols.includes('is_deleted')) db.run('ALTER TABLE products ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
   if (!productCols.includes('updated_at')) db.run('ALTER TABLE products ADD COLUMN updated_at TEXT');
   if (!productCols.includes('deleted_at')) db.run('ALTER TABLE products ADD COLUMN deleted_at TEXT');
+  // Links a local product to the backend's Product id once it's been matched
+  // via a catalog pull — required before a sale of this product can be synced.
+  if (!productCols.includes('backend_product_id')) db.run('ALTER TABLE products ADD COLUMN backend_product_id TEXT');
 
   const orderCols = cols('orders');
   if (!orderCols.includes('is_deleted')) db.run('ALTER TABLE orders ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
@@ -207,5 +235,8 @@ module.exports = {
   commit,
   rollback,
   generateUuid,
+  enqueueOutboxEvent,
+  getSyncSetting,
+  getSyncConfig,
   init,
 };

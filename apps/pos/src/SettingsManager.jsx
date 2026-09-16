@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
-import { ArrowLeft, Store, Globe, ArrowLeftRight, Wallet, Smartphone, Banknote, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info } from 'lucide-react';
+import { ArrowLeft, Store, Globe, ArrowLeftRight, Wallet, Smartphone, Banknote, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud } from 'lucide-react';
 import { translations as t } from './locales';
 
 export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, mainCurrency, onCurrencyChange }) {
@@ -15,7 +15,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     bakong_merchant_name: '',
     bakong_merchant_city: '',
     locale: 'km',
-    main_currency: 'USD'
+    main_currency: 'USD',
+    sync_backend_url: '',
+    sync_terminal_id: '',
+    sync_device_secret: ''
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -264,8 +267,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     { id: 'payments', icon: Wallet,    label: s.currencyHeader || 'Payments', badge: isCurrencyChanged || isExchangeRateChanged },
     { id: 'khqr',     icon: Smartphone,label: s.bakongHeader || 'KHQR',       badge: hasKhqrChanges },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
+    { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
     { id: 'about',    icon: Info,      label: 'About' },
   ];
+
+  const isPaired = Boolean(settings.sync_backend_url && settings.sync_terminal_id && settings.sync_device_secret);
 
   const CriticalBadge = () => (
     <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-md uppercase tracking-wide animate-pulse">
@@ -537,6 +543,41 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── SYNC ── */}
+                {activeSection === 'sync' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Backend Sync</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Enter the values from IMS's terminal-pairing screen to connect this register to the central backend.
+                        Once connected, product catalog management moves to IMS — this terminal's local product list becomes read-only.
+                      </p>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Backend URL</label>
+                        <input type="text" value={settings.sync_backend_url}
+                          onChange={(e) => setSettings({ ...settings, sync_backend_url: e.target.value })}
+                          className={inputNormal} placeholder="https://api.example.com" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Terminal ID</label>
+                        <input type="text" value={settings.sync_terminal_id}
+                          onChange={(e) => setSettings({ ...settings, sync_terminal_id: e.target.value })}
+                          className={inputNormal} placeholder="cl9ebqhxk00003b600tymydho" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Device Secret</label>
+                        <input type="password" value={settings.sync_device_secret}
+                          onChange={(e) => setSettings({ ...settings, sync_device_secret: e.target.value })}
+                          className={inputNormal} placeholder="Shown once when the terminal was paired in IMS" />
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 ${isPaired ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400'}`}>
+                        {isPaired ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                        {isPaired ? 'Connected — sales sync to the backend automatically.' : 'Not connected — this terminal is offline-only.'}
+                      </div>
+                    </div>
                   </div>
                 )}
 

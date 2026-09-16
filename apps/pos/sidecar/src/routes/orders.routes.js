@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, run, saveDb, localNow, begin, commit, rollback, generateUuid } = require('../db');
+const { query, run, saveDb, localNow, begin, commit, rollback, generateUuid, enqueueOutboxEvent } = require('../db');
 
 const router = express.Router();
 
@@ -38,12 +38,37 @@ router.post('/api/orders/checkout', (req, res) => {
       ]
     );
 
+    const backendItems = [];
     for (const item of items) {
       run(
         'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [orderId, item.id, item.quantity, item.price, item.currency || 'USD', localNow(), localNow()]
       );
       run('UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?', [item.quantity, localNow(), item.id]);
+
+      const backendProductId = query('SELECT backend_product_id FROM products WHERE id = ?', [item.id])[0]?.backend_product_id;
+      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, currency: item.currency || 'USD' });
+    }
+
+    // Only enqueue a sync event if every item resolves to a backend product —
+    // a local-only product (pre-dating pairing) means this specific sale just
+    // never syncs; the sale itself still completed locally either way.
+    if (backendItems.every((i) => i.backendProductId)) {
+      enqueueOutboxEvent('SALE_COMPLETED', {
+        clientOrderUuid,
+        items: backendItems.map((i) => ({
+          productId: i.backendProductId,
+          quantity: i.quantity,
+          priceAtSale: i.priceAtSale,
+          currency: i.currency,
+        })),
+        paymentMethod: payment_method,
+        totalAmount: total_amount,
+        amountPaidUsd: amount_paid_usd,
+        amountPaidKhr: amount_paid_khr,
+        changeGivenKhr,
+        ...(khqr_data?.md5_hash ? { khqrMd5Hash: khqr_data.md5_hash } : {}),
+      });
     }
 
     if (payment_method === 'KHQR' && khqr_data) {
@@ -104,9 +129,22 @@ router.get('/api/orders', (req, res) => {
 });
 
 router.delete('/api/orders/:id', (req, res) => {
-  run('UPDATE orders SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?', [localNow(), localNow(), req.params.id]);
-  saveDb();
-  res.json({ message: 'Order voided' });
+  try {
+    begin();
+    const order = query('SELECT client_order_uuid FROM orders WHERE id = ?', [req.params.id])[0];
+    run('UPDATE orders SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?', [localNow(), localNow(), req.params.id]);
+
+    if (order?.client_order_uuid) {
+      enqueueOutboxEvent('SALE_VOIDED', { clientOrderUuid: order.client_order_uuid });
+    }
+
+    commit();
+    saveDb();
+    res.json({ message: 'Order voided' });
+  } catch (err) {
+    rollback();
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

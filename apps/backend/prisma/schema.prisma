@@ -167,6 +167,7 @@ model StoreProduct {
   costPrice         Decimal  @default(0) @db.Decimal(14, 2)
   currency          Currency @default(USD)
   lowStockThreshold Int      @default(5)
+  updatedAt         DateTime @updatedAt
 
   store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -183,7 +184,7 @@ model StockMovement {
   reason        StockMovementReason
   refType       String?
   refId         String?
-  sourceEventId String?             @unique
+  sourceEventId String?
   createdAt     DateTime            @default(now())
 
   store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -192,6 +193,7 @@ model StockMovement {
 
   @@index([storeId, productId])
   @@index([createdAt])
+  @@index([sourceEventId])
 }
 
 model Order {

@@ -79,6 +79,11 @@ export default function StockManager({
     stock: "",
   });
 
+  // Once a terminal is paired with the backend (Phase 4), catalog management
+  // moves to IMS — local create/edit/delete/import becomes read-only so the
+  // two never fight over who owns a product's data.
+  const [isPaired, setIsPaired] = useState(false);
+
   const [showImportModal, setShowImportModal] = useState(false);
   const [importStep, setImportStep] = useState('upload'); // 'upload' | 'map' | 'result'
   const [importHeaders, setImportHeaders] = useState([]);
@@ -102,6 +107,12 @@ export default function StockManager({
 
   useEffect(() => {
     fetchInventory();
+    fetch(`${BACKEND_URL}/api/settings`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setIsPaired(Boolean(data.sync_backend_url && data.sync_terminal_id && data.sync_device_secret));
+      })
+      .catch(() => {});
   }, []);
 
   const fetchInventory = async () => {
@@ -463,12 +474,14 @@ export default function StockManager({
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => { setShowImportModal(true); setImportStep('upload'); }}
-            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-          >
-            <Download size={14} /> {il.btnLabel}
-          </button>
+          {!isPaired && (
+            <button
+              onClick={() => { setShowImportModal(true); setImportStep('upload'); }}
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Download size={14} /> {il.btnLabel}
+            </button>
+          )}
           <button
             onClick={() => setShowExportModal(true)}
             disabled={products.length === 0}
@@ -476,14 +489,23 @@ export default function StockManager({
           >
             <Upload size={14} /> {el.btnLabel}
           </button>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-          >
-            <Plus size={14} />{labels.registerNew || "Register New Product"}
-          </button>
+          {!isPaired && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <Plus size={14} />{labels.registerNew || "Register New Product"}
+            </button>
+          )}
         </div>
       </header>
+
+      {isPaired && (
+        <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/30 border-b border-indigo-100 dark:border-indigo-900 text-xs text-indigo-700 dark:text-indigo-300 flex items-center gap-2 flex-shrink-0">
+          <AlertTriangle size={12} />
+          This catalog is managed centrally via IMS — this register is connected to the backend, so local add/edit/delete is disabled.
+        </div>
+      )}
 
       {/* Data Matrix Grid Table Wrapper */}
       <div className="flex-1 overflow-hidden flex flex-col">
@@ -750,6 +772,10 @@ export default function StockManager({
                           >
                             <X size={12}/>
                           </button>
+                        </div>
+                      ) : isPaired ? (
+                        <div className="flex justify-end">
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">Managed via IMS</span>
                         </div>
                       ) : (
                         <div className="flex justify-end gap-1.5">

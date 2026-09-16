@@ -62,6 +62,16 @@ export async function seedFixtures() {
   return { store, admin, terminal };
 }
 
+export async function addProduct(storeId: string, opts: { name: string; price: number; stock: number }) {
+  const product = await prisma.product.create({
+    data: { name: opts.name, defaultPrice: opts.price, currency: "USD" },
+  });
+  const storeProduct = await prisma.storeProduct.create({
+    data: { storeId, productId: product.id, stock: opts.stock, currency: "USD" },
+  });
+  return { product, storeProduct };
+}
+
 export async function addCashier(storeId: string, pin: string) {
   const user = await prisma.user.create({
     data: {
