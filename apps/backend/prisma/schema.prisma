@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CASHIER
+  INVENTORY
+  ADMIN
+}
+
+enum Currency {
+  USD
+  KHR
+}
+
+enum StockMovementReason {
+  SALE
+  VOID
+  RECEIVE_PURCHASE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  STOCKTAKE
+}
+
+enum PaymentMethod {
+  CASH
+  KHQR
+  CARD
+}
+
+enum OrderStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum KhqrStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
+enum SyncEventType {
+  SALE_COMPLETED
+  SALE_VOIDED
+}
+
+enum SyncEventStatus {
+  APPLIED
+  DUPLICATE
+  ERROR
+}
+
+enum StockTransferStatus {
+  REQUESTED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String?
+  phone     String?
+  timezone  String   @default("Asia/Phnom_Penh")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userRoles      UserStoreRole[]
+  terminals      Terminal[]
+  storeProducts  StoreProduct[]
+  stockMovements StockMovement[]
+  orders         Order[]
+  settings       StoreSetting[]
+  transfersFrom  StockTransfer[] @relation("TransferFromStore")
+  transfersTo    StockTransfer[] @relation("TransferToStore")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  isActive     Boolean  @default(true)
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  storeRoles    UserStoreRole[]
+  refreshTokens RefreshToken[]
+}
+
+model UserStoreRole {
+  userId    String
+  storeId   String
+  role      UserRole
+  pinHash   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storeId])
+  @@index([storeId])
+}
+
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String    @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?   @unique
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Terminal {
+  id                   String    @id @default(cuid())
+  storeId              String
+  name                 String
+  deviceCredentialHash String
+  pairedAt             DateTime  @default(now())
+  lastSeenAt           DateTime?
+  isActive             Boolean   @default(true)
+
+  store          Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders         Order[]
+  stockMovements StockMovement[]
+
+  @@index([storeId])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  barcode      String?  @unique
+  name         String
+  category     String?
+  defaultPrice Decimal  @db.Decimal(14, 2)
+  currency     Currency @default(USD)
+  isDeleted    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  storeProducts  StoreProduct[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+}
+
+model StoreProduct {
+  id                String   @id @default(cuid())
+  storeId           String
+  productId         String
+  stock             Int      @default(0)
+  priceOverride     Decimal? @db.Decimal(14, 2)
+  costPrice         Decimal  @default(0) @db.Decimal(14, 2)
+  currency          Currency @default(USD)
+  lowStockThreshold Int      @default(5)
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, productId])
+}
+
+model StockMovement {
+  id            String              @id @default(cuid())
+  storeId       String
+  productId     String
+  terminalId    String?
+  delta         Int
+  reason        StockMovementReason
+  refType       String?
+  refId         String?
+  sourceEventId String?             @unique
+  createdAt     DateTime            @default(now())
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  terminal Terminal? @relation(fields: [terminalId], references: [id])
+
+  @@index([storeId, productId])
+  @@index([createdAt])
+}
+
+model Order {
+  id             String        @id @default(cuid())
+  storeId        String
+  terminalId     String
+  clientOrderUuid String       @unique
+  customerId     String?
+  totalAmount    Decimal       @db.Decimal(14, 2)
+  currency       Currency
+  paymentMethod  PaymentMethod
+  bankName       String?
+  amountPaidUsd  Decimal       @default(0) @db.Decimal(14, 2)
+  amountPaidKhr  Decimal       @default(0) @db.Decimal(14, 2)
+  changeGivenKhr Decimal       @default(0) @db.Decimal(14, 2)
+  status         OrderStatus   @default(COMPLETED)
+  isDeleted      Boolean       @default(false)
+  createdAt      DateTime
+  syncedAt       DateTime?
+
+  store               Store                 @relation(fields: [storeId], references: [id])
+  terminal            Terminal              @relation(fields: [terminalId], references: [id])
+  items               OrderItem[]
+  paymentTransactions PaymentTransaction[]
+
+  @@index([storeId, createdAt])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  priceAtSale Decimal  @db.Decimal(14, 2)
+  currency    Currency
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model PaymentTransaction {
+  id        String     @id @default(cuid())
+  orderId   String
+  md5Hash   String     @unique
+  qrString  String
+  bankName  String?
+  currency  Currency
+  amount    Decimal    @db.Decimal(14, 2)
+  status    KhqrStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model SyncEvent {
+  id            String          @id @default(cuid())
+  eventId       String          @unique
+  terminalId    String
+  storeId       String
+  eventType     SyncEventType
+  sequenceNo    Int
+  payload       Json
+  status        SyncEventStatus
+  appliedAt     DateTime?
+  resultOrderId String?
+  errorMessage  String?
+  createdAt     DateTime        @default(now())
+
+  @@index([terminalId, sequenceNo])
+  @@index([storeId])
+}
+
+model SyncCursor {
+  terminalId     String   @id
+  lastAppliedSeq Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model StoreSetting {
+  storeId   String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, key])
+}
+
+model StockTransfer {
+  id          String              @id @default(cuid())
+  fromStoreId String
+  toStoreId   String
+  status      StockTransferStatus @default(REQUESTED)
+  requestedBy String
+  createdAt   DateTime            @default(now())
+  completedAt DateTime?
+
+  fromStore Store               @relation("TransferFromStore", fields: [fromStoreId], references: [id])
+  toStore   Store               @relation("TransferToStore", fields: [toStoreId], references: [id])
+  items     StockTransferItem[]
+}
+
+model StockTransferItem {
+  id         String @id @default(cuid())
+  transferId String
+  productId  String
+  quantity   Int
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+}
