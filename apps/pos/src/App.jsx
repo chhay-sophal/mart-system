@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Package, FolderOpen, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
+import { Store, Package, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import StockManager from './StockManager';
 import SettingsManager from './SettingsManager';
@@ -36,7 +36,11 @@ export default function App() {
   const [storeIcon, setStoreIcon] = useState('');
   const [storeAddress, setStoreAddress] = useState('');
   const [storePhone, setStorePhone] = useState('');
-  const [backendStatus, setBackendStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  // Non-Tauri (plain browser dev) never needs the port-discovery/health-check
+  // below, so it starts 'ready' directly instead of flipping to it post-mount.
+  const [backendStatus, setBackendStatus] = useState(() =>
+    (window.__TAURI_INTERNALS__ ?? window.__TAURI__) ? 'loading' : 'ready'
+  ); // 'loading' | 'ready' | 'error'
   const [isDark, toggleDark] = useDarkMode();
 
   const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
@@ -49,7 +53,7 @@ export default function App() {
   const customerWindowRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
   const backendPortRef = useRef(5050);
-  const initialBackendUrl = IS_TAURI ? `http://localhost:${backendPortRef.current}` : (import.meta.env.PROD ? '' : 'http://localhost:5050');
+  const initialBackendUrl = IS_TAURI ? 'http://localhost:5050' : (import.meta.env.PROD ? '' : 'http://localhost:5050');
   // Created once (useState's lazy initializer, not a ref — reading a ref
   // during render is flagged by react-hooks/refs); its baseUrl is mutated in
   // place via setBaseUrl() below once Tauri's async port-discovery resolves
@@ -59,7 +63,7 @@ export default function App() {
   // In production Tauri builds, discover the actual port the sidecar bound to,
   // then poll until the backend is ready.
   useEffect(() => {
-    if (!IS_TAURI) { setBackendStatus('ready'); return; }
+    if (!IS_TAURI) return;
 
     let cancelled = false;
     let healthId = null;
@@ -76,7 +80,7 @@ export default function App() {
               client.setBaseUrl(`http://localhost:${port}`);
               break;
             }
-          } catch (_) {}
+          } catch { /* best effort — keep polling until the retry budget runs out */ }
           await new Promise(r => setTimeout(r, 250));
         }
       }
@@ -90,7 +94,7 @@ export default function App() {
         try {
           const res = await fetch(url);
           if (res.ok) { clearInterval(healthId); setBackendStatus('ready'); }
-        } catch (_) {
+        } catch {
           if (attempts >= MAX) { clearInterval(healthId); setBackendStatus('error'); }
         }
       }, 500);
@@ -98,10 +102,13 @@ export default function App() {
 
     discoverAndWait();
     return () => { cancelled = true; if (healthId) clearInterval(healthId); };
-  }, []);
+    // IS_TAURI/client never actually change across renders (a fixed window flag
+    // and a stable useState singleton respectively) — listing them satisfies the
+    // rule honestly without turning this into anything but a mount-once effect.
+  }, [IS_TAURI, client]);
 
   useEffect(() => {
-    focusScanner();
+    if (view === 'REGISTER' && barcodeRef.current) barcodeRef.current.focus();
   }, [view]);
 
   useEffect(() => {
@@ -254,6 +261,57 @@ export default function App() {
   const changeDueKhr = changeDueUsd > 0 ? Math.round(changeDueUsd * dynamicRate) : 0;
   const isCashPaymentSufficient = changeDueUsd >= 0;
 
+  // Declared here (rather than lower down with the other checkout handlers) so
+  // it's defined before the KHQR-polling effect below references it.
+  async function autoCommitKhqrOrder(khqrDetails) {
+    const cartSnapshot = [...cart];
+    const payload = {
+      items: cart,
+      payment_method: 'KHQR',
+      total_amount: totalUsd,
+      amount_paid_usd: totalUsd,
+      amount_paid_khr: 0,
+      // Bug fix: khqrDetails was received but never forwarded, so the sidecar
+      // never recorded which QR/md5 this sale actually paid via — meaning it
+      // could never sync a PaymentTransaction for it either.
+      khqr_data: {
+        md5_hash: khqrDetails.md5_hash,
+        qr_string: khqrDetails.qr_string,
+        currency: khqrDetails.currency,
+      },
+    };
+
+    try {
+      const data = await client.post('/api/orders/checkout', payload);
+      setCheckoutResult(data);
+      setInvoiceData({
+        order_id: data.order_id,
+        items: cartSnapshot,
+        subtotalBeforeDiscountUsd: rawSubtotalUsd,
+        transactionDiscountUsd: txDiscountAmt,
+        totalDiscountUsd: totalDiscountAmt,
+        totalUsd,
+        mainCurrency,
+        dynamicRate,
+        storeName,
+        storeAddress,
+        storePhone,
+        paymentMethod: 'KHQR',
+        amountPaidUsd: totalUsd,
+        amountPaidKhr: 0,
+        changeDueKhr: 0,
+        timestamp: new Date().toISOString(),
+      });
+      setCart([]);
+      setActiveKhqr(null);
+      setPaymentMethod('CASH');
+      setTxDiscountValue('');
+      setTxDiscountType('pct');
+    } catch (err) {
+      console.error('Error auto-finalizing transaction process:', err);
+    }
+  }
+
   useEffect(() => {
     if (!IS_TAURI || !customerDisplayOpen) return;
 
@@ -288,11 +346,11 @@ export default function App() {
       qrString: activeKhqr?.qr_string || null,
       isDark,
     });
-  }, [cart, rawSubtotalUsd, subtotalUsd, txDiscountAmt, checkoutResult, paymentMethod, activeKhqr, customerDisplayOpen, amountPaidUsd, amountPaidKhr, isDark]);
-
-  const focusScanner = () => {
-    if (view === 'REGISTER' && barcodeRef.current) barcodeRef.current.focus();
-  };
+  }, [
+    IS_TAURI, cart, rawSubtotalUsd, subtotalUsd, txDiscountAmt, checkoutResult, paymentMethod, activeKhqr,
+    customerDisplayOpen, amountPaidUsd, amountPaidKhr, isDark, changeDueKhr, dynamicRate, locale, mainCurrency,
+    storeIcon, storeName, totalKhr, totalUsd,
+  ]);
 
   useEffect(() => {
     let pollingInterval = null;
@@ -314,6 +372,10 @@ export default function App() {
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
+    // autoCommitKhqrOrder is intentionally excluded — it's unmemoized, so listing
+    // it would restart this interval every render. cart is already listed, so the
+    // interval already restarts (with a fresh closure) whenever cart changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeKhqr, paymentMethod, cart, client]);
 
   useEffect(() => {
@@ -399,55 +461,6 @@ export default function App() {
     }));
     setCheckoutResult(null);
     setActiveKhqr(null);
-  };
-
-  const autoCommitKhqrOrder = async (khqrDetails) => {
-    const cartSnapshot = [...cart];
-    const payload = {
-      items: cart,
-      payment_method: 'KHQR',
-      total_amount: totalUsd,
-      amount_paid_usd: totalUsd,
-      amount_paid_khr: 0,
-      // Bug fix: khqrDetails was received but never forwarded, so the sidecar
-      // never recorded which QR/md5 this sale actually paid via — meaning it
-      // could never sync a PaymentTransaction for it either.
-      khqr_data: {
-        md5_hash: khqrDetails.md5_hash,
-        qr_string: khqrDetails.qr_string,
-        currency: khqrDetails.currency,
-      },
-    };
-
-    try {
-      const data = await client.post('/api/orders/checkout', payload);
-      setCheckoutResult(data);
-      setInvoiceData({
-        order_id: data.order_id,
-        items: cartSnapshot,
-        subtotalBeforeDiscountUsd: rawSubtotalUsd,
-        transactionDiscountUsd: txDiscountAmt,
-        totalDiscountUsd: totalDiscountAmt,
-        totalUsd,
-        mainCurrency,
-        dynamicRate,
-        storeName,
-        storeAddress,
-        storePhone,
-        paymentMethod: 'KHQR',
-        amountPaidUsd: totalUsd,
-        amountPaidKhr: 0,
-        changeDueKhr: 0,
-        timestamp: new Date().toISOString(),
-      });
-      setCart([]);
-      setActiveKhqr(null);
-      setPaymentMethod('CASH');
-      setTxDiscountValue('');
-      setTxDiscountType('pct');
-    } catch (err) {
-      console.error('Error auto-finalizing transaction process:', err);
-    }
   };
 
   const handleCheckout = async () => {
@@ -570,7 +583,6 @@ export default function App() {
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
           onLocaleChange={setLocale}
-          mainCurrency={mainCurrency}
           onCurrencyChange={setMainCurrency}
         />
       </BackendContext.Provider>

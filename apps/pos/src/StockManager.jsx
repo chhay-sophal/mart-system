@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useBackend } from "./BackendContext";
 import { ApiError } from "@mart-system/api-client";
 import * as XLSX from "xlsx";
@@ -97,7 +97,10 @@ export default function StockManager({
   const [importDragOver, setImportDragOver] = useState(false);
   const importFileRef = useRef(null);
 
+  // Resets to page 1 whenever a filter/sort input changes so a stale page
+  // number from the previous filter set can't point past the new result count.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [search, sortCol, sortDir, currFilter, lowStock]);
 
@@ -106,23 +109,27 @@ export default function StockManager({
   const il = labels.import;
   const el = labels.export;
 
-  useEffect(() => {
-    fetchInventory();
-    client.get('/api/settings')
-      .then((data) => {
-        if (data) setIsPaired(Boolean(data.sync_backend_url && data.sync_terminal_id && data.sync_device_secret));
-      })
-      .catch(() => {});
-  }, []);
-
-  const fetchInventory = async () => {
+  async function fetchInventory() {
     try {
       const data = await client.get('/api/products');
       setProducts(data);
     } catch (err) {
       console.error("Failed to grab product inventory mapping:", err);
     }
-  };
+  }
+
+  // Intentionally mount-once — fetchInventory/client aren't memoized, so
+  // listing them would refire this on every render.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchInventory();
+    client.get('/api/settings')
+      .then((data) => {
+        if (data) setIsPaired(Boolean(data.sync_backend_url && data.sync_terminal_id && data.sync_device_secret));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleEditClick = (product) => {
     setEditingId(product.id);
@@ -353,6 +360,9 @@ export default function StockManager({
       });
     })();
     return () => { unlisten?.(); };
+    // processFileBuffer/il aren't memoized — listing them would re-attach this
+    // Tauri listener every render instead of only when the modal/step changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [IS_TAURI, showImportModal, importStep]);
 
   const handleImportSubmit = async () => {

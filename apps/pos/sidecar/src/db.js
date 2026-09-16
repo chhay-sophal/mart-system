@@ -47,7 +47,7 @@ function commit() {
 function rollback() {
   try {
     db.run('ROLLBACK');
-  } catch (_) {
+  } catch {
     // Nothing to roll back (e.g. the failure happened before BEGIN) — safe to ignore.
   }
 }

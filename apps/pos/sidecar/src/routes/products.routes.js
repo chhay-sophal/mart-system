@@ -92,7 +92,7 @@ router.post('/api/products/bulk', (req, res) => {
         [name, barcode, price, cost_price, currency, stock, localNow(), localNow()]
       );
       imported++;
-    } catch (err) {
+    } catch {
       errorCount++;
     }
   }

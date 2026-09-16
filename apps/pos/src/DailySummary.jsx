@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
+
+const pad = n => String(n).padStart(2, '0');
+
+const toSqliteDate = (d) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 00:00:00`;
 
 export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
   const client = useBackend();
@@ -26,11 +31,6 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
       window.print();
     }
   };
-
-  const pad = n => String(n).padStart(2, '0');
-
-  const toSqliteDate = (d) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 00:00:00`;
 
   const formatDisplayDate = (d) => {
     const months = s.months || ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -58,11 +58,14 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
       next.setDate(next.getDate() + 1);
       const date_to = toSqliteDate(next);
       setSummary(await client.get('/api/summary/daily', { date_from, date_to }));
-    } catch {}
+    } catch { /* best effort */ }
     setLoading(false);
   }, [selectedDate, client]);
 
-  useEffect(() => { fetchSummary(); }, [fetchSummary]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchSummary();
+  }, [fetchSummary]);
 
   const prevDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });

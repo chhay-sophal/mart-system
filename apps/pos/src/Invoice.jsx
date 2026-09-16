@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
@@ -37,7 +37,9 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
   const printFallback = () => {
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) {
+      downloadPDF();
       setPrinting(false);
+      if (autoPrint) onClose();
       return;
     }
 

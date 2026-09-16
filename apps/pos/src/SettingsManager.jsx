@@ -1,10 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, Globe, ArrowLeftRight, Wallet, Smartphone, Banknote, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud } from 'lucide-react';
+import { ArrowLeft, Store, Wallet, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud } from 'lucide-react';
 import { translations as t } from './locales';
 
-export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, mainCurrency, onCurrencyChange }) {
+function CriticalBadge({ label }) {
+  return (
+    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-md uppercase tracking-wide animate-pulse">
+      <AlertTriangle size={9} />{label || 'Critical'}
+    </span>
+  );
+}
+
+export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, onCurrencyChange }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
     store_name: '',
@@ -46,9 +54,32 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
 
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
+  // Declared here (rather than lower down with the other handlers) so they're
+  // defined before the mount effect below references them.
+  const fetchSettings = async () => {
+    try {
+      const data = await client.get('/api/settings');
+      setSettings(prev => ({ ...prev, ...data }));
+      setInitialSettings(data);
+      setCloudFolder(data.cloud_backup_folder || '');
+    } catch (err) {
+      console.error('Failed to load store settings:', err);
+    }
+  };
+
+  const fetchBackups = async () => {
+    try {
+      setBackups(await client.get('/api/backup/list'));
+    } catch { /* best effort */ }
+  };
+
+  // Intentionally mount-once — fetchSettings/fetchBackups aren't memoized, so
+  // listing them would refire this on every render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSettings();
     fetchBackups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Polled only while this tab is open — the push/pull loop itself only logs
@@ -76,23 +107,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
       .catch(() => {});
   }, [IS_TAURI]);
 
-  const fetchSettings = async () => {
-    try {
-      const data = await client.get('/api/settings');
-      setSettings(prev => ({ ...prev, ...data }));
-      setInitialSettings(data);
-      setCloudFolder(data.cloud_backup_folder || '');
-    } catch (err) {
-      console.error('Failed to load store settings:', err);
-    }
-  };
-
-  const fetchBackups = async () => {
-    try {
-      setBackups(await client.get('/api/backup/list'));
-    } catch {}
-  };
-
   const handleBackupNow = async () => {
     setBackupLoading(true);
     try {
@@ -100,7 +114,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
       setBackupSuccess(true);
       setTimeout(() => setBackupSuccess(false), 3000);
       fetchBackups();
-    } catch {}
+    } catch { /* best effort */ }
     setBackupLoading(false);
   };
 
@@ -111,7 +125,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
       await client.post('/api/backup/restore', { filename: restoreConfirm });
       setRestoreConfirm(null);
       setRestoreSuccess(true);
-    } catch {}
+    } catch { /* best effort */ }
     setRestoreLoading(false);
   };
 
@@ -143,7 +157,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     try {
       await client.put('/api/settings', { cloud_backup_folder: folder });
       setCloudFolder(folder);
-    } catch {}
+    } catch { /* best effort */ }
     setCloudFolderSaving(false);
   };
 
@@ -153,7 +167,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({ directory: true, multiple: false, title: 'Choose cloud backup folder' });
       if (selected) await saveCloudFolder(selected);
-    } catch {}
+    } catch { /* best effort */ }
   };
 
   const handleClearCloudFolder = async () => {
@@ -246,7 +260,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
           try {
             const { invoke } = await import('@tauri-apps/api/core');
             await invoke('kill_backend');
-          } catch (_) {}
+          } catch { /* best effort */ }
         }
       });
       await relaunch();
@@ -265,12 +279,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   ];
 
   const isPaired = Boolean(settings.sync_backend_url && settings.sync_terminal_id && settings.sync_device_secret);
-
-  const CriticalBadge = () => (
-    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-md uppercase tracking-wide animate-pulse">
-      <AlertTriangle size={9} />{s.criticalBadge || 'Critical'}
-    </span>
-  );
 
   const inputBase = 'w-full px-3 py-2.5 border rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
   const inputNormal = `${inputBase} border-slate-200 dark:border-slate-700`;
@@ -393,7 +401,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.currencyHeader || 'Currency'}</p>
-                      {isCurrencyChanged && <CriticalBadge />}
+                      {isCurrencyChanged && <CriticalBadge label={s.criticalBadge} />}
                     </div>
                     <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isCurrencyChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">{s.selectPrimaryCurr || 'Primary Transactional Currency'}</label>
@@ -411,7 +419,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.financialsHeader || 'Exchange Rate'}</p>
-                      {isExchangeRateChanged && <CriticalBadge />}
+                      {isExchangeRateChanged && <CriticalBadge label={s.criticalBadge} />}
                     </div>
                     <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isExchangeRateChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{currentTranslations.exchangeRate || 'Exchange Rate'} (1 USD = ? KHR)</label>
@@ -428,7 +436,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.bakongHeader || 'KHQR Profile'}</p>
-                      {!isPaired && hasKhqrChanges && <CriticalBadge />}
+                      {!isPaired && hasKhqrChanges && <CriticalBadge label={s.criticalBadge} />}
                     </div>
                     {isPaired ? (
                       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">

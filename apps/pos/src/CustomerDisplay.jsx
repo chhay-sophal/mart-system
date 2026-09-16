@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
 import { translations as t } from './locales';
@@ -62,20 +62,6 @@ export default function CustomerDisplay() {
     if (!item.discount) return base;
     if (item.discountType === 'fixed') return Math.max(0, base - item.discount);
     return base * (1 - item.discount / 100);
-  };
-
-  const formatUnitPrice = (item) => {
-    const p = discountedUnitPrice(item);
-    return item.currency === 'KHR'
-      ? `${Math.round(p).toLocaleString()} ៛`
-      : `$${p.toFixed(2)}`;
-  };
-
-  const formatItemTotal = (item) => {
-    const total = discountedUnitPrice(item) * item.quantity;
-    return item.currency === 'KHR'
-      ? `${Math.round(total).toLocaleString()} ៛`
-      : `$${total.toFixed(2)}`;
   };
 
   /* ── IDLE ───────────────────────────────────────────────── */

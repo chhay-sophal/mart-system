@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBackend } from './BackendContext';
 import * as XLSX from 'xlsx';
-import { ArrowLeft, X, Upload, Download, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
 
@@ -46,7 +46,10 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     paidUsd: false, paidKhr: false, changeKhr: false,
   });
 
-  useEffect(() => { setPage(1); }, [search, period, payFilter, sortCol, sortDir]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [search, period, payFilter, sortCol, sortDir]);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -62,7 +65,10 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     }
   }, [period, client]);
 
-  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchOrders();
+  }, [fetchOrders]);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -350,7 +356,6 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
                   s={s}
                   dynamicRate={dynamicRate}
                   mainCurrency={mainCurrency}
-                  locale={currentLocale}
                   expanded={expandedId === order.id}
                   onToggle={() => setExpandedId(expandedId === order.id ? null : order.id)}
                   onInvoice={() => openInvoice(order)}
@@ -389,40 +394,37 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       )}
 
       {/* Order void confirmation modal */}
-      {deleteConfirmId !== null && (() => {
-        const order = orders.find(o => o.id === deleteConfirmId);
-        return (
-          <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-red-200 dark:border-red-800 shadow-xl max-w-sm w-full p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle size={24} className="text-amber-500 flex-shrink-0" />
-                <h3 className="text-base font-bold text-slate-900 dark:text-white font-display">
-                  {s.voidWarningTitle || 'Void This Order?'}
-                </h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {s.voidWarningBody || 'Order'}{' '}
-                <span className="font-bold text-slate-800 dark:text-slate-100">#{String(deleteConfirmId).padStart(4, '0')}</span>
-                {' '}{s.voidWarningBody2 || 'will be removed from the sales history and excluded from revenue totals. This cannot be undone.'}
-              </p>
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  onClick={() => setDeleteConfirmId(null)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  {s.cancel || 'Cancel'}
-                </button>
-                <button
-                  onClick={() => handleDeleteOrder(deleteConfirmId)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                >
-                  {s.voidConfirmBtn || 'Void Order'}
-                </button>
-              </div>
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-red-200 dark:border-red-800 shadow-xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle size={24} className="text-amber-500 flex-shrink-0" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white font-display">
+                {s.voidWarningTitle || 'Void This Order?'}
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+              {s.voidWarningBody || 'Order'}{' '}
+              <span className="font-bold text-slate-800 dark:text-slate-100">#{String(deleteConfirmId).padStart(4, '0')}</span>
+              {' '}{s.voidWarningBody2 || 'will be removed from the sales history and excluded from revenue totals. This cannot be undone.'}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                {s.cancel || 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleDeleteOrder(deleteConfirmId)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                {s.voidConfirmBtn || 'Void Order'}
+              </button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* EXPORT MODAL */}
       {showExportModal && (
@@ -560,7 +562,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   );
 }
 
-function OrderRow({ order, s, dynamicRate, mainCurrency, locale, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
+function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
   const itemCount = (order.items || []).filter(i => i.product_name).length;
   const totalUsd = parseFloat(order.total_amount);
   const totalKhr = Math.round(totalUsd * dynamicRate);

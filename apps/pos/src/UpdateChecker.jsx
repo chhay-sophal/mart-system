@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function UpdateChecker() {
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
@@ -58,7 +58,7 @@ export default function UpdateChecker() {
           try {
             const { invoke } = await import('@tauri-apps/api/core');
             await invoke('kill_backend');
-          } catch (_) {}
+          } catch { /* best effort */ }
         }
       });
 
