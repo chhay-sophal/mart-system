@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
+import { ApiError } from '@mart-system/api-client';
 import { ArrowLeft, Store, Globe, ArrowLeftRight, Wallet, Smartphone, Banknote, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud } from 'lucide-react';
 import { translations as t } from './locales';
 
 export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, mainCurrency, onCurrencyChange }) {
-  const BACKEND_URL = useBackend();
+  const client = useBackend();
   const DEFAULT_SETTINGS = {
     store_name: '',
     store_icon: '',
@@ -59,13 +60,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/settings`);
-      if (response.ok) {
-        const data = await response.json();
-        setSettings(prev => ({ ...prev, ...data }));
-        setInitialSettings(data);
-        setCloudFolder(data.cloud_backup_folder || '');
-      }
+      const data = await client.get('/api/settings');
+      setSettings(prev => ({ ...prev, ...data }));
+      setInitialSettings(data);
+      setCloudFolder(data.cloud_backup_folder || '');
     } catch (err) {
       console.error('Failed to load store settings:', err);
     }
@@ -73,20 +71,17 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
 
   const fetchBackups = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/backup/list`);
-      if (res.ok) setBackups(await res.json());
+      setBackups(await client.get('/api/backup/list'));
     } catch {}
   };
 
   const handleBackupNow = async () => {
     setBackupLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/backup/now`, { method: 'POST' });
-      if (res.ok) {
-        setBackupSuccess(true);
-        setTimeout(() => setBackupSuccess(false), 3000);
-        fetchBackups();
-      }
+      await client.post('/api/backup/now');
+      setBackupSuccess(true);
+      setTimeout(() => setBackupSuccess(false), 3000);
+      fetchBackups();
     } catch {}
     setBackupLoading(false);
   };
@@ -95,15 +90,9 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     if (!restoreConfirm) return;
     setRestoreLoading(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/backup/restore`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: restoreConfirm }),
-      });
-      if (res.ok) {
-        setRestoreConfirm(null);
-        setRestoreSuccess(true);
-      }
+      await client.post('/api/backup/restore', { filename: restoreConfirm });
+      setRestoreConfirm(null);
+      setRestoreSuccess(true);
     } catch {}
     setRestoreLoading(false);
   };
@@ -118,20 +107,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
         filters: [{ name: 'SQLite Database', extensions: ['sqlite'] }],
       });
       if (!destPath) { setExportingFile(null); return; }
-      const res = await fetch(`${BACKEND_URL}/api/backup/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, destPath }),
-      });
-      if (res.ok) {
-        setExportedFile(filename);
-        setTimeout(() => setExportedFile(null), 3000);
-      } else {
-        const err = await res.json();
-        alert(err.error || 'Export failed');
-      }
+      await client.post('/api/backup/export', { filename, destPath });
+      setExportedFile(filename);
+      setTimeout(() => setExportedFile(null), 3000);
     } catch (err) {
-      alert('Export failed: ' + err.message);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert(err.body?.error || 'Export failed');
+      } else {
+        alert('Export failed: ' + err.message);
+      }
     }
     setExportingFile(null);
   };
@@ -139,11 +123,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const saveCloudFolder = async (folder) => {
     setCloudFolderSaving(true);
     try {
-      await fetch(`${BACKEND_URL}/api/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cloud_backup_folder: folder }),
-      });
+      await client.put('/api/settings', { cloud_backup_folder: folder });
       setCloudFolder(folder);
     } catch {}
     setCloudFolderSaving(false);
@@ -178,23 +158,18 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const handleConfirmSave = async () => {
     setShowConfirmPopup(false);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      });
-
-      if (response.ok) {
-        onLocaleChange(settings.locale);
-        onCurrencyChange(settings.main_currency);
-        setInitialSettings(settings);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      } else {
-        alert(t[currentLocale]?.settingsPage?.failSave || 'Failed to save settings.');
-      }
+      await client.put('/api/settings', settings);
+      onLocaleChange(settings.locale);
+      onCurrencyChange(settings.main_currency);
+      setInitialSettings(settings);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
-      console.error('Error pushing updated options:', err);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert(t[currentLocale]?.settingsPage?.failSave || 'Failed to save settings.');
+      } else {
+        console.error('Error pushing updated options:', err);
+      }
     }
   };
 

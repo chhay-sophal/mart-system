@@ -82,6 +82,11 @@ export class ApiClient {
     return this.request<T>(path, { method: "DELETE" });
   }
 
+  /** For consumers whose base URL isn't known at construction time (e.g. `pos`, which discovers its sidecar's port asynchronously via Tauri). */
+  setBaseUrl(baseUrl: string): void {
+    this.config.baseUrl = baseUrl;
+  }
+
   /**
    * Push a batch of POS outbox events. Wrapped in retry-with-backoff because
    * losing a sale to a transient network blip is not acceptable — the caller's

@@ -17,7 +17,7 @@ function getPeriodRange(period) {
 }
 
 export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
-  const BACKEND_URL = useBackend();
+  const client = useBackend();
   const s = t[currentLocale].salesHistory;
   const ex = s.export;
 
@@ -51,12 +51,8 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     const { from, to } = getPeriodRange(period);
-    const params = new URLSearchParams();
-    if (from) params.set('date_from', from);
-    if (to)   params.set('date_to', to);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/orders?${params}`);
-      const data = await res.json();
+      const data = await client.get('/api/orders', { date_from: from ?? undefined, date_to: to ?? undefined });
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -64,7 +60,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, client]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -122,7 +118,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 
   const handleDeleteOrder = async (id) => {
     try {
-      await fetch(`${BACKEND_URL}/api/orders/${id}`, { method: 'DELETE' });
+      await client.delete(`/api/orders/${id}`);
       setDeleteConfirmId(null);
       setExpandedId(null);
       fetchOrders();
@@ -179,14 +175,13 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const exportOrders = async () => {
     setExporting(true);
     try {
-      const params = new URLSearchParams();
-      if (exportDateFrom) params.set('date_from', new Date(exportDateFrom).toISOString());
+      const query = {};
+      if (exportDateFrom) query.date_from = new Date(exportDateFrom).toISOString();
       if (exportDateTo) {
         const end = new Date(exportDateTo); end.setHours(23, 59, 59, 999);
-        params.set('date_to', end.toISOString());
+        query.date_to = end.toISOString();
       }
-      const res = await fetch(`${BACKEND_URL}/api/orders?${params}`);
-      let data = await res.json();
+      let data = await client.get('/api/orders', query);
       if (!Array.isArray(data)) data = [];
       if (exportPayment !== 'all') data = data.filter(o => o.payment_method === exportPayment);
 

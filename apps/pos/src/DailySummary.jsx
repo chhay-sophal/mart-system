@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { translations as t } from './locales';
-import BackendContext from './BackendContext';
+import { useBackend } from './BackendContext';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
 export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
-  const BACKEND_URL = useContext(BackendContext);
+  const client = useBackend();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [summary, setSummary] = useState(null);
@@ -57,13 +57,10 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
       const next = new Date(selectedDate);
       next.setDate(next.getDate() + 1);
       const date_to = toSqliteDate(next);
-      const res = await fetch(
-        `${BACKEND_URL}/api/summary/daily?date_from=${encodeURIComponent(date_from)}&date_to=${encodeURIComponent(date_to)}`
-      );
-      if (res.ok) setSummary(await res.json());
+      setSummary(await client.get('/api/summary/daily', { date_from, date_to }));
     } catch {}
     setLoading(false);
-  }, [selectedDate, BACKEND_URL]);
+  }, [selectedDate, client]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 

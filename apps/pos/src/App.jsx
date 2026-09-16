@@ -13,6 +13,7 @@ import Invoice from './Invoice';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
+import { ApiClient, ApiError } from '@mart-system/api-client';
 
 export default function App() {
   const [cart, setCart] = useState([]);
@@ -48,7 +49,12 @@ export default function App() {
   const customerWindowRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
   const backendPortRef = useRef(5050);
-  const BACKEND_URL = IS_TAURI ? `http://localhost:${backendPortRef.current}` : (import.meta.env.PROD ? '' : 'http://localhost:5050');
+  const initialBackendUrl = IS_TAURI ? `http://localhost:${backendPortRef.current}` : (import.meta.env.PROD ? '' : 'http://localhost:5050');
+  // Created once (useState's lazy initializer, not a ref — reading a ref
+  // during render is flagged by react-hooks/refs); its baseUrl is mutated in
+  // place via setBaseUrl() below once Tauri's async port-discovery resolves
+  // the sidecar's real port. The setter is never called again.
+  const [client] = useState(() => new ApiClient({ baseUrl: initialBackendUrl }));
 
   // In production Tauri builds, discover the actual port the sidecar bound to,
   // then poll until the backend is ready.
@@ -65,7 +71,11 @@ export default function App() {
           if (cancelled) return;
           try {
             const port = await invoke('get_backend_port');
-            if (port) { backendPortRef.current = port; break; }
+            if (port) {
+              backendPortRef.current = port;
+              client.setBaseUrl(`http://localhost:${port}`);
+              break;
+            }
           } catch (_) {}
           await new Promise(r => setTimeout(r, 250));
         }
@@ -96,11 +106,10 @@ export default function App() {
 
   useEffect(() => {
     if (backendStatus !== 'ready' || view !== 'REGISTER') return;
-    fetch(`${BACKEND_URL}/api/products/low-stock`)
-      .then(r => r.ok ? r.json() : null)
+    client.get('/api/products/low-stock')
       .then(data => { if (data) setLowStockItems(data.items); })
       .catch(() => {});
-  }, [backendStatus, view]);
+  }, [backendStatus, view, client]);
 
   useEffect(() => {
     if (view !== 'REGISTER') return;
@@ -133,12 +142,7 @@ export default function App() {
 
     const executeDirectBarcodeLookup = async (scannedBarcode) => {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/products/barcode/${scannedBarcode}`);
-        if (!response.ok) {
-          alert(`Product with barcode "${scannedBarcode}" not registered yet!`);
-          return;
-        }
-        const product = await response.json();
+        const product = await client.get(`/api/products/barcode/${scannedBarcode}`);
 
         setCart((prevCart) => {
           const existingItem = prevCart.find((item) => item.id === product.id);
@@ -152,13 +156,17 @@ export default function App() {
 
         setCheckoutResult(null);
       } catch (err) {
-        console.error('Error handling direct global barcode query lookup:', err);
+        if (err instanceof ApiError && !err.isNetworkError) {
+          alert(`Product with barcode "${scannedBarcode}" not registered yet!`);
+        } else {
+          console.error('Error handling direct global barcode query lookup:', err);
+        }
       }
     };
 
     window.addEventListener('keydown', handleGlobalScanStream);
     return () => window.removeEventListener('keydown', handleGlobalScanStream);
-  }, [view, BACKEND_URL]);
+  }, [view, client]);
 
 
   // Formats a raw numeric string (no commas) for display as "1,000,000.12";
@@ -292,10 +300,7 @@ export default function App() {
     if (paymentMethod === 'KHQR' && activeKhqr?.md5_hash) {
       pollingInterval = setInterval(async () => {
         try {
-          const response = await fetch(`${BACKEND_URL}/api/payments/check-status/${activeKhqr.md5_hash}`);
-          if (!response.ok) return;
-
-          const data = await response.json();
+          const data = await client.get(`/api/payments/check-status/${activeKhqr.md5_hash}`);
           if (data.status === 'PAID') {
             clearInterval(pollingInterval);
             await autoCommitKhqrOrder(activeKhqr);
@@ -309,12 +314,11 @@ export default function App() {
     return () => {
       if (pollingInterval) clearInterval(pollingInterval);
     };
-  }, [activeKhqr, paymentMethod, cart]);
+  }, [activeKhqr, paymentMethod, cart, client]);
 
   useEffect(() => {
     if (backendStatus !== 'ready') return;
-    fetch(`${BACKEND_URL}/api/settings`)
-      .then(res => res.json())
+    client.get('/api/settings')
       .then(data => {
         if (data.exchange_rate) setDynamicRate(Number(data.exchange_rate));
         if (data.locale) setLocale(data.locale);
@@ -325,20 +329,14 @@ export default function App() {
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
       .catch(err => console.error("Could not sync app settings configuration", err));
-  }, [backendStatus, view]);
+  }, [backendStatus, view, client]);
 
   const handleBarcodeSubmit = async (e) => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/products/barcode/${barcodeInput}`);
-      if (!response.ok) {
-        alert('Product not found or not registered!');
-        setBarcodeInput('');
-        return;
-      }
-      const product = await response.json();
+      const product = await client.get(`/api/products/barcode/${barcodeInput}`);
 
       setCart((prevCart) => {
         const existingItem = prevCart.find((item) => item.id === product.id);
@@ -353,7 +351,12 @@ export default function App() {
       setBarcodeInput('');
       setCheckoutResult(null);
     } catch (err) {
-      console.error('Error fetching product:', err);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert('Product not found or not registered!');
+        setBarcodeInput('');
+      } else {
+        console.error('Error fetching product:', err);
+      }
     }
   };
 
@@ -362,15 +365,8 @@ export default function App() {
     if (amount <= 0) return;
     setKhqrLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/payments/khqr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: mainCurrency }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setActiveKhqr(data);
-      }
+      const data = await client.post('/api/payments/khqr', { amount, currency: mainCurrency });
+      setActiveKhqr(data);
     } catch (err) {
       console.error("Failed to compile target KHQR string packet", err);
     }
@@ -424,39 +420,31 @@ export default function App() {
     };
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/orders/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const data = await client.post('/api/orders/checkout', payload);
+      setCheckoutResult(data);
+      setInvoiceData({
+        order_id: data.order_id,
+        items: cartSnapshot,
+        subtotalBeforeDiscountUsd: rawSubtotalUsd,
+        transactionDiscountUsd: txDiscountAmt,
+        totalDiscountUsd: totalDiscountAmt,
+        totalUsd,
+        mainCurrency,
+        dynamicRate,
+        storeName,
+        storeAddress,
+        storePhone,
+        paymentMethod: 'KHQR',
+        amountPaidUsd: totalUsd,
+        amountPaidKhr: 0,
+        changeDueKhr: 0,
+        timestamp: new Date().toISOString(),
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        setCheckoutResult(data);
-        setInvoiceData({
-          order_id: data.order_id,
-          items: cartSnapshot,
-          subtotalBeforeDiscountUsd: rawSubtotalUsd,
-          transactionDiscountUsd: txDiscountAmt,
-          totalDiscountUsd: totalDiscountAmt,
-          totalUsd,
-          mainCurrency,
-          dynamicRate,
-          storeName,
-          storeAddress,
-          storePhone,
-          paymentMethod: 'KHQR',
-          amountPaidUsd: totalUsd,
-          amountPaidKhr: 0,
-          changeDueKhr: 0,
-          timestamp: new Date().toISOString(),
-        });
-        setCart([]);
-        setActiveKhqr(null);
-        setPaymentMethod('CASH');
-        setTxDiscountValue('');
-        setTxDiscountType('pct');
-      }
+      setCart([]);
+      setActiveKhqr(null);
+      setPaymentMethod('CASH');
+      setTxDiscountValue('');
+      setTxDiscountType('pct');
     } catch (err) {
       console.error('Error auto-finalizing transaction process:', err);
     }
@@ -479,46 +467,40 @@ export default function App() {
     };
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/orders/checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const data = await client.post('/api/orders/checkout', payload);
+      setCheckoutResult(data);
+      setInvoiceData({
+        order_id: data.order_id,
+        items: cartSnapshot,
+        subtotalBeforeDiscountUsd: rawSubtotalUsd,
+        transactionDiscountUsd: txDiscountAmt,
+        totalDiscountUsd: totalDiscountAmt,
+        totalUsd,
+        mainCurrency,
+        dynamicRate,
+        storeName,
+        storeAddress,
+        storePhone,
+        paymentMethod,
+        bankName: paymentMethod === 'STATIC_QR' ? staticQrBank : null,
+        amountPaidUsd: paidUsd,
+        amountPaidKhr: paidKhr,
+        changeDueKhr: data.change_due_khr || 0,
+        timestamp: new Date().toISOString(),
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        setCheckoutResult(data);
-        setInvoiceData({
-          order_id: data.order_id,
-          items: cartSnapshot,
-          subtotalBeforeDiscountUsd: rawSubtotalUsd,
-          transactionDiscountUsd: txDiscountAmt,
-          totalDiscountUsd: totalDiscountAmt,
-          totalUsd,
-          mainCurrency,
-          dynamicRate,
-          storeName,
-          storeAddress,
-          storePhone,
-          paymentMethod,
-          bankName: paymentMethod === 'STATIC_QR' ? staticQrBank : null,
-          amountPaidUsd: paidUsd,
-          amountPaidKhr: paidKhr,
-          changeDueKhr: data.change_due_khr || 0,
-          timestamp: new Date().toISOString(),
-        });
-        setCart([]);
-        setAmountPaidUsd('');
-        setAmountPaidKhr('');
-        setActiveKhqr(null);
-        setStaticQrBank('');
-        setTxDiscountValue('');
-        setTxDiscountType('pct');
-      } else {
-        alert(`Checkout Failed: ${data.error}`);
-      }
+      setCart([]);
+      setAmountPaidUsd('');
+      setAmountPaidKhr('');
+      setActiveKhqr(null);
+      setStaticQrBank('');
+      setTxDiscountValue('');
+      setTxDiscountType('pct');
     } catch (err) {
-      console.error('Error checking out:', err);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert(`Checkout Failed: ${err.body?.error ?? 'Unknown error'}`);
+      } else {
+        console.error('Error checking out:', err);
+      }
     }
   };
 
@@ -544,7 +526,7 @@ export default function App() {
 
   if (view === 'STOCK') {
     return (
-      <BackendContext.Provider value={BACKEND_URL}>
+      <BackendContext.Provider value={client}>
         <StockManager
           onBackToRegister={() => { setView('REGISTER'); setLowStockDismissed(false); }}
           currentLocale={locale}
@@ -557,7 +539,7 @@ export default function App() {
 
   if (view === 'HISTORY') {
     return (
-      <BackendContext.Provider value={BACKEND_URL}>
+      <BackendContext.Provider value={client}>
         <SalesHistory
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
@@ -570,7 +552,7 @@ export default function App() {
 
   if (view === 'SUMMARY') {
     return (
-      <BackendContext.Provider value={BACKEND_URL}>
+      <BackendContext.Provider value={client}>
         <DailySummary
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
@@ -583,7 +565,7 @@ export default function App() {
 
   if (view === 'SETTINGS') {
     return (
-      <BackendContext.Provider value={BACKEND_URL}>
+      <BackendContext.Provider value={client}>
         <SettingsManager
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}

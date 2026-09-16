@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useBackend } from "./BackendContext";
+import { ApiError } from "@mart-system/api-client";
 import * as XLSX from "xlsx";
 import { ArrowLeft, X, Download, Upload, AlertTriangle, Package, Search, ChevronLeft, ChevronRight, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, Pencil, Trash, Save, Plus, CheckCircle2 } from 'lucide-react';
 import { translations as t } from "./locales";
@@ -43,7 +44,7 @@ export default function StockManager({
   mainCurrency = "USD",
   dynamicRate = 4100,
 }) {
-  const BACKEND_URL = useBackend();
+  const client = useBackend();
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
   const [products, setProducts] = useState([]);
   const [editingId, setEditingId] = useState(null);
@@ -107,8 +108,7 @@ export default function StockManager({
 
   useEffect(() => {
     fetchInventory();
-    fetch(`${BACKEND_URL}/api/settings`)
-      .then((res) => (res.ok ? res.json() : null))
+    client.get('/api/settings')
       .then((data) => {
         if (data) setIsPaired(Boolean(data.sync_backend_url && data.sync_terminal_id && data.sync_device_secret));
       })
@@ -117,11 +117,8 @@ export default function StockManager({
 
   const fetchInventory = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/products`);
-      if (response.ok) {
-        const data = await response.json();
-        setProducts(data);
-      }
+      const data = await client.get('/api/products');
+      setProducts(data);
     } catch (err) {
       console.error("Failed to grab product inventory mapping:", err);
     }
@@ -154,33 +151,28 @@ export default function StockManager({
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/products/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editForm.name,
-          barcode: editForm.barcode,
-          price: parseFloat(editForm.price),
-          cost_price: parseFloat(editForm.cost_price) || 0,
-          currency: editForm.currency,
-          stock: parseInt(editForm.stock, 10) || 0,
-        }),
+      await client.put(`/api/products/${id}`, {
+        name: editForm.name,
+        barcode: editForm.barcode,
+        price: parseFloat(editForm.price),
+        cost_price: parseFloat(editForm.cost_price) || 0,
+        currency: editForm.currency,
+        stock: parseInt(editForm.stock, 10) || 0,
       });
-
-      if (response.ok) {
-        setEditingId(null);
-        fetchInventory();
-      } else {
-        alert(labels.alertUpdateFail || "Failed to update product details.");
-      }
+      setEditingId(null);
+      fetchInventory();
     } catch (err) {
-      console.error("Error modifying product asset rows:", err);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert(labels.alertUpdateFail || "Failed to update product details.");
+      } else {
+        console.error("Error modifying product asset rows:", err);
+      }
     }
   };
 
   const handleDeleteProduct = async (id) => {
     try {
-      await fetch(`${BACKEND_URL}/api/products/${id}`, { method: 'DELETE' });
+      await client.delete(`/api/products/${id}`);
       setDeleteConfirmId(null);
       fetchInventory();
     } catch (err) {
@@ -199,38 +191,30 @@ export default function StockManager({
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/products`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newProduct.name,
-          barcode: newProduct.barcode,
-          price: parseFloat(newProduct.price),
-          cost_price: parseFloat(newProduct.cost_price) || 0,
-          currency: newProduct.currency,
-          stock: parseInt(newProduct.stock, 10) || 0,
-        }),
+      await client.post('/api/products', {
+        name: newProduct.name,
+        barcode: newProduct.barcode,
+        price: parseFloat(newProduct.price),
+        cost_price: parseFloat(newProduct.cost_price) || 0,
+        currency: newProduct.currency,
+        stock: parseInt(newProduct.stock, 10) || 0,
       });
-
-      if (response.ok) {
-        setNewProduct({
-          name: "",
-          barcode: "",
-          price: "",
-          cost_price: "",
-          currency: mainCurrency,
-          stock: "",
-        });
-        setShowAddForm(false);
-        fetchInventory();
-      } else {
-        const errorData = await response.json();
-        alert(
-          `Error: ${errorData.error || "Failed to initialize database product card."}`,
-        );
-      }
+      setNewProduct({
+        name: "",
+        barcode: "",
+        price: "",
+        cost_price: "",
+        currency: mainCurrency,
+        stock: "",
+      });
+      setShowAddForm(false);
+      fetchInventory();
     } catch (err) {
-      console.error("Error adding product record:", err);
+      if (err instanceof ApiError && !err.isNetworkError) {
+        alert(`Error: ${err.body?.error || "Failed to initialize database product card."}`);
+      } else {
+        console.error("Error adding product record:", err);
+      }
     }
   };
 
@@ -379,12 +363,7 @@ export default function StockManager({
         if (!obj.currency) obj.currency = importDefaultCurrency;
         return obj;
       });
-      const res = await fetch(`${BACKEND_URL}/api/products/bulk`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products, updateExisting: importUpdateExisting }),
-      });
-      const result = await res.json();
+      const result = await client.post('/api/products/bulk', { products, updateExisting: importUpdateExisting });
       setImportResult(result);
       setImportStep('result');
       fetchInventory();
