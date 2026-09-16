@@ -194,6 +194,85 @@ function runMigrations() {
   if (!khqrCols.includes('deleted_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN deleted_at TEXT');
 }
 
+// --- BACKUP --- (ported from online-pos/backend-desktop/server.js:427-467,596-616)
+
+const BACKUP_DIR = path.join(DB_DIR, 'backups');
+const MAX_BACKUPS = 7;
+const BACKUP_FILENAME_RE = /^database-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.sqlite$/;
+
+/**
+ * Snapshots whatever is currently on disk at DB_PATH. Called once at startup
+ * (before `db` is assigned, so the very first call of a session never mirrors
+ * to the cloud folder — same as the old app) and from the backup/restore routes.
+ */
+function createBackup() {
+  if (!fs.existsSync(DB_PATH)) return;
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  const filename = `database-${stamp}.sqlite`;
+  const backupPath = path.join(BACKUP_DIR, filename);
+  fs.copyFileSync(DB_PATH, backupPath);
+  console.log(`Backup saved: ${backupPath}`);
+
+  const backups = fs
+    .readdirSync(BACKUP_DIR)
+    .filter((f) => f.startsWith('database-') && f.endsWith('.sqlite'))
+    .sort();
+  if (backups.length > MAX_BACKUPS) {
+    backups.slice(0, backups.length - MAX_BACKUPS).forEach((f) => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+  }
+
+  if (db) {
+    try {
+      const cloudFolder = getSyncSetting('cloud_backup_folder');
+      if (cloudFolder && fs.existsSync(cloudFolder)) {
+        fs.copyFileSync(DB_PATH, path.join(cloudFolder, filename));
+        console.log(`Cloud backup saved: ${path.join(cloudFolder, filename)}`);
+      }
+    } catch (err) {
+      console.error('Cloud backup failed:', err.message);
+    }
+  }
+}
+
+function listBackups() {
+  if (!fs.existsSync(BACKUP_DIR)) return [];
+  return fs
+    .readdirSync(BACKUP_DIR)
+    .filter((f) => f.startsWith('database-') && f.endsWith('.sqlite'))
+    .sort()
+    .reverse()
+    .map((name) => {
+      const stats = fs.statSync(path.join(BACKUP_DIR, name));
+      return { name, size: stats.size };
+    });
+}
+
+/** Swaps the live in-memory db instance directly — no process restart, same as the old app. */
+function restoreBackup(filename) {
+  if (!filename || !BACKUP_FILENAME_RE.test(filename)) throw new Error('Invalid filename');
+  const backupPath = path.join(BACKUP_DIR, filename);
+  if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
+
+  saveDb();
+  createBackup();
+  const fileBuffer = fs.readFileSync(backupPath);
+  db = new SQL.Database(fileBuffer);
+  runMigrations();
+  saveDb();
+}
+
+function exportBackup(filename, destPath) {
+  if (!filename || !BACKUP_FILENAME_RE.test(filename)) throw new Error('Invalid filename');
+  if (!destPath || typeof destPath !== 'string') throw new Error('Invalid destination path');
+  const srcPath = path.join(BACKUP_DIR, filename);
+  if (!fs.existsSync(srcPath)) throw new Error('Backup not found');
+  fs.copyFileSync(srcPath, destPath);
+}
+
 async function init() {
   const initSqlJs = require('sql.js');
 
@@ -212,6 +291,8 @@ async function init() {
   }
 
   SQL = await initSqlJs({ locateFile: (file) => path.join(wasmDir, file) });
+
+  createBackup();
 
   if (fs.existsSync(DB_PATH)) {
     db = new SQL.Database(fs.readFileSync(DB_PATH));
@@ -239,4 +320,8 @@ module.exports = {
   getSyncSetting,
   getSyncConfig,
   init,
+  createBackup,
+  listBackups,
+  restoreBackup,
+  exportBackup,
 };

@@ -6,6 +6,7 @@ const settingsRoutes = require('./routes/settings.routes');
 const ordersRoutes = require('./routes/orders.routes');
 const summaryRoutes = require('./routes/summary.routes');
 const paymentsRoutes = require('./routes/payments.routes');
+const backupRoutes = require('./routes/backup.routes');
 
 function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ function createApp() {
   app.use(ordersRoutes);
   app.use(summaryRoutes);
   app.use(paymentsRoutes);
+  app.use(backupRoutes);
 
   return app;
 }
