@@ -27,9 +27,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "TODO_REPLACE_WITH_A_REAL_KEYPAIR_IN_PHASE_6",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4RTFDNjcxRDY4MTgzMUUKUldRZWc0SFdjY2JoZUtJaU1hR2l6NW5FWW5yWm1BdEc2cVBjekMzYTZ4QndKUndabDY3dEpJWi8K",
       "endpoints": [
-        "https://github.com/REPLACE_ME/mart-system/releases/latest/download/latest.json"
+        "https://github.com/chhay-sophal/mart-system/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
