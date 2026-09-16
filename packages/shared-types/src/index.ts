@@ -5,3 +5,4 @@ export * from "./payment";
 export * from "./sync";
 export * from "./auth";
 export * from "./report";
+export * from "./transfer";
