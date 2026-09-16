@@ -63,8 +63,22 @@ enum StockTransferStatus {
   CANCELLED
 }
 
-model Store {
+// The tenant/subscription boundary — one paying customer, who may own several
+// Stores that legitimately share one product catalog (see Product below).
+model Organization {
   id        String   @id @default(cuid())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stores   Store[]
+  products Product[]
+}
+
+model Store {
+  id             String   @id @default(cuid())
+  organizationId String
   name      String
   code      String   @unique
   address   String?
@@ -74,6 +88,7 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   userRoles      UserStoreRole[]
   terminals      Terminal[]
   storeProducts  StoreProduct[]
@@ -83,6 +98,8 @@ model Store {
   transfersFrom  StockTransfer[] @relation("TransferFromStore")
   transfersTo    StockTransfer[] @relation("TransferToStore")
   bakongCredential BakongCredential?
+
+  @@index([organizationId])
 }
 
 model User {
@@ -143,9 +160,12 @@ model Terminal {
   @@index([storeId])
 }
 
+// Chain-wide within one Organization (tenant), never across organizations —
+// barcode collisions between unrelated customers must not merge catalogs.
 model Product {
-  id           String   @id @default(cuid())
-  barcode      String?  @unique
+  id             String   @id @default(cuid())
+  organizationId String
+  barcode        String?
   name         String
   category     String?
   defaultPrice Decimal  @db.Decimal(14, 2)
@@ -154,9 +174,12 @@ model Product {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  organization   Organization    @relation(fields: [organizationId], references: [id])
   storeProducts  StoreProduct[]
   orderItems     OrderItem[]
   stockMovements StockMovement[]
+
+  @@unique([organizationId, barcode])
 }
 
 model StoreProduct {

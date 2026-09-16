@@ -37,9 +37,13 @@ const DEMO_PRODUCTS: Array<{
 ];
 
 async function main() {
+  const organization =
+    (await prisma.organization.findFirst({ where: { name: "Demo Org" } })) ??
+    (await prisma.organization.create({ data: { name: "Demo Org" } }));
+
   const store = await prisma.store.upsert({
     where: { code: "MAIN" },
-    create: { code: "MAIN", name: "Main Store", timezone: "Asia/Phnom_Penh" },
+    create: { code: "MAIN", name: "Main Store", timezone: "Asia/Phnom_Penh", organizationId: organization.id },
     update: {},
   });
 
@@ -83,8 +87,9 @@ async function main() {
 
   for (const item of DEMO_PRODUCTS) {
     const product = await prisma.product.upsert({
-      where: { barcode: item.barcode },
+      where: { organizationId_barcode: { organizationId: store.organizationId, barcode: item.barcode } },
       create: {
+        organizationId: store.organizationId,
         barcode: item.barcode,
         name: item.name,
         defaultPrice: toDecimal(item.price),

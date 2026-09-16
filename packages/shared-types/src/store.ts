@@ -1,5 +1,6 @@
 export interface Store {
   id: string;
+  organizationId: string;
   name: string;
   code: string;
   address: string | null;
