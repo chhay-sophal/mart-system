@@ -1,0 +1,25 @@
+{
+  "name": "@mart-system/pos-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npx @yao-pkg/pkg server.js --targets node20-win-x64 --output dist/backend-server --no-bytecode --public-packages '*' --public"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^5.12.0"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ],
+    "scripts": []
+  }
+}
