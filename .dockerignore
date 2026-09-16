@@ -1,0 +1,8 @@
+node_modules
+**/node_modules
+.git
+**/dist
+**/build
+apps/pos/src-tauri/target
+apps/pos/src-tauri/binaries
+apps/pos/sidecar/dist

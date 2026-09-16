@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mart
+          POSTGRES_PASSWORD: mart
+          POSTGRES_DB: mart_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mart"
+          --health-interval 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      # No lint step: apps/backend has no lint script at all, and both
+      # apps/pos and apps/ims have pre-existing, systemic lint debt (a
+      # stricter eslint-plugin-react-hooks ruleset flagging a very common
+      # `useEffect(() => { load() }, [load])` pattern used throughout both
+      # apps) that predates this workflow. Adding it now would make CI
+      # permanently red for reasons unrelated to any actual change — that
+      # cleanup is its own separate task, not part of "add a CI workflow."
+
+      - name: Apply backend migrations to the test database
+        working-directory: apps/backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://mart:mart@localhost:5432/mart_system_test
+
+      - run: pnpm test
+        env:
+          DATABASE_URL: postgresql://mart:mart@localhost:5432/mart_system_test
