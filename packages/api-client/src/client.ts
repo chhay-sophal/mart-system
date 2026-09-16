@@ -12,7 +12,7 @@ export interface ApiClientConfig {
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
 }
@@ -72,6 +72,10 @@ export class ApiClient {
 
   put<T>(path: string, body?: unknown) {
     return this.request<T>(path, { method: "PUT", body });
+  }
+
+  patch<T>(path: string, body?: unknown) {
+    return this.request<T>(path, { method: "PATCH", body });
   }
 
   delete<T>(path: string) {
