@@ -83,6 +83,7 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
         costPrice: toDecimal(input.costPrice),
         currency: input.currency as Currency,
         lowStockThreshold: input.lowStockThreshold,
+        priceOverride: input.priceOverride !== undefined && input.priceOverride !== null ? toDecimal(input.priceOverride) : input.priceOverride,
       },
       include: STORE_PRODUCT_INCLUDE,
     });
@@ -118,7 +119,8 @@ export async function updateProduct(storeId: string, productId: string, input: U
       input.stock !== undefined ||
       input.costPrice !== undefined ||
       input.lowStockThreshold !== undefined ||
-      input.currency !== undefined
+      input.currency !== undefined ||
+      input.priceOverride !== undefined
     ) {
       await tx.storeProduct.update({
         where: { storeId_productId: { storeId, productId } },
@@ -127,6 +129,7 @@ export async function updateProduct(storeId: string, productId: string, input: U
           costPrice: input.costPrice !== undefined ? toDecimal(input.costPrice) : undefined,
           lowStockThreshold: input.lowStockThreshold,
           currency: input.currency as Currency | undefined,
+          priceOverride: input.priceOverride !== undefined && input.priceOverride !== null ? toDecimal(input.priceOverride) : input.priceOverride,
         },
       });
     }

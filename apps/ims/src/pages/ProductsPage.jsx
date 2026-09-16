@@ -9,6 +9,7 @@ const EMPTY_FORM = {
   barcode: '',
   category: '',
   price: '',
+  priceOverride: '',
   currency: 'USD',
   costPrice: '',
   stock: '',
@@ -21,6 +22,7 @@ function toFormState(product) {
     barcode: product.barcode ?? '',
     category: product.category ?? '',
     price: String(product.defaultPrice ?? ''),
+    priceOverride: product.priceOverride != null ? String(product.priceOverride) : '',
     currency: product.currency ?? 'USD',
     costPrice: String(product.costPrice ?? ''),
     stock: String(product.stock ?? ''),
@@ -34,6 +36,7 @@ function toRequestBody(form) {
     barcode: form.barcode.trim() || null,
     category: form.category.trim() || null,
     price: Number(form.price),
+    priceOverride: form.priceOverride.trim() === '' ? null : Number(form.priceOverride),
     currency: form.currency,
     costPrice: Number(form.costPrice) || 0,
     stock: Number(form.stock) || 0,
@@ -163,7 +166,12 @@ export default function ProductsPage() {
                   <td className="px-4 py-2">{p.name}</td>
                   <td className="px-4 py-2 text-slate-500">{p.barcode ?? '—'}</td>
                   <td className="px-4 py-2">
-                    {p.currency} {Number(p.defaultPrice).toFixed(2)}
+                    {p.currency} {Number(p.priceOverride ?? p.defaultPrice).toFixed(2)}
+                    {p.priceOverride != null && (
+                      <span className="ml-2 text-xs text-slate-400 line-through">
+                        {Number(p.defaultPrice).toFixed(2)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2">
                     {p.stock}
@@ -251,6 +259,20 @@ export default function ProductsPage() {
                   className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Price override <span className="text-slate-400">(this store only, leave blank to use the price above)</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Same as price"
+                value={form.priceOverride}
+                onChange={(e) => setForm({ ...form, priceOverride: e.target.value })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

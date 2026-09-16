@@ -61,6 +61,33 @@ describe("product CRUD", () => {
     expect(readAfterDelete.status).toBe(404);
   });
 
+  it("sets, reads, and clears a per-store price override independently of the chain default price", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const create = await request(app)
+      .post(`/api/stores/${store.id}/products`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Overridable Widget", price: 2, priceOverride: 1.5, stock: 5 });
+    expect(create.status).toBe(201);
+    expect(create.body.defaultPrice).toBe(2);
+    expect(create.body.priceOverride).toBe(1.5);
+    const productId = create.body.id as string;
+
+    const update = await request(app)
+      .put(`/api/stores/${store.id}/products/${productId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ priceOverride: 1.75 });
+    expect(update.body.priceOverride).toBe(1.75);
+    expect(update.body.defaultPrice).toBe(2); // untouched by an override-only update
+
+    const cleared = await request(app)
+      .put(`/api/stores/${store.id}/products/${productId}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ priceOverride: null });
+    expect(cleared.body.priceOverride).toBeNull();
+  });
+
   it("only lists products belonging to the requested store", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
