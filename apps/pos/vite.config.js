@@ -8,4 +8,13 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  // Without this, Vite's default watcher covers the whole project root,
+  // including src-tauri/target — cargo actively writes .dll/.exe files there
+  // during `tauri dev`, and Vite trying to watch one mid-write causes an
+  // EBUSY crash on Windows.
+  server: {
+    watch: {
+      ignored: ['**/src-tauri/**'],
+    },
+  },
 })
