@@ -1,4 +1,8 @@
-require('dotenv').config();
+// Explicit path: this is always launched with CWD=apps/pos (the package
+// root, via `node sidecar/server.js`), not apps/pos/sidecar — dotenv's
+// default `.env`-in-cwd lookup silently finds nothing there, so PORT (and
+// anything else in sidecar/.env) never actually applied.
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const db = require('./src/db');
 const { createApp } = require('./src/app');
