@@ -159,6 +159,14 @@ const SCHEMA = `
     key TEXT PRIMARY KEY,
     value TEXT
   );
+  CREATE TABLE IF NOT EXISTS staff_pins (
+    user_id TEXT PRIMARY KEY,
+    name TEXT,
+    role TEXT,
+    pin_hash TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT
+  );
   INSERT OR IGNORE INTO store_settings (key, value) VALUES
     ('exchange_rate', '4100'),
     ('locale', 'km'),
@@ -184,6 +192,9 @@ function runMigrations() {
   if (!orderCols.includes('updated_at')) db.run('ALTER TABLE orders ADD COLUMN updated_at TEXT');
   if (!orderCols.includes('deleted_at')) db.run('ALTER TABLE orders ADD COLUMN deleted_at TEXT');
   if (!orderCols.includes('client_order_uuid')) db.run('ALTER TABLE orders ADD COLUMN client_order_uuid TEXT');
+  // Which unlocked cashier session rang this sale up — null for orders that
+  // predate the PIN-gate, or a checkout made before anything ever unlocked.
+  if (!orderCols.includes('cashier_user_id')) db.run('ALTER TABLE orders ADD COLUMN cashier_user_id TEXT');
 
   const itemCols = cols('order_items');
   if (!itemCols.includes('created_at')) db.run('ALTER TABLE order_items ADD COLUMN created_at TEXT');

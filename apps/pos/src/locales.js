@@ -8,6 +8,15 @@ export const translations = {
     settings: 'ការកំណត់',
     bgListenerActive: 'ស្កេនបាកូដទំនិញដើម្បីបញ្ចូលទៅកន្ត្រក',
     ready: 'រួចរាល់',
+    lockTerminal: 'ចាក់សោ',
+
+    // LOCK SCREEN LABELS
+    lockScreen: {
+      title: 'ម៉ាស៊ីនជាប់សោ',
+      subtitle: 'បញ្ចូលកូដសម្ងាត់របស់អ្នកដើម្បីបន្ត',
+      unlockBtn: 'ដោះសោ',
+      wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
+    },
 
     // CUSTOMER DISPLAY LABELS
     customerDisplay: {
@@ -261,6 +270,15 @@ export const translations = {
     settings: 'Settings',
     bgListenerActive: 'Scan any item barcode to add to basket.',
     ready: 'Ready',
+    lockTerminal: 'Lock',
+
+    // LOCK SCREEN LABELS
+    lockScreen: {
+      title: 'Terminal Locked',
+      subtitle: 'Enter your PIN to continue',
+      unlockBtn: 'Unlock',
+      wrongPin: 'Incorrect PIN',
+    },
 
     // CUSTOMER DISPLAY LABELS
     customerDisplay: {

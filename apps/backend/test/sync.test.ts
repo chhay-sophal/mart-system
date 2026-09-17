@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
-import { FIXTURE_TERMINAL_SECRET, addProduct, resetDatabase, seedFixtures } from "./helpers";
+import { FIXTURE_TERMINAL_SECRET, addCashier, addProduct, resetDatabase, seedFixtures } from "./helpers";
 
 const app = buildApp();
 
@@ -144,6 +144,26 @@ describe("POST /api/sync/push", () => {
       status: "PAID",
     });
   });
+
+  it("records cashierUserId on the created order when the sale carries one", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    const cashier = await addCashier(store.id, "5678");
+
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }],
+        cashierUserId: cashier.id,
+      },
+    });
+
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(res.body.results[0].status).toBe("applied");
+
+    const order = await prisma.order.findUnique({ where: { id: res.body.results[0].orderId } });
+    expect(order?.cashierUserId).toBe(cashier.id);
+  });
 });
 
 describe("GET /api/sync/pull", () => {
@@ -172,5 +192,30 @@ describe("GET /api/sync/pull", () => {
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).get("/api/sync/pull");
     expect(res.status).toBe(401);
+  });
+
+  it("includes the store's staff PIN roster, and only changed rows since a given cursor", async () => {
+    const { store, admin, terminal } = await seedFixtures();
+    const cashier = await addCashier(store.id, "5678");
+
+    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    const roster = first.body.staffRoster as Array<{ userId: string; role: string; isActive: boolean }>;
+    expect(roster.map((r) => r.userId).sort()).toEqual([admin.id, cashier.id].sort());
+    expect(roster.find((r) => r.userId === admin.id)).toMatchObject({ role: "ADMIN", isActive: true });
+    const cursor = first.body.cursor;
+
+    const unchanged = await request(app).get("/api/sync/pull").query({ since: cursor }).set(terminalHeaders(terminal.id));
+    expect(unchanged.body.staffRoster).toHaveLength(0);
+
+    // A deactivation must show up as a delta row (not silently disappear) so an
+    // offline-cached terminal actually learns the PIN should stop working.
+    await prisma.userStoreRole.update({
+      where: { userId_storeId: { userId: cashier.id, storeId: store.id } },
+      data: { isActive: false },
+    });
+
+    const afterDeactivate = await request(app).get("/api/sync/pull").query({ since: cursor }).set(terminalHeaders(terminal.id));
+    expect(afterDeactivate.body.staffRoster).toHaveLength(1);
+    expect(afterDeactivate.body.staffRoster[0]).toMatchObject({ userId: cashier.id, isActive: false });
   });
 });

@@ -15,6 +15,7 @@ const saleCompletedPayloadSchema = z.object({
   amountPaidUsd: z.number().nonnegative(),
   amountPaidKhr: z.number().nonnegative(),
   changeGivenKhr: z.number().nonnegative(),
+  cashierUserId: z.string().optional(),
   khqrMd5Hash: z.string().optional(),
   khqrQrString: z.string().optional(),
   khqrBankName: z.string().optional(),

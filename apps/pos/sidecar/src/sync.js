@@ -77,7 +77,7 @@ async function pullCatalog(config) {
     return;
   }
 
-  const { cursor: newCursor, productUpserts } = await response.json();
+  const { cursor: newCursor, productUpserts, staffRoster } = await response.json();
 
   for (const item of productUpserts) {
     // Match by backend_product_id first (already linked from an earlier
@@ -102,6 +102,19 @@ async function pullCatalog(config) {
         [item.name, item.barcode, price, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
       );
     }
+  }
+
+  // Cached so PIN unlock (auth.routes.js) can verify a cashier fully offline —
+  // upserted by userId, same shape as the products loop above. isActive isn't
+  // filtered out by the backend, so a deactivation/PIN-reset arrives as a row
+  // update here rather than silently never showing up.
+  for (const staff of staffRoster ?? []) {
+    db.run(
+      `INSERT INTO staff_pins (user_id, name, role, pin_hash, is_active, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, role = excluded.role,
+         pin_hash = excluded.pin_hash, is_active = excluded.is_active, updated_at = excluded.updated_at`,
+      [staff.userId, staff.name, staff.role, staff.pinHash, staff.isActive ? 1 : 0, db.localNow()]
+    );
   }
 
   db.run(

@@ -97,6 +97,7 @@ model User {
 
   storeRoles    UserStoreRole[]
   refreshTokens RefreshToken[]
+  cashierOrders Order[]
 }
 
 model UserStoreRole {
@@ -203,6 +204,7 @@ model Order {
   terminalId     String
   clientOrderUuid String       @unique
   customerId     String?
+  cashierUserId  String?
   totalAmount    Decimal       @db.Decimal(14, 2)
   currency       Currency
   paymentMethod  PaymentMethod
@@ -217,6 +219,7 @@ model Order {
 
   store               Store                 @relation(fields: [storeId], references: [id])
   terminal            Terminal              @relation(fields: [terminalId], references: [id])
+  cashier             User?                 @relation(fields: [cashierUserId], references: [id])
   items               OrderItem[]
   paymentTransactions PaymentTransaction[]
 

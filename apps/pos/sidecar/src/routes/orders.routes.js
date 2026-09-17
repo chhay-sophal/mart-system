@@ -11,7 +11,7 @@ const EXCHANGE_RATE = 4100;
 // it does NOT add a stock-availability check: negative stock is still allowed
 // (confirmed decision — never block a sale over stock, reconcile later).
 router.post('/api/orders/checkout', (req, res) => {
-  const { customer_id, items, payment_method, bank_name, total_amount, amount_paid_usd, amount_paid_khr, khqr_data } = req.body;
+  const { customer_id, items, payment_method, bank_name, total_amount, amount_paid_usd, amount_paid_khr, khqr_data, cashier_user_id } = req.body;
 
   const totalPaidInUsd = parseFloat(amount_paid_usd || 0) + parseFloat(amount_paid_khr || 0) / EXCHANGE_RATE;
   const changeInUsd = totalPaidInUsd - parseFloat(total_amount);
@@ -23,10 +23,11 @@ router.post('/api/orders/checkout', (req, res) => {
 
     const orderId = run(
       `INSERT INTO orders
-        (customer_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, created_at)
-       VALUES (?, ?, 'USD', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)`,
+        (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, created_at)
+       VALUES (?, ?, ?, 'USD', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)`,
       [
         customer_id || null,
+        cashier_user_id || null,
         total_amount,
         payment_method,
         bank_name || null,
@@ -67,6 +68,7 @@ router.post('/api/orders/checkout', (req, res) => {
         amountPaidUsd: amount_paid_usd,
         amountPaidKhr: amount_paid_khr,
         changeGivenKhr,
+        ...(cashier_user_id ? { cashierUserId: cashier_user_id } : {}),
         ...(khqr_data?.md5_hash
           ? {
               khqrMd5Hash: khqr_data.md5_hash,

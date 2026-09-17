@@ -29,6 +29,7 @@ async function applySaleCompleted(
       storeId: terminal.storeId,
       terminalId: terminal.id,
       clientOrderUuid: payload.clientOrderUuid,
+      cashierUserId: payload.cashierUserId ?? null,
       totalAmount: toDecimal(payload.totalAmount),
       currency: "USD",
       paymentMethod: payload.paymentMethod,
@@ -208,10 +209,18 @@ export interface ProductUpsert {
   isDeleted: boolean;
 }
 
+export interface StaffRosterUpsert {
+  userId: string;
+  name: string;
+  role: string;
+  pinHash: string;
+  isActive: boolean;
+}
+
 export async function pullCatalog(
   storeId: string,
   since?: string
-): Promise<{ cursor: string; productUpserts: ProductUpsert[] }> {
+): Promise<{ cursor: string; productUpserts: ProductUpsert[]; staffRoster: StaffRosterUpsert[] }> {
   const cursor = new Date().toISOString();
   const sinceDate = since ? new Date(since) : null;
 
@@ -235,5 +244,28 @@ export async function pullCatalog(
     isDeleted: row.product.isDeleted,
   }));
 
-  return { cursor, productUpserts };
+  // Same roster shape auth.service.ts's pinLogin() scans server-side — this is
+  // what lets a POS terminal verify a PIN locally, offline, against a synced
+  // cache instead of needing a live call for every unlock. isActive is NOT
+  // filtered to true here (unlike pinLogin's live check) — a deactivation has
+  // to show up as a delta row (isActive: false) so the terminal actually
+  // learns about it, the same way isDeleted products still come through above.
+  const roster = await prisma.userStoreRole.findMany({
+    where: {
+      storeId,
+      pinHash: { not: null },
+      ...(sinceDate ? { updatedAt: { gt: sinceDate } } : {}),
+    },
+    include: { user: { select: { name: true } } },
+  });
+
+  const staffRoster: StaffRosterUpsert[] = roster.map((row) => ({
+    userId: row.userId,
+    name: row.user.name,
+    role: row.role,
+    pinHash: row.pinHash!,
+    isActive: row.isActive,
+  }));
+
+  return { cursor, productUpserts, staffRoster };
 }

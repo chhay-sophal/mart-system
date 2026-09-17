@@ -10,6 +10,7 @@ export interface SaleCompletedPayload {
   amountPaidUsd: number;
   amountPaidKhr: number;
   changeGivenKhr: number;
+  cashierUserId?: string;
   khqrMd5Hash?: string;
   khqrQrString?: string;
   khqrBankName?: string;
@@ -60,5 +61,13 @@ export interface SyncPullResponse {
     defaultPrice: number;
     stock: number;
     isDeleted: boolean;
+  }>;
+  /** Cached locally so a POS terminal can verify a cashier PIN fully offline. */
+  staffRoster: Array<{
+    userId: string;
+    name: string;
+    role: string;
+    pinHash: string;
+    isActive: boolean;
   }>;
 }
