@@ -1,6 +1,6 @@
 # @mart-system/backend
 
-Central multi-store API (Express + Prisma + Postgres). Phase 1 scope: auth (JWT login, refresh rotation, cashier PIN login gated by a terminal device credential), store-scoped product CRUD + bulk import, per-store settings. See [docs/plan.md](../../docs/plan.md) for the full phased plan.
+Central API (Express + Prisma + Postgres) for a single organization's whole chain of store branches — auth (JWT login/refresh, cashier PIN login gated by a terminal device credential), staff/roles, terminal pairing, store-scoped product CRUD + bulk import + per-store price overrides, inter-store stock transfers, cross-store reporting/reconciliation, per-store settings, Bakong KHQR payment generation, and the outbox/pull sync endpoints each POS terminal talks to. See [docs/plan.md](../../docs/plan.md) for the phased plan this was originally built against (now fully implemented — kept as a historical record, not a live task list).
 
 ## Setup
 

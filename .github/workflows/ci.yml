@@ -39,13 +39,7 @@ jobs:
 
       - run: pnpm typecheck
 
-      # No lint step: apps/backend has no lint script at all, and both
-      # apps/pos and apps/ims have pre-existing, systemic lint debt (a
-      # stricter eslint-plugin-react-hooks ruleset flagging a very common
-      # `useEffect(() => { load() }, [load])` pattern used throughout both
-      # apps) that predates this workflow. Adding it now would make CI
-      # permanently red for reasons unrelated to any actual change — that
-      # cleanup is its own separate task, not part of "add a CI workflow."
+      - run: pnpm lint
 
       - name: Apply backend migrations to the test database
         working-directory: apps/backend
