@@ -29,4 +29,9 @@ COPY --from=build /repo .
 
 WORKDIR /repo/apps/backend
 EXPOSE 4000
+# `prisma migrate deploy` only works against a local file: connection --
+# libSQL's remote HTTP protocol doesn't support it. Against a real Turso
+# DATABASE_URL this step needs to become `turso db shell <db> < migration.sql`
+# instead, wired up when the actual deploy target (Render) is set up -- not
+# yet done, so this CMD is a known placeholder, not a working prod migration path.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import pinoHttp from "pino-http";
+import { env } from "./env";
 import { logger } from "./lib/logger";
 import { authRouter } from "./modules/auth/auth.routes";
 import { storesRouter } from "./modules/stores/stores.routes";
@@ -16,7 +17,11 @@ import { errorHandler } from "./middleware/errorHandler";
 export function buildApp(): Express {
   const app = express();
 
-  app.use(cors());
+  // Only IMS calls this API from a browser — POS's sidecar talks to it via a
+  // server-to-server fetch, never subject to CORS. Dev/test stay permissive
+  // (no friction from not having CORS_ALLOWED_ORIGINS set locally); env.ts
+  // already refuses to boot in production without an explicit allow-list.
+  app.use(cors(env.NODE_ENV === "production" ? { origin: env.corsAllowedOrigins } : {}));
   app.use(express.json());
   // /health is polled frequently (uptime checks, dev startup probes) — excluded so it doesn't drown out real request logs.
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === "/health" } }));

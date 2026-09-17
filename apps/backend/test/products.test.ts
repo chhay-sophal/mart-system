@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
+import { toMinorUnits } from "../src/lib/money";
 import {
   FIXTURE_PASSWORD,
   FIXTURE_PIN,
@@ -96,7 +97,7 @@ describe("product CRUD", () => {
     // via Prisma since Phase 1 has no HTTP "create store" endpoint (stores are pre-provisioned).
     const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
     const otherProduct = await prisma.product.create({
-      data: { name: "Other Store Item", defaultPrice: 1, currency: "USD" },
+      data: { name: "Other Store Item", defaultPriceMinor: toMinorUnits(1, "USD"), currency: "USD" },
     });
     await prisma.storeProduct.create({
       data: { storeId: otherStore.id, productId: otherProduct.id, stock: 5 },

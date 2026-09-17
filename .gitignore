@@ -13,3 +13,8 @@ build/
 src-tauri/target/
 *.sqlite
 *.sqlite-journal
+# apps/backend's local libSQL/Turso dev+test database files
+apps/backend/prisma/*.db
+apps/backend/prisma/*.db-journal
+apps/backend/prisma/*.db-wal
+apps/backend/prisma/*.db-shm

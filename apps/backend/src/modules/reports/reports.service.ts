@@ -1,6 +1,6 @@
 import { prisma } from "../../prisma";
 import { forbidden } from "../../lib/httpError";
-import { toApiNumber } from "../../lib/money";
+import { fromMinorUnits } from "../../lib/money";
 import { listStoresForUser } from "../stores/stores.service";
 
 type ReportUser = { id: string; isSuperAdmin: boolean };
@@ -61,14 +61,15 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
   });
 
   const orderCount = orders.length;
-  const totalRevenue = orders.reduce((sum, order) => sum + toApiNumber(order.totalAmount), 0);
+  // Order.totalAmountMinor is always USD (sync.service.ts hardcodes currency: "USD" on every Order).
+  const totalRevenue = orders.reduce((sum, order) => sum + fromMinorUnits(order.totalAmountMinor, "USD"), 0);
   const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
 
   const byMethodMap = new Map<string, { count: number; total: number }>();
   for (const order of orders) {
     const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0 };
     entry.count += 1;
-    entry.total += toApiNumber(order.totalAmount);
+    entry.total += fromMinorUnits(order.totalAmountMinor, "USD");
     byMethodMap.set(order.paymentMethod, entry);
   }
   const byMethod = [...byMethodMap.entries()]
@@ -84,13 +85,13 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
   const storeProducts = productIds.length
     ? await prisma.storeProduct.findMany({ where: { storeId, productId: { in: productIds } } })
     : [];
-  const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: toApiNumber(sp.costPrice), currency: sp.currency }]));
+  const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: fromMinorUnits(sp.costPriceMinor, sp.currency), currency: sp.currency }]));
 
   const productAgg = new Map<string, { name: string; qty: number; revenue: number }>();
   let grossProfit = 0;
 
   for (const item of items) {
-    const priceUsd = toUsd(toApiNumber(item.priceAtSale), item.currency);
+    const priceUsd = toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency);
     const lineRevenue = priceUsd * item.quantity;
 
     const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0 };

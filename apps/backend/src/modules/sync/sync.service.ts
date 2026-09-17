@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma";
-import { toApiNumber, toDecimal } from "../../lib/money";
+import { fromMinorUnits, toMinorUnits } from "../../lib/money";
 import {
   saleCompletedPayloadSchema,
   saleVoidedPayloadSchema,
@@ -35,12 +35,12 @@ async function applySaleCompleted(
       terminalId: terminal.id,
       clientOrderUuid: payload.clientOrderUuid,
       cashierUserId: payload.cashierUserId ?? null,
-      totalAmount: toDecimal(payload.totalAmount),
+      totalAmountMinor: toMinorUnits(payload.totalAmount, "USD"),
       currency: "USD",
       paymentMethod: payload.paymentMethod,
-      amountPaidUsd: toDecimal(payload.amountPaidUsd),
-      amountPaidKhr: toDecimal(payload.amountPaidKhr),
-      changeGivenKhr: toDecimal(payload.changeGivenKhr),
+      amountPaidUsdMinor: toMinorUnits(payload.amountPaidUsd, "USD"),
+      amountPaidKhrMinor: toMinorUnits(payload.amountPaidKhr, "KHR"),
+      changeGivenKhrMinor: toMinorUnits(payload.changeGivenKhr, "KHR"),
       status: "COMPLETED",
       createdAt: new Date(event.createdAt),
       syncedAt: new Date(),
@@ -48,7 +48,7 @@ async function applySaleCompleted(
         create: payload.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
-          priceAtSale: toDecimal(item.priceAtSale),
+          priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
           currency: item.currency,
         })),
       },
@@ -84,7 +84,7 @@ async function applySaleCompleted(
         qrString: payload.khqrQrString ?? "",
         bankName: payload.khqrBankName ?? null,
         currency: "USD",
-        amount: toDecimal(payload.totalAmount),
+        amountMinor: toMinorUnits(payload.totalAmount, "USD"),
         status: "PAID",
       },
     });
@@ -155,13 +155,17 @@ async function applyEvent(terminal: TerminalContext, event: EventEnvelope): Prom
 
       // Claim the eventId inside the same transaction as the business effect it
       // records, so a rolled-back claim (duplicate) also rolls back that effect.
+      // No native enum type or ::type cast on SQLite/libSQL — eventType binds as
+      // plain text, and the JSON payload (already JSON.stringify'd) as plain
+      // TEXT. now() is Postgres-only; bind an explicit JS Date instead.
+      const now = new Date();
       const claimed = await tx.$queryRaw<Array<{ id: string }>>`
         INSERT INTO "SyncEvent"
           ("id", "eventId", "terminalId", "storeId", "eventType", "sequenceNo", "payload", "status", "appliedAt", "resultOrderId", "createdAt")
         VALUES
           (${crypto.randomUUID()}, ${event.eventId}, ${terminal.id}, ${terminal.storeId},
-           ${event.eventType}::"SyncEventType", ${event.sequenceNo}, ${JSON.stringify(event.payload)}::jsonb,
-           'APPLIED', now(), ${resultOrderId}, now())
+           ${event.eventType}, ${event.sequenceNo}, ${JSON.stringify(event.payload)},
+           'APPLIED', ${now}, ${resultOrderId}, ${now})
         ON CONFLICT ("eventId") DO NOTHING
         RETURNING "id"
       `;
@@ -255,8 +259,8 @@ export async function pullCatalog(
     productId: row.productId,
     name: row.product.name,
     barcode: row.product.barcode,
-    priceOverride: row.priceOverride !== null ? toApiNumber(row.priceOverride) : null,
-    defaultPrice: toApiNumber(row.product.defaultPrice),
+    priceOverride: row.priceOverrideMinor !== null ? fromMinorUnits(row.priceOverrideMinor, row.currency) : null,
+    defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
     stock: row.stock,
     isDeleted: row.product.isDeleted,
   }));

@@ -1,8 +1,10 @@
-import { PrismaClient } from "@prisma/client";
 import { hashDeviceSecret, hashPassword, hashPin } from "../src/lib/hash";
-import { toDecimal } from "../src/lib/money";
-
-const prisma = new PrismaClient();
+import { toMinorUnits } from "../src/lib/money";
+// Reuse the app's own client (adapter + DATABASE_URL path resolution) rather
+// than constructing a bare `new PrismaClient()` here — that would silently
+// fall back to the classic native engine for a local file: URL (works by
+// coincidence) but has no way to talk to a real remote libsql://... URL at all.
+import { prisma } from "../src/prisma";
 
 const DEMO_PRODUCTS: Array<{
   name: string;
@@ -87,12 +89,12 @@ async function main() {
       create: {
         barcode: item.barcode,
         name: item.name,
-        defaultPrice: toDecimal(item.price),
+        defaultPriceMinor: toMinorUnits(item.price, item.currency),
         currency: item.currency,
       },
       update: {
         name: item.name,
-        defaultPrice: toDecimal(item.price),
+        defaultPriceMinor: toMinorUnits(item.price, item.currency),
         currency: item.currency,
       },
     });
@@ -103,13 +105,13 @@ async function main() {
         storeId: store.id,
         productId: product.id,
         stock: item.stock,
-        costPrice: toDecimal(item.costPrice),
+        costPriceMinor: toMinorUnits(item.costPrice, item.currency),
         currency: item.currency,
         lowStockThreshold: item.lowStockThreshold ?? 5,
       },
       update: {
         stock: item.stock,
-        costPrice: toDecimal(item.costPrice),
+        costPriceMinor: toMinorUnits(item.costPrice, item.currency),
         lowStockThreshold: item.lowStockThreshold ?? 5,
       },
     });

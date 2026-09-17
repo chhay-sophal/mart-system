@@ -3,6 +3,7 @@ import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
 import { FIXTURE_PASSWORD, addProduct, resetDatabase, seedFixtures } from "./helpers";
+import { toMinorUnits } from "../src/lib/money";
 
 const app = buildApp();
 
@@ -71,7 +72,7 @@ describe("GET /api/reports/daily-summary", () => {
     const { product } = await addProduct(store.id, { name: "Widget", price: 2, stock: 100 });
     await prisma.storeProduct.update({
       where: { storeId_productId: { storeId: store.id, productId: product.id } },
-      data: { costPrice: 1.2 },
+      data: { costPriceMinor: toMinorUnits(1.2, "USD") },
     });
 
     const createOrder = (paymentMethod: string, quantity: number, priceAtSale: number) =>
@@ -80,12 +81,12 @@ describe("GET /api/reports/daily-summary", () => {
           storeId: store.id,
           terminalId: terminal.id,
           clientOrderUuid: `test-${paymentMethod}-${quantity}-${Math.random()}`,
-          totalAmount: priceAtSale * quantity,
+          totalAmountMinor: toMinorUnits(priceAtSale * quantity, "USD"),
           currency: "USD",
           paymentMethod: paymentMethod as never,
-          amountPaidUsd: priceAtSale * quantity,
+          amountPaidUsdMinor: toMinorUnits(priceAtSale * quantity, "USD"),
           createdAt: new Date(),
-          items: { create: [{ productId: product.id, quantity, priceAtSale, currency: "USD" }] },
+          items: { create: [{ productId: product.id, quantity, priceAtSaleMinor: toMinorUnits(priceAtSale, "USD"), currency: "USD" }] },
         },
       });
 

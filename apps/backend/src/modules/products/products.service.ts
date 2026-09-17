@@ -1,7 +1,7 @@
 import type { Currency } from "@mart-system/shared-types";
 import { prisma } from "../../prisma";
 import { notFound } from "../../lib/httpError";
-import { toApiNumber, toDecimal } from "../../lib/money";
+import { fromMinorUnits, toMinorUnits } from "../../lib/money";
 import { logger } from "../../lib/logger";
 import type { BulkImportRow } from "./products.schema";
 import type { createProductSchema, updateProductSchema } from "./products.schema";
@@ -21,9 +21,9 @@ function toProductView(row: StoreProductWithProduct) {
     name: row.product.name,
     category: row.product.category,
     currency: row.product.currency,
-    defaultPrice: toApiNumber(row.product.defaultPrice),
-    priceOverride: row.priceOverride !== null ? toApiNumber(row.priceOverride) : null,
-    costPrice: toApiNumber(row.costPrice),
+    defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
+    priceOverride: row.priceOverrideMinor !== null ? fromMinorUnits(row.priceOverrideMinor, row.currency) : null,
+    costPrice: fromMinorUnits(row.costPriceMinor, row.currency),
     stock: row.stock,
     lowStockThreshold: row.lowStockThreshold,
     isDeleted: row.product.isDeleted,
@@ -71,7 +71,7 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
         name: input.name,
         barcode: input.barcode ?? null,
         category: input.category ?? null,
-        defaultPrice: toDecimal(input.price),
+        defaultPriceMinor: toMinorUnits(input.price, input.currency as Currency),
         currency: input.currency as Currency,
       },
     });
@@ -81,10 +81,10 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
         storeId,
         productId: product.id,
         stock: input.stock,
-        costPrice: toDecimal(input.costPrice),
+        costPriceMinor: toMinorUnits(input.costPrice, input.currency as Currency),
         currency: input.currency as Currency,
         lowStockThreshold: input.lowStockThreshold,
-        priceOverride: input.priceOverride !== undefined && input.priceOverride !== null ? toDecimal(input.priceOverride) : input.priceOverride,
+        priceOverrideMinor: input.priceOverride !== undefined && input.priceOverride !== null ? toMinorUnits(input.priceOverride, input.currency as Currency) : input.priceOverride,
       },
       include: STORE_PRODUCT_INCLUDE,
     });
@@ -94,7 +94,12 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
 }
 
 export async function updateProduct(storeId: string, productId: string, input: UpdateProductInput) {
-  await getStoreProductOrThrow(storeId, productId);
+  const existing = await getStoreProductOrThrow(storeId, productId);
+  // A partial update may change price/costPrice/priceOverride without also
+  // supplying currency in the same call — fall back to the product's current
+  // currency (Product.currency and StoreProduct.currency are always kept in
+  // sync by this same function, so either one is a valid fallback here).
+  const effectiveCurrency = (input.currency as Currency | undefined) ?? existing.currency;
 
   const row = await prisma.$transaction(async (tx) => {
     if (
@@ -110,7 +115,7 @@ export async function updateProduct(storeId: string, productId: string, input: U
           name: input.name,
           barcode: input.barcode,
           category: input.category,
-          defaultPrice: input.price !== undefined ? toDecimal(input.price) : undefined,
+          defaultPriceMinor: input.price !== undefined ? toMinorUnits(input.price, effectiveCurrency) : undefined,
           currency: input.currency as Currency | undefined,
         },
       });
@@ -127,10 +132,10 @@ export async function updateProduct(storeId: string, productId: string, input: U
         where: { storeId_productId: { storeId, productId } },
         data: {
           stock: input.stock,
-          costPrice: input.costPrice !== undefined ? toDecimal(input.costPrice) : undefined,
+          costPriceMinor: input.costPrice !== undefined ? toMinorUnits(input.costPrice, effectiveCurrency) : undefined,
           lowStockThreshold: input.lowStockThreshold,
           currency: input.currency as Currency | undefined,
-          priceOverride: input.priceOverride !== undefined && input.priceOverride !== null ? toDecimal(input.priceOverride) : input.priceOverride,
+          priceOverrideMinor: input.priceOverride !== undefined && input.priceOverride !== null ? toMinorUnits(input.priceOverride, effectiveCurrency) : input.priceOverride,
         },
       });
     }
@@ -233,22 +238,22 @@ export async function bulkImportProducts(
         if (existing && updateExisting) {
           await tx.product.update({
             where: { id: existing.id },
-            data: { name, defaultPrice: toDecimal(price), currency },
+            data: { name, defaultPriceMinor: toMinorUnits(price, currency), currency },
           });
           await tx.storeProduct.upsert({
             where: { storeId_productId: { storeId, productId: existing.id } },
-            create: { storeId, productId: existing.id, stock, costPrice: toDecimal(costPrice), currency },
-            update: { stock, costPrice: toDecimal(costPrice), currency },
+            create: { storeId, productId: existing.id, stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
+            update: { stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
           });
           result.updated += 1;
           continue;
         }
 
         const product = await tx.product.create({
-          data: { name, barcode, defaultPrice: toDecimal(price), currency },
+          data: { name, barcode, defaultPriceMinor: toMinorUnits(price, currency), currency },
         });
         await tx.storeProduct.create({
-          data: { storeId, productId: product.id, stock, costPrice: toDecimal(costPrice), currency },
+          data: { storeId, productId: product.id, stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
         });
         result.imported += 1;
       } catch (err) {

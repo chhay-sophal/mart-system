@@ -1,5 +1,6 @@
 import { prisma } from "../src/prisma";
 import { hashDeviceSecret, hashPassword, hashPin } from "../src/lib/hash";
+import { toMinorUnits } from "../src/lib/money";
 
 const TABLES = [
   "RefreshToken",
@@ -21,7 +22,11 @@ const TABLES = [
 ];
 
 export async function resetDatabase() {
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${TABLES.map((t) => `"${t}"`).join(", ")} RESTART IDENTITY CASCADE;`);
+  // No TRUNCATE/RESTART IDENTITY on SQLite/libSQL — sequential deletes in the
+  // same children-first order that made the CASCADE call FK-safe on Postgres.
+  for (const table of TABLES) {
+    await prisma.$executeRawUnsafe(`DELETE FROM "${table}";`);
+  }
 }
 
 export const FIXTURE_PASSWORD = "TestPassw0rd!";
@@ -64,7 +69,7 @@ export async function seedFixtures() {
 
 export async function addProduct(storeId: string, opts: { name: string; price: number; stock: number }) {
   const product = await prisma.product.create({
-    data: { name: opts.name, defaultPrice: opts.price, currency: "USD" },
+    data: { name: opts.name, defaultPriceMinor: toMinorUnits(opts.price, "USD"), currency: "USD" },
   });
   const storeProduct = await prisma.storeProduct.create({
     data: { storeId, productId: product.id, stock: opts.stock, currency: "USD" },

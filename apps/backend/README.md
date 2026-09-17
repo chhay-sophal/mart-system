@@ -1,34 +1,28 @@
 # @mart-system/backend
 
-Central API (Express + Prisma + Postgres) for a single organization's whole chain of store branches — auth (JWT login/refresh, cashier PIN login gated by a terminal device credential), staff/roles, terminal pairing, store-scoped product CRUD + bulk import + per-store price overrides, inter-store stock transfers, cross-store reporting/reconciliation, per-store settings, Bakong KHQR payment generation, and the outbox/pull sync endpoints each POS terminal talks to. See [docs/plan.md](../../docs/plan.md) for the phased plan this was originally built against (now fully implemented — kept as a historical record, not a live task list).
+Central API (Express + Prisma + Turso/libSQL) for a single organization's whole chain of store branches — auth (JWT login/refresh, cashier PIN login gated by a terminal device credential), staff/roles, terminal pairing, store-scoped product CRUD + bulk import + per-store price overrides, inter-store stock transfers, cross-store reporting/reconciliation, per-store settings, Bakong KHQR payment generation, and the outbox/pull sync endpoints each POS terminal talks to. See [docs/plan.md](../../docs/plan.md) for the phased plan this was originally built against (now fully implemented — kept as a historical record, not a live task list).
+
+Runs on [Turso](https://turso.tech) (a hosted libSQL/SQLite-family database) rather than Postgres — chosen for its usage-based free tier, which fits this system's frequent small polling (the POS sync loop) far better than a compute-hours-awake billing model would. Money fields are stored as integers in each currency's smallest unit (cents for USD, whole Riel for KHR) rather than `Decimal`, since SQLite has no native fixed-point decimal type — see `src/lib/money.ts`.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` (already done for local dev — see committed `.env` if this is a fresh clone of someone else's machine, otherwise generate your own `JWT_SECRET`).
-2. Start Postgres + Adminer:
-   ```sh
-   docker compose up -d
-   ```
-3. Create the test database (one-time, same container):
-   ```sh
-   docker compose exec postgres createdb -U mart mart_system_test
-   ```
-4. Run migrations and seed data:
+1. Copy `.env.example` to `.env` (generate your own `JWT_SECRET`).
+2. Run migrations and seed data — no service to start first, this creates a local `prisma/dev.db` file directly:
    ```sh
    pnpm db:migrate
    pnpm db:seed
    ```
    The seed script prints a dev-only terminal device secret and the seeded admin's email/password/PIN once — save it, it isn't recoverable afterward.
-5. Start the API:
+3. Start the API:
    ```sh
    pnpm dev
    ```
 
-Adminer (DB GUI) is at http://localhost:8080 (system: PostgreSQL, server: `postgres`, user/password: `mart`/`mart`).
+For a real deployment, point `DATABASE_URL` at a real Turso database (`libsql://<db>.turso.io`) and set `TURSO_AUTH_TOKEN` — see `src/env.ts`. Applying migrations to a real Turso database doesn't go through `prisma migrate deploy` (libSQL's remote protocol doesn't support it) — generate the migration locally, then apply it via `turso db shell <db-name> < prisma/migrations/<name>/migration.sql`.
 
 ## Testing
 
-Tests run against the real `mart_system_test` database (`.env.test`), not mocked Prisma:
+Tests run against a local sqlite file (`.env.test` → `DATABASE_URL=file:./test.db`) through the same Prisma+libSQL adapter used in production, not mocked Prisma:
 
 ```sh
 pnpm test

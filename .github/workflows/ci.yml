@@ -9,20 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: mart
-          POSTGRES_PASSWORD: mart
-          POSTGRES_DB: mart_system_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U mart"
-          --health-interval 5s
-          --health-retries 10
-
     steps:
       - uses: actions/checkout@v4
 
@@ -45,8 +31,8 @@ jobs:
         working-directory: apps/backend
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: postgresql://mart:mart@localhost:5432/mart_system_test
+          DATABASE_URL: file:./test.db
 
       - run: pnpm test
         env:
-          DATABASE_URL: postgresql://mart:mart@localhost:5432/mart_system_test
+          DATABASE_URL: file:./test.db
