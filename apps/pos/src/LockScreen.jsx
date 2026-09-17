@@ -12,7 +12,7 @@ export default function LockScreen({ currentLocale, onUnlock }) {
   const client = useBackend();
   const s = t[currentLocale]?.lockScreen || t['km'].lockScreen;
   const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function submit() {
@@ -22,7 +22,9 @@ export default function LockScreen({ currentLocale, onUnlock }) {
       const data = await client.post('/api/auth/pin-unlock', { pin });
       onUnlock({ userId: data.userId, name: data.name, role: data.role });
     } catch (err) {
-      setError(true);
+      // 429 (rate-limited) carries its own retry-after message from the
+      // server; anything else (401, network) falls back to a generic wrong-PIN.
+      setErrorMessage(err instanceof ApiError && err.status === 429 ? err.body?.error : s.wrongPin);
       setPin('');
       if (!(err instanceof ApiError)) console.error('PIN unlock failed:', err);
     }
@@ -34,10 +36,10 @@ export default function LockScreen({ currentLocale, onUnlock }) {
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key >= '0' && e.key <= '9') {
-        setError(false);
+        setErrorMessage(null);
         setPin((prev) => (prev.length >= MAX_PIN_LENGTH ? prev : prev + e.key));
       } else if (e.key === 'Backspace') {
-        setError(false);
+        setErrorMessage(null);
         setPin((prev) => prev.slice(0, -1));
       } else if (e.key === 'Enter') {
         submit();
@@ -69,7 +71,7 @@ export default function LockScreen({ currentLocale, onUnlock }) {
         ))}
       </div>
 
-      <p className={`text-xs font-bold text-rose-500 h-4 ${error ? '' : 'invisible'}`}>{s.wrongPin}</p>
+      <p className={`text-xs font-bold text-rose-500 h-4 text-center px-4 ${errorMessage ? '' : 'invisible'}`}>{errorMessage}</p>
 
       <div className="grid grid-cols-3 gap-3 w-64">
         {KEYPAD.map((key, i) => {
@@ -78,7 +80,7 @@ export default function LockScreen({ currentLocale, onUnlock }) {
             return (
               <button
                 key={i}
-                onClick={() => { setError(false); setPin((prev) => prev.slice(0, -1)); }}
+                onClick={() => { setErrorMessage(null); setPin((prev) => prev.slice(0, -1)); }}
                 className="h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-bold text-sm flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 ⌫
@@ -88,7 +90,7 @@ export default function LockScreen({ currentLocale, onUnlock }) {
           return (
             <button
               key={i}
-              onClick={() => { setError(false); setPin((prev) => (prev.length >= MAX_PIN_LENGTH ? prev : prev + key)); }}
+              onClick={() => { setErrorMessage(null); setPin((prev) => (prev.length >= MAX_PIN_LENGTH ? prev : prev + key)); }}
               className="h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
             >
               {key}
