@@ -1,7 +1,11 @@
 const express = require('express');
-const { query, run, saveDb, localNow } = require('../db');
+const { query } = require('../db');
 
 const router = express.Router();
+
+// Read-only: the catalog itself is owned by IMS/backend and arrives here via
+// sync.js's pullCatalog(). This terminal never creates/edits/deletes products
+// or bulk-imports locally — see products.routes.js history if that's ever needed again.
 
 router.get('/api/products/barcode/:barcode', (req, res) => {
   const barcodeParam = req.params.barcode.toLowerCase();
@@ -16,10 +20,6 @@ router.get('/api/products/barcode/:barcode', (req, res) => {
   res.json(rows[0]);
 });
 
-router.get('/api/products', (req, res) => {
-  res.json(query('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name ASC'));
-});
-
 router.get('/api/products/low-stock', (req, res) => {
   const threshold = parseInt(req.query.threshold) || 5;
   const items = query(
@@ -27,90 +27,6 @@ router.get('/api/products/low-stock', (req, res) => {
     [threshold]
   );
   res.json({ count: items.length, items });
-});
-
-router.delete('/api/products/:id', (req, res) => {
-  run('UPDATE products SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?', [localNow(), localNow(), req.params.id]);
-  saveDb();
-  res.json({ message: 'Product removed' });
-});
-
-router.post('/api/products', (req, res) => {
-  const { name, barcode, price, cost_price, currency, stock } = req.body;
-  try {
-    const id = run(
-      'INSERT INTO products (name, barcode, price, cost_price, currency, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, barcode, parseFloat(price), parseFloat(cost_price || 0), currency || 'USD', parseInt(stock) || 0, localNow(), localNow()]
-    );
-    saveDb();
-    res.status(201).json(query('SELECT * FROM products WHERE id = ?', [id])[0]);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-router.post('/api/products/bulk', (req, res) => {
-  const { products: rows, updateExisting } = req.body;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return res.status(400).json({ error: 'No products provided' });
-  }
-
-  let imported = 0,
-    updated = 0,
-    skipped = 0,
-    errorCount = 0;
-
-  for (const row of rows) {
-    const name = String(row.name ?? '').trim();
-    const price = parseFloat(row.price);
-    const barcode = String(row.barcode ?? '').trim() || null;
-    const cost_price = parseFloat(row.cost_price) || 0;
-    const currency = ['USD', 'KHR'].includes(String(row.currency ?? '').toUpperCase())
-      ? String(row.currency).toUpperCase()
-      : 'USD';
-    const stock = parseInt(row.stock) || 0;
-
-    if (!name || isNaN(price) || price < 0) {
-      skipped++;
-      continue;
-    }
-
-    try {
-      if (barcode && updateExisting) {
-        const existing = query('SELECT id FROM products WHERE barcode = ? AND is_deleted = 0', [barcode]);
-        if (existing.length) {
-          run(
-            'UPDATE products SET name = ?, price = ?, cost_price = ?, currency = ?, stock = ?, updated_at = ? WHERE id = ?',
-            [name, price, cost_price, currency, stock, localNow(), existing[0].id]
-          );
-          updated++;
-          continue;
-        }
-      }
-      run(
-        'INSERT INTO products (name, barcode, price, cost_price, currency, stock, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, barcode, price, cost_price, currency, stock, localNow(), localNow()]
-      );
-      imported++;
-    } catch {
-      errorCount++;
-    }
-  }
-
-  saveDb();
-  res.json({ imported, updated, skipped, errors: errorCount });
-});
-
-router.put('/api/products/:id', (req, res) => {
-  const { name, barcode, price, cost_price, currency, stock } = req.body;
-  run(
-    'UPDATE products SET name = ?, barcode = ?, price = ?, cost_price = ?, currency = ?, stock = ?, updated_at = ? WHERE id = ?',
-    [name, barcode, parseFloat(price), parseFloat(cost_price || 0), currency || 'USD', parseInt(stock), localNow(), req.params.id]
-  );
-  saveDb();
-  const updated = query('SELECT * FROM products WHERE id = ?', [req.params.id])[0];
-  if (!updated) return res.status(404).json({ error: 'Product not found' });
-  res.json(updated);
 });
 
 module.exports = router;

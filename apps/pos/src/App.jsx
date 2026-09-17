@@ -3,9 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Package, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
-import StockManager from './StockManager';
 import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
@@ -537,19 +536,6 @@ export default function App() {
     );
   }
 
-  if (view === 'STOCK') {
-    return (
-      <BackendContext.Provider value={client}>
-        <StockManager
-          onBackToRegister={() => { setView('REGISTER'); setLowStockDismissed(false); }}
-          currentLocale={locale}
-          mainCurrency={mainCurrency}
-          dynamicRate={dynamicRate}
-        />
-      </BackendContext.Provider>
-    );
-  }
-
   if (view === 'HISTORY') {
     return (
       <BackendContext.Provider value={client}>
@@ -605,17 +591,6 @@ export default function App() {
             <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 tracking-wider uppercase">{t[locale].register}</p>
           </div>
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-600 ml-2"></div>
-          <button
-            onClick={() => setView('STOCK')}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
-          >
-            <Package size={14} /> {t[locale].manageInventory}
-            {lowStockItems.length > 0 && (
-              <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {lowStockItems.length}
-              </span>
-            )}
-          </button>
           <button
             onClick={() => setView('HISTORY')}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
@@ -714,12 +689,6 @@ export default function App() {
                   {lowStockItems.map(i => `${i.name} (${i.stock} ${t[locale].lowStockItemsRemaining})`).join(' · ')}
                 </p>
               </div>
-              <button
-                onClick={() => setView('STOCK')}
-                className="text-[11px] font-bold text-amber-700 dark:text-amber-300 underline underline-offset-2 shrink-0 cursor-pointer"
-              >
-                {t[locale].lowStockViewStock}
-              </button>
               <button
                 onClick={() => setLowStockDismissed(true)}
                 className="text-amber-400 hover:text-amber-600 shrink-0 cursor-pointer"
