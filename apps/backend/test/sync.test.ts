@@ -164,6 +164,34 @@ describe("POST /api/sync/push", () => {
     const order = await prisma.order.findUnique({ where: { id: res.body.results[0].orderId } });
     expect(order?.cashierUserId).toBe(cashier.id);
   });
+
+  it("reports one malformed event as its own per-event error without blocking valid events in the same batch", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+
+    // A checkout with an empty cart is the real-world way this happens — the
+    // envelope itself is well-formed, but items.min(1) rejects the payload.
+    const malformed = saleEvent({ sequenceNo: 1, payload: { ...saleEvent().payload, items: [] } });
+    const valid = saleEvent({
+      sequenceNo: 2,
+      payload: { ...saleEvent().payload, items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }] },
+    });
+
+    const res = await request(app)
+      .post("/api/sync/push")
+      .set(terminalHeaders(terminal.id))
+      .send({ events: [malformed, valid] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results[0]).toMatchObject({ eventId: malformed.eventId, status: "error" });
+    expect(res.body.results[0].error).toMatch(/items/i);
+    expect(res.body.results[1]).toMatchObject({ eventId: valid.eventId, status: "applied" });
+
+    const storeProduct = await prisma.storeProduct.findUnique({
+      where: { storeId_productId: { storeId: store.id, productId: product.id } },
+    });
+    expect(storeProduct?.stock).toBe(9); // only the valid event's sale actually decremented stock
+  });
 });
 
 describe("GET /api/sync/pull", () => {

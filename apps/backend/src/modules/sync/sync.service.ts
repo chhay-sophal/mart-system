@@ -2,7 +2,13 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma";
 import { toApiNumber, toDecimal } from "../../lib/money";
-import type { OutboxEventInput } from "./sync.schema";
+import {
+  saleCompletedPayloadSchema,
+  saleVoidedPayloadSchema,
+  type EventEnvelope,
+  type SaleCompletedPayload,
+  type SaleVoidedPayload,
+} from "./sync.schema";
 
 interface TerminalContext {
   id: string;
@@ -20,10 +26,9 @@ class DuplicateEventError extends Error {}
 async function applySaleCompleted(
   tx: Prisma.TransactionClient,
   terminal: TerminalContext,
-  event: Extract<OutboxEventInput, { eventType: "SALE_COMPLETED" }>
+  event: EventEnvelope,
+  payload: SaleCompletedPayload
 ): Promise<string> {
-  const { payload } = event;
-
   const order = await tx.order.create({
     data: {
       storeId: terminal.storeId,
@@ -91,10 +96,11 @@ async function applySaleCompleted(
 async function applySaleVoided(
   tx: Prisma.TransactionClient,
   terminal: TerminalContext,
-  event: Extract<OutboxEventInput, { eventType: "SALE_VOIDED" }>
+  event: EventEnvelope,
+  payload: SaleVoidedPayload
 ): Promise<string> {
   const order = await tx.order.findUnique({
-    where: { clientOrderUuid: event.payload.clientOrderUuid },
+    where: { clientOrderUuid: payload.clientOrderUuid },
     include: { items: true },
   });
 
@@ -128,13 +134,24 @@ async function applySaleVoided(
   return order.id;
 }
 
-async function applyEvent(terminal: TerminalContext, event: OutboxEventInput): Promise<PushEventResult> {
+async function applyEvent(terminal: TerminalContext, event: EventEnvelope): Promise<PushEventResult> {
+  // Validated per-event, not as part of the whole-batch schema (see
+  // sync.schema.ts) — an invalid payload here reports back as this one
+  // event's own "error" result and never opens a transaction, instead of
+  // rejecting the entire push and blocking every other event behind it.
+  const payloadSchema = event.eventType === "SALE_COMPLETED" ? saleCompletedPayloadSchema : saleVoidedPayloadSchema;
+  const parsedPayload = payloadSchema.safeParse(event.payload);
+  if (!parsedPayload.success) {
+    const reason = parsedPayload.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    return { eventId: event.eventId, status: "error", error: `Invalid ${event.eventType} payload — ${reason}` };
+  }
+
   try {
     const orderId = await prisma.$transaction(async (tx) => {
       const resultOrderId =
         event.eventType === "SALE_COMPLETED"
-          ? await applySaleCompleted(tx, terminal, event)
-          : await applySaleVoided(tx, terminal, event);
+          ? await applySaleCompleted(tx, terminal, event, parsedPayload.data as SaleCompletedPayload)
+          : await applySaleVoided(tx, terminal, event, parsedPayload.data as SaleVoidedPayload);
 
       // Claim the eventId inside the same transaction as the business effect it
       // records, so a rolled-back claim (duplicate) also rolls back that effect.
@@ -177,7 +194,7 @@ async function applyEvent(terminal: TerminalContext, event: OutboxEventInput): P
       err.code === "P2002"
     ) {
       const existingOrder = await prisma.order.findUnique({
-        where: { clientOrderUuid: event.payload.clientOrderUuid },
+        where: { clientOrderUuid: (parsedPayload.data as SaleCompletedPayload).clientOrderUuid },
       });
       if (existingOrder) {
         return { eventId: event.eventId, status: "duplicate", orderId: existingOrder.id };
@@ -188,7 +205,7 @@ async function applyEvent(terminal: TerminalContext, event: OutboxEventInput): P
   }
 }
 
-export async function pushEvents(terminal: TerminalContext, events: OutboxEventInput[]): Promise<PushEventResult[]> {
+export async function pushEvents(terminal: TerminalContext, events: EventEnvelope[]): Promise<PushEventResult[]> {
   const results: PushEventResult[] = [];
   // Sequential, not Promise.all: events must apply in the order the terminal
   // sent them (its own local sequence_no order) so e.g. a SALE followed by its

@@ -13,6 +13,14 @@ const EXCHANGE_RATE = 4100;
 router.post('/api/orders/checkout', (req, res) => {
   const { customer_id, items, payment_method, bank_name, total_amount, amount_paid_usd, amount_paid_khr, khqr_data, cashier_user_id } = req.body;
 
+  // The UI's own checkout button is already disabled for an empty cart, but
+  // guard here too: an empty-items sale would still create an order locally,
+  // then fail backend payload validation (items.min(1)) forever on every
+  // sync retry with nothing to fix it — reject it before it's ever recorded.
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Cannot check out an empty cart' });
+  }
+
   const totalPaidInUsd = parseFloat(amount_paid_usd || 0) + parseFloat(amount_paid_khr || 0) / EXCHANGE_RATE;
   const changeInUsd = totalPaidInUsd - parseFloat(total_amount);
   const changeGivenKhr = changeInUsd > 0 ? Math.round(changeInUsd * EXCHANGE_RATE) : 0;

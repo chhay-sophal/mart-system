@@ -2,6 +2,13 @@ const db = require('./db');
 
 const SYNC_INTERVAL_MS = 20_000;
 const PUSH_BATCH_SIZE = 50;
+// A backend-rejected event (bad payload, a business-rule error) will fail the
+// exact same way every retry — retrying forever just wastes a batch slot on
+// every future tick. After this many explicit rejections, stop retrying it
+// and mark it DEAD so it's excluded from the push query below; this is
+// distinct from a network-level failure, which never increments retry_count
+// at all (see the catch blocks below) since that's not the event's fault.
+const MAX_RETRIES_BEFORE_DEAD = 5;
 
 function authHeaders(config) {
   return { 'X-Terminal-Id': config.terminalId, 'X-Terminal-Secret': config.deviceSecret };
@@ -50,10 +57,15 @@ async function pushPending(config) {
     if (result.status === 'applied' || result.status === 'duplicate') {
       db.run("UPDATE outbox_events SET status = 'ACKED' WHERE id = ?", [row.id]);
     } else {
+      const nextRetryCount = row.retry_count + 1;
+      const nextStatus = nextRetryCount >= MAX_RETRIES_BEFORE_DEAD ? 'DEAD' : 'FAILED';
       db.run(
-        "UPDATE outbox_events SET status = 'FAILED', retry_count = retry_count + 1, last_error = ? WHERE id = ?",
-        [result.error || 'Unknown error', row.id]
+        'UPDATE outbox_events SET status = ?, retry_count = ?, last_error = ? WHERE id = ?',
+        [nextStatus, nextRetryCount, result.error || 'Unknown error', row.id]
       );
+      if (nextStatus === 'DEAD') {
+        console.error(`[sync] event ${row.event_id} rejected ${nextRetryCount} times, giving up:`, result.error);
+      }
     }
   }
   db.saveDb();

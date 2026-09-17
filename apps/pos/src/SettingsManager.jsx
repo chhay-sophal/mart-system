@@ -600,6 +600,14 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                           )}
                         </div>
                       )}
+                      {isPaired && syncStatus?.deadCount > 0 && (
+                        <div className="flex flex-col gap-1 text-xs font-semibold rounded-xl px-3 py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400">
+                          <div className="flex items-center gap-2">
+                            <AlertOctagon size={14} />
+                            {syncStatus.deadCount} sale(s) could not sync — needs a manual check, not just a wait
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

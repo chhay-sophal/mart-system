@@ -7,7 +7,7 @@ const orderItemSchema = z.object({
   currency: z.enum(["USD", "KHR"]),
 });
 
-const saleCompletedPayloadSchema = z.object({
+export const saleCompletedPayloadSchema = z.object({
   clientOrderUuid: z.string().min(1),
   items: z.array(orderItemSchema).min(1),
   paymentMethod: z.enum(["CASH", "KHQR", "CARD"]),
@@ -21,35 +21,36 @@ const saleCompletedPayloadSchema = z.object({
   khqrBankName: z.string().optional(),
 });
 
-const saleVoidedPayloadSchema = z.object({
+export const saleVoidedPayloadSchema = z.object({
   clientOrderUuid: z.string().min(1),
 });
 
-const outboxEventSchema = z.discriminatedUnion("eventType", [
-  z.object({
-    eventId: z.string().min(1),
-    terminalId: z.string().min(1),
-    sequenceNo: z.number().int(),
-    eventType: z.literal("SALE_COMPLETED"),
-    payload: saleCompletedPayloadSchema,
-    createdAt: z.string(),
-  }),
-  z.object({
-    eventId: z.string().min(1),
-    terminalId: z.string().min(1),
-    sequenceNo: z.number().int(),
-    eventType: z.literal("SALE_VOIDED"),
-    payload: saleVoidedPayloadSchema,
-    createdAt: z.string(),
-  }),
-]);
+// Only the envelope is validated strictly here — `payload` is deliberately
+// z.unknown() and gets checked per-event, inside sync.service.ts's
+// applyEvent(). A push batches up to 100 events from a terminal's outbox in
+// one request; validating the whole array atomically meant a single
+// malformed payload (e.g. an empty-items sale) 400'd the entire batch,
+// permanently blocking every OTHER, perfectly valid event queued behind it
+// (the sidecar just retries the identical batch forever). Each event's
+// payload now stands on its own — one bad apple reports back as a single
+// per-event "error" result instead of taking the whole push down.
+const eventEnvelopeSchema = z.object({
+  eventId: z.string().min(1),
+  terminalId: z.string().min(1),
+  sequenceNo: z.number().int(),
+  eventType: z.enum(["SALE_COMPLETED", "SALE_VOIDED"]),
+  payload: z.unknown(),
+  createdAt: z.string(),
+});
 
 export const syncPushSchema = z.object({
-  events: z.array(outboxEventSchema).min(1).max(100),
+  events: z.array(eventEnvelopeSchema).min(1).max(100),
 });
 
 export const syncPullQuerySchema = z.object({
   since: z.string().optional(),
 });
 
-export type OutboxEventInput = z.infer<typeof outboxEventSchema>;
+export type EventEnvelope = z.infer<typeof eventEnvelopeSchema>;
+export type SaleCompletedPayload = z.infer<typeof saleCompletedPayloadSchema>;
+export type SaleVoidedPayload = z.infer<typeof saleVoidedPayloadSchema>;
