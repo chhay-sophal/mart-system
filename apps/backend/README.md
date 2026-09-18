@@ -18,7 +18,13 @@ Runs on [Turso](https://turso.tech) (a hosted libSQL/SQLite-family database) rat
    pnpm dev
    ```
 
-For a real deployment, point `DATABASE_URL` at a real Turso database (`libsql://<db>.turso.io`) and set `TURSO_AUTH_TOKEN` — see `src/env.ts`. Applying migrations to a real Turso database doesn't go through `prisma migrate deploy` (libSQL's remote protocol doesn't support it) — generate the migration locally, then apply it via `turso db shell <db-name> < prisma/migrations/<name>/migration.sql`.
+For a real deployment, point `DATABASE_URL` at a real Turso database (`libsql://<db>.turso.io`) and set `TURSO_AUTH_TOKEN` — see `src/env.ts`. `prisma migrate dev`/`deploy` can't be used against it at all (they refuse to even validate a non-`file:` URL) — generate the migration locally as usual (`pnpm db:migrate`, against a local file), then apply it to the real database with:
+
+```sh
+pnpm db:migrate:turso
+```
+
+This runs `scripts/apply-turso-migrations.mjs`, which applies any `prisma/migrations/*/migration.sql` not yet recorded in its own `_manual_migrations` tracking table directly via `@libsql/client` — safe to re-run, it skips whatever's already applied.
 
 ## Testing
 
