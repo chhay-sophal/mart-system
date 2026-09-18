@@ -27,7 +27,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4RTFDNjcxRDY4MTgzMUUKUldRZWc0SFdjY2JoZUtJaU1hR2l6NW5FWW5yWm1BdEc2cVBjekMzYTZ4QndKUndabDY3dEpJWi8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBM0I3NTM2Njg4QjA5QzAKUldUQUNZdG9OblU3NnJJV0tHdkNiOTBDc3FkZmxySFhUYVh5QmtNa2Z1OFFERTBSZHFFbDl4ZisK",
       "endpoints": [
         "https://github.com/chhay-sophal/mart-system/releases/latest/download/latest.json"
       ],
