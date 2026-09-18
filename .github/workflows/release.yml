@@ -32,66 +32,25 @@ jobs:
             });
             return data.id;
 
-  build-sidecar:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.22.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # Cross-builds all 3 target binaries from one host in one go, shared via
-      # artifact with the per-platform matrix below instead of rebuilding
-      # there (which would redo this 3x for no reason).
-      #
-      # @yao-pkg/pkg's fresh (uncached) base-binary fetch is genuinely flaky
-      # in a cold environment like a CI runner -- reproduced both a clean
-      # success and a silent per-target failure locally under identical
-      # cold-cache conditions, back to back. A bad fetch caches a corrupted
-      # base binary at ~/.pkg-cache, so every retry must also clear that
-      # cache -- otherwise retries just keep replaying the same corrupt
-      # cached copy instead of actually re-fetching (confirmed: attempts 2
-      # and 3 of a real failed run skipped "Fetching base Node.js binaries"
-      # entirely and failed identically to attempt 1).
-      - name: Build backend sidecar binaries
-        run: |
-          for i in 1 2 3; do
-            rm -rf apps/pos/sidecar/dist apps/pos/src-tauri/binaries ~/.pkg-cache
-            if pnpm --filter @mart-system/pos-sidecar build; then
-              exit 0
-            fi
-            echo "Sidecar build attempt $i failed, retrying..."
-            sleep 5
-          done
-          echo "Sidecar build failed after 3 attempts"
-          exit 1
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pos-sidecar-binaries
-          path: apps/pos/src-tauri/binaries/
-
   build:
-    needs: [create-release, build-sidecar]
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
+            pkg-target: node20-macos-arm64
+            sidecar-name: backend-server-aarch64-apple-darwin
             rust-target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles dmg,app
           - platform: windows-latest
+            pkg-target: node20-win-x64
+            sidecar-name: backend-server-x86_64-pc-windows-msvc.exe
             rust-target: ''
             args: --bundles nsis
           - platform: ubuntu-latest
+            pkg-target: node20-linux-x64
+            sidecar-name: backend-server-x86_64-unknown-linux-gnu
             rust-target: ''
             args: --bundles appimage,deb
 
@@ -113,7 +72,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install Rust
@@ -129,15 +88,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: pos-sidecar-binaries
-          path: apps/pos/src-tauri/binaries/
-
-      # actions/upload-artifact's zip transport can drop the executable bit.
-      - name: Restore executable bit on the downloaded sidecar binaries
-        if: matrix.platform != 'windows-latest'
-        run: chmod +x apps/pos/src-tauri/binaries/*
+      # Mirrors the online-pos project's proven recipe: one target per matrix
+      # job (not 3 combined in one pkg invocation -- that auto-templated
+      # output naming was unreliable), CI=false (pkg/pkg-fetch behaves
+      # differently, and more reliably, when it doesn't detect a CI
+      # environment), and a plain glob-and-copy right after pkg exits instead
+      # of a separate script checking for the file afterward.
+      - name: Build backend sidecar binary
+        shell: bash
+        env:
+          CI: false
+        working-directory: apps/pos/sidecar
+        run: |
+          npx @yao-pkg/pkg server.js \
+            --targets ${{ matrix.pkg-target }} \
+            --output dist/sidecar \
+            --no-bytecode --public-packages '*' --public
+          SRC=$(ls dist/sidecar* 2>/dev/null | head -1)
+          mkdir -p ../src-tauri/binaries
+          cp "$SRC" ../src-tauri/binaries/${{ matrix.sidecar-name }}
+          chmod +x ../src-tauri/binaries/${{ matrix.sidecar-name }} || true
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
