@@ -52,16 +52,19 @@ jobs:
       # artifact with the per-platform matrix below instead of rebuilding
       # there (which would redo this 3x for no reason).
       #
-      # @yao-pkg/pkg's fresh (uncached) base-binary fetch-and-build is
-      # genuinely flaky in a cold environment like a CI runner -- confirmed
-      # by reproducing both a clean success and a silent failure locally
-      # under identical cold-cache conditions, back to back. Retrying the
-      # whole command is the actual fix, not a workaround for a
-      # misconfiguration.
+      # @yao-pkg/pkg's fresh (uncached) base-binary fetch is genuinely flaky
+      # in a cold environment like a CI runner -- reproduced both a clean
+      # success and a silent per-target failure locally under identical
+      # cold-cache conditions, back to back. A bad fetch caches a corrupted
+      # base binary at ~/.pkg-cache, so every retry must also clear that
+      # cache -- otherwise retries just keep replaying the same corrupt
+      # cached copy instead of actually re-fetching (confirmed: attempts 2
+      # and 3 of a real failed run skipped "Fetching base Node.js binaries"
+      # entirely and failed identically to attempt 1).
       - name: Build backend sidecar binaries
         run: |
           for i in 1 2 3; do
-            rm -rf apps/pos/sidecar/dist apps/pos/src-tauri/binaries
+            rm -rf apps/pos/sidecar/dist apps/pos/src-tauri/binaries ~/.pkg-cache
             if pnpm --filter @mart-system/pos-sidecar build; then
               exit 0
             fi
