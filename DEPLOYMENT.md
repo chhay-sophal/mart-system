@@ -18,12 +18,13 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
    curl https://<your-render-url>/health
    ```
    Expect `{"ok":true}`. If it 502s on the very first request, wait ~30-60s — Render's free tier sleeps after 15 minutes idle and cold-starts on the next hit. That's expected, not a bug.
-4. Apply migrations and seed data against this real database if you haven't already (from your own machine, pointed at the real `DATABASE_URL`/`TURSO_AUTH_TOKEN` in your local `.env`):
+4. Apply migrations and create the first store/admin against this real database if you haven't already (from your own machine, pointed at the real `DATABASE_URL`/`TURSO_AUTH_TOKEN` in your local `.env`). Use `create-admin`, not `db:seed` — the latter is dev-only and hardcodes a known admin password:
    ```sh
    cd apps/backend
    pnpm db:migrate:turso
-   pnpm db:seed
+   pnpm create-admin
    ```
+   It prompts interactively for the store name/code and admin email/name, then prints a randomly generated admin password/PIN once — save it now, it isn't recoverable afterward.
 
 ## 2. IMS → Cloudflare Pages (do this second)
 
@@ -43,7 +44,7 @@ Go back to Render's dashboard and update the backend's `CORS_ALLOWED_ORIGINS` en
 
 ## 4. Verify end-to-end
 
-1. Open the deployed IMS URL in a browser, log in with the seeded admin (`admin@mart-system.local` / `ChangeMe123!` — **change this password for real use**).
+1. Open the deployed IMS URL in a browser, log in with the admin credentials `create-admin` printed in step 1.4.
 2. Navigate to a non-root page (e.g. Staff or Products) and hard-refresh — confirms the SPA fallback is actually working, not just that the root page loads.
 3. If login or any data fetch fails with a CORS error in the browser console, double check step 3 actually completed and the backend redeployed with the corrected `CORS_ALLOWED_ORIGINS`.
 

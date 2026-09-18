@@ -18,6 +18,22 @@ Runs on [Turso](https://turso.tech) (a hosted libSQL/SQLite-family database) rat
    pnpm dev
    ```
 
+### Creating a real admin (not a seed)
+
+`pnpm db:seed` is dev-only — it hardcodes a known admin password and a terminal secret literally named `dev-terminal-secret-do-not-use-in-prod`, plus 21 fake products. Never run it against a real database. For a real deployment's first store/admin, use `pnpm create-admin` instead — this is a separate, ordinary script (not part of the Prisma seed mechanism, so it can't be triggered accidentally by `prisma db seed`/`migrate reset`, and it's obvious at a glance that it's not a "seed"). It prompts interactively for the store name/code and admin email/name — no env vars to set up front:
+
+```sh
+pnpm create-admin
+```
+```
+Store name: My Store
+Store code: MAIN
+Admin email: owner@example.com
+Admin name: Owner Name
+```
+
+It creates exactly one store and one admin — no demo data, no demo terminal (pair real terminals through IMS's own pairing flow afterward) — with a randomly generated password and PIN printed once. Safe to re-run: if the admin email already exists, it leaves their credentials untouched instead of regenerating/reprinting them; run it again with a different admin email to add another admin, or a different store code to add another store.
+
 For a real deployment, point `DATABASE_URL` at a real Turso database (`libsql://<db>.turso.io`) and set `TURSO_AUTH_TOKEN` — see `src/env.ts`. `prisma migrate dev`/`deploy` can't be used against it at all (they refuse to even validate a non-`file:` URL) — generate the migration locally as usual (`pnpm db:migrate`, against a local file), then apply it to the real database with:
 
 ```sh

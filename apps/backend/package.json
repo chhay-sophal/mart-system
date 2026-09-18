@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:turso": "node scripts/apply-turso-migrations.mjs",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.8.0",
