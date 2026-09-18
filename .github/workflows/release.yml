@@ -41,17 +41,20 @@ jobs:
         with:
           version: 11.22.0
 
+      # @yao-pkg/pkg's macOS target intermittently produces no output file at
+      # all on Node 22 (reproduced on both macos-latest and ubuntu-latest CI
+      # runners) but is reliable on Node 24 -- pin this job to 24 specifically
+      # for that reason, independent of the repo's general Node 22 baseline.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      # Cross-builds all 3 target binaries from one host in one go -- @yao-pkg/pkg
-      # can cross-compile fine, but building the macos-arm64 target ON an actual
-      # macos-latest runner silently produces no output (a real pkg quirk, not a
-      # config mistake), so this must NOT run inside the per-platform matrix below.
+      # Cross-builds all 3 target binaries from one host in one go, shared via
+      # artifact with the per-platform matrix below instead of rebuilding
+      # there (which would redo this 3x for no reason).
       - name: Build backend sidecar binaries
         run: pnpm --filter @mart-system/pos-sidecar build
 

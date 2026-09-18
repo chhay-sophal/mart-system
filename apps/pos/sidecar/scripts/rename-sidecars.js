@@ -14,12 +14,28 @@ const MAP = [
   ['backend-server-linux-x64', 'backend-server-x86_64-unknown-linux-gnu'],
 ];
 
+// pkg has been observed to still be flushing an output file to disk right as
+// it exits -- existsSync can see the entry while an immediate copyFileSync
+// still throws ENOENT. A couple of short retries absorbs that without
+// masking a genuinely missing file (which will still fail after these).
+function copyWithRetry(srcPath, dstPath, attemptsLeft = 5) {
+  try {
+    fs.copyFileSync(srcPath, dstPath);
+  } catch (err) {
+    if (err.code === 'ENOENT' && attemptsLeft > 0) {
+      setTimeout(() => copyWithRetry(srcPath, dstPath, attemptsLeft - 1), 200);
+      return;
+    }
+    throw err;
+  }
+  fs.chmodSync(dstPath, 0o755);
+  console.log(`✓ ${path.basename(srcPath)} → ${path.basename(dstPath)}`);
+}
+
 MAP.forEach(([src, dst]) => {
   const srcPath = path.join(DIST, src);
   const dstPath = path.join(OUT, dst);
   if (fs.existsSync(srcPath)) {
-    fs.copyFileSync(srcPath, dstPath);
-    fs.chmodSync(dstPath, 0o755);
-    console.log(`✓ ${src} → ${dst}`);
+    copyWithRetry(srcPath, dstPath);
   }
 });
