@@ -41,10 +41,6 @@ jobs:
         with:
           version: 11.22.0
 
-      # @yao-pkg/pkg's macOS target intermittently produces no output file at
-      # all on Node 22 (reproduced on both macos-latest and ubuntu-latest CI
-      # runners) but is reliable on Node 24 -- pin this job to 24 specifically
-      # for that reason, independent of the repo's general Node 22 baseline.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -55,8 +51,25 @@ jobs:
       # Cross-builds all 3 target binaries from one host in one go, shared via
       # artifact with the per-platform matrix below instead of rebuilding
       # there (which would redo this 3x for no reason).
+      #
+      # @yao-pkg/pkg's fresh (uncached) base-binary fetch-and-build is
+      # genuinely flaky in a cold environment like a CI runner -- confirmed
+      # by reproducing both a clean success and a silent failure locally
+      # under identical cold-cache conditions, back to back. Retrying the
+      # whole command is the actual fix, not a workaround for a
+      # misconfiguration.
       - name: Build backend sidecar binaries
-        run: pnpm --filter @mart-system/pos-sidecar build
+        run: |
+          for i in 1 2 3; do
+            rm -rf apps/pos/sidecar/dist apps/pos/src-tauri/binaries
+            if pnpm --filter @mart-system/pos-sidecar build; then
+              exit 0
+            fi
+            echo "Sidecar build attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "Sidecar build failed after 3 attempts"
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
