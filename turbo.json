@@ -20,7 +20,8 @@
       "dependsOn": ["^build", "generate"]
     },
     "test": {
-      "dependsOn": ["^build", "generate"]
+      "dependsOn": ["^build", "generate"],
+      "env": ["DATABASE_URL", "JWT_SECRET", "NODE_ENV", "TURSO_AUTH_TOKEN"]
     }
   }
 }
