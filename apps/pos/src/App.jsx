@@ -6,6 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
+import FirstRunSetup from './FirstRunSetup';
 import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
@@ -44,6 +45,10 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState(() =>
     (window.__TAURI_INTERNALS__ ?? window.__TAURI__) ? 'loading' : 'ready'
   ); // 'loading' | 'ready' | 'error'
+  // null while unknown (checked once the sidecar's up) -- a fresh install has
+  // no staff cached yet, so LockScreen's PIN check can never succeed until a
+  // one-time pairing step runs. See FirstRunSetup.
+  const [isPaired, setIsPaired] = useState(null);
   const [isDark, toggleDark] = useDarkMode();
 
   const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
@@ -109,6 +114,18 @@ export default function App() {
     // and a stable useState singleton respectively) — listing them satisfies the
     // rule honestly without turning this into anything but a mount-once effect.
   }, [IS_TAURI, client]);
+
+  useEffect(() => {
+    if (backendStatus !== 'ready') return;
+    let cancelled = false;
+    client
+      .get('/api/sync/status')
+      .then((data) => { if (!cancelled) setIsPaired(Boolean(data.isPaired)); })
+      // Fail open (assume paired) so a transient glitch on this one check
+      // never blocks a terminal that was already working fine.
+      .catch(() => { if (!cancelled) setIsPaired(true); });
+    return () => { cancelled = true; };
+  }, [backendStatus, client]);
 
   useEffect(() => {
     if (view === 'REGISTER' && barcodeRef.current) barcodeRef.current.focus();
@@ -522,7 +539,7 @@ export default function App() {
     }
   };
 
-  if (backendStatus === 'loading') {
+  if (backendStatus === 'loading' || (backendStatus === 'ready' && isPaired === null)) {
     return (
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'16px', fontFamily:'sans-serif' }}>
         <div style={{ width:'40px', height:'40px', border:'4px solid #ccc', borderTopColor:'#555', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
@@ -539,6 +556,14 @@ export default function App() {
         <p style={{ color:'#555', margin:0 }}>The database server did not respond after 12 seconds.</p>
         <p style={{ color:'#888', fontSize:'13px', margin:0 }}>Try restarting the app. If it keeps failing, reinstall.</p>
       </div>
+    );
+  }
+
+  if (isPaired === false) {
+    return (
+      <BackendContext.Provider value={client}>
+        <FirstRunSetup client={client} onPaired={() => setIsPaired(true)} />
+      </BackendContext.Provider>
     );
   }
 

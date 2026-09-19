@@ -80,13 +80,19 @@ async function pullCatalog(config) {
   try {
     response = await fetch(url, { headers: authHeaders(config) });
   } catch (err) {
-    console.error('[sync] pull request failed:', err.message);
-    return;
+    // Thrown (not logged-and-returned, unlike pushPending above) so a direct,
+    // awaited caller -- the first-run pairing screen's /api/sync/now -- can
+    // surface *why* pairing failed instead of the operator just seeing a
+    // PIN screen that can never work. The scheduled tick() below still only
+    // logs this, via its own catch in start().
+    throw new Error(`Could not reach ${config.backendUrl}: ${err.message}`, { cause: err });
   }
 
   if (!response.ok) {
-    console.error('[sync] pull rejected with status', response.status);
-    return;
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Invalid terminal ID or device secret.');
+    }
+    throw new Error(`Backend rejected the request (status ${response.status}).`);
   }
 
   const { cursor: newCursor, productUpserts, staffRoster } = await response.json();
@@ -154,4 +160,4 @@ function start() {
   setInterval(run, SYNC_INTERVAL_MS);
 }
 
-module.exports = { start, tick };
+module.exports = { start, tick, pullCatalog };
