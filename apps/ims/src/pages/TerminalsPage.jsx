@@ -23,7 +23,7 @@ export default function TerminalsPage() {
   const [error, setError] = useState('');
   const [showPair, setShowPair] = useState(false);
   const [pairName, setPairName] = useState('');
-  const [revealedSecret, setRevealedSecret] = useState(null); // { name, deviceSecret }
+  const [revealedSecret, setRevealedSecret] = useState(null); // { id, name, deviceSecret }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,7 +48,7 @@ export default function TerminalsPage() {
       const res = await apiClient.post(`/api/stores/${storeId}/terminals`, { name: pairName });
       setShowPair(false);
       setPairName('');
-      setRevealedSecret({ name: res.name, deviceSecret: res.deviceSecret });
+      setRevealedSecret({ id: res.id, name: res.name, deviceSecret: res.deviceSecret });
       await load();
     } catch {
       setError('Failed to pair terminal.');
@@ -61,7 +61,7 @@ export default function TerminalsPage() {
     }
     try {
       const res = await apiClient.post(`/api/stores/${storeId}/terminals/${terminal.id}/rotate-secret`);
-      setRevealedSecret({ name: res.name, deviceSecret: res.deviceSecret });
+      setRevealedSecret({ id: res.id, name: res.name, deviceSecret: res.deviceSecret });
       await load();
     } catch {
       setError('Failed to rotate secret.');
@@ -180,8 +180,13 @@ export default function TerminalsPage() {
       {revealedSecret && (
         <Modal title={`Device secret for "${revealedSecret.name}"`} onClose={() => setRevealedSecret(null)}>
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-            Save this now — it will not be shown again. Enter it in the POS terminal's setup screen.
+            Save these now — the device secret will not be shown again. Enter both in the POS terminal's setup screen.
           </p>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Terminal ID</label>
+          <code className="block break-all bg-slate-100 rounded-lg px-3 py-2 text-sm mb-3">
+            {revealedSecret.id}
+          </code>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Device Secret</label>
           <code className="block break-all bg-slate-100 rounded-lg px-3 py-2 text-sm mb-4">
             {revealedSecret.deviceSecret}
           </code>
