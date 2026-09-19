@@ -13,6 +13,12 @@ export default defineConfig({
   // during `tauri dev`, and Vite trying to watch one mid-write causes an
   // EBUSY crash on Windows.
   server: {
+    // Fixed and exclusive so Tauri's hardcoded devUrl always points at this
+    // app, not whatever happens to be free -- Vite silently picking a
+    // fallback port (e.g. when IMS's dev server already holds 5173) would
+    // otherwise make the POS window load a different app entirely.
+    port: 1420,
+    strictPort: true,
     watch: {
       ignored: ['**/src-tauri/**'],
     },
