@@ -9,6 +9,8 @@ build/
 .env.test
 .env.*.local
 !.env.example
+# Checked-in test defaults (no real secrets) so CI can run without a local copy.
+!apps/backend/.env.test
 .DS_Store
 src-tauri/target/
 *.sqlite

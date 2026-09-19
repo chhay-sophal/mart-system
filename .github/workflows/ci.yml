@@ -45,4 +45,6 @@ jobs:
 
       - run: pnpm test
         env:
+          NODE_ENV: test
           DATABASE_URL: file:./test.db
+          JWT_SECRET: test-jwt-secret-do-not-use
