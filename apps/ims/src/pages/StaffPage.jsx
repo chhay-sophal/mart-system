@@ -15,6 +15,7 @@ export default function StaffPage() {
   const [createForm, setCreateForm] = useState(CREATE_FORM);
   const [pinTarget, setPinTarget] = useState(null); // staff row being reset
   const [pinValue, setPinValue] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,14 +191,23 @@ export default function StaffPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Initial password</label>
-              <input
-                required
-                minLength={8}
-                type="password"
-                value={createForm.password}
-                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
-              />
+              <div className="relative">
+                <input
+                  required
+                  minLength={8}
+                  type={showPassword ? 'text' : 'password'}
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-14 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

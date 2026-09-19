@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, Wallet, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud } from 'lucide-react';
+import { ArrowLeft, Store, Wallet, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
 import { translations as t } from './locales';
 
 function CriticalBadge({ label }) {
@@ -39,6 +39,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [updateProgress, setUpdateProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('store');
+  const [showDeviceSecret, setShowDeviceSecret] = useState(false);
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -579,9 +580,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Device Secret</label>
-                        <input type="password" value={settings.sync_device_secret}
-                          onChange={(e) => setSettings({ ...settings, sync_device_secret: e.target.value })}
-                          className={inputNormal} placeholder="Shown once when the terminal was paired in IMS" />
+                        <div className="relative">
+                          <input type={showDeviceSecret ? 'text' : 'password'} value={settings.sync_device_secret}
+                            onChange={(e) => setSettings({ ...settings, sync_device_secret: e.target.value })}
+                            className={`${inputNormal} pr-10`} placeholder="Shown once when the terminal was paired in IMS" />
+                          <button type="button" onClick={() => setShowDeviceSecret((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            {showDeviceSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
                       </div>
                       <div className={`flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 ${isPaired ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400'}`}>
                         {isPaired ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}

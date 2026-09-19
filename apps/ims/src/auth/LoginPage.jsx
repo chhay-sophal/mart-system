@@ -5,6 +5,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,14 +47,23 @@ export default function LoginPage() {
         <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="password">
           Password
         </label>
-        <input
-          id="password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full border border-[var(--border)] rounded-lg px-3 py-2 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-        />
+        <div className="relative mb-4">
+          <input
+            id="password"
+            type={showPassword ? 'text' : 'password'}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border border-[var(--border)] rounded-lg px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-slate-700"
+          >
+            {showPassword ? 'Hide' : 'Show'}
+          </button>
+        </div>
 
         {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
