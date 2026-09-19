@@ -23,7 +23,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # pnpm install leaves a stub Prisma Client (schema is not at the default
+      # path). Generate against apps/backend/prisma/schema.prisma before tsc.
+      - name: Generate Prisma Client
+        working-directory: apps/backend
+        run: npx prisma generate
+        env:
+          DATABASE_URL: file:./test.db
+
       - run: pnpm typecheck
+        env:
+          DATABASE_URL: file:./test.db
 
       - run: pnpm lint
 
