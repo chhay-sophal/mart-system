@@ -74,7 +74,14 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userRoles        UserStoreRole[]
+  // Weekly hours in the store's own timezone, shaped as shared-types'
+  // OpeningHours ({ mon: { open: "07:00", close: "22:00" } | null, ... }).
+  // Null means not set yet, which the storefront shows as "hours not listed".
+  openingHours Json?
+  latitude     Float?
+  longitude    Float?
+
+  userRoles       UserStoreRole[]
   terminals        Terminal[]
   storeProducts    StoreProduct[]
   stockMovements   StockMovement[]
