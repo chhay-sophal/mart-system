@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { readJson, writeJson } from '../lib/storage.js';
 
 const STORAGE_KEY = 'storefront.cart';
+const NAMES_KEY = 'storefront.cartNames';
 const MAX_QTY = 99;
 const CartContext = createContext(null);
 
@@ -12,51 +13,75 @@ export function useCart() {
   return ctx;
 }
 
-/**
- * The cart only remembers product ids and quantities. Names, prices and
- * availability always come from the selected branch's live catalog, so a
- * price change or a branch switch is reflected instead of a stale snapshot.
- */
-export function CartProvider({ children }) {
-  const [lines, setLines] = useState(() => readJson(STORAGE_KEY, {}));
-
-  const update = useCallback((fn) => {
-    setLines((prev) => {
-      const next = fn(prev);
-      writeJson(STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
-
-  const setQuantity = useCallback(
-    (productId, qty) =>
-      update((prev) => {
-        const next = { ...prev };
-        const clamped = Math.min(MAX_QTY, Math.max(0, Math.floor(qty)));
-        if (clamped === 0) delete next[productId];
-        else next[productId] = clamped;
+/** useState mirrored into localStorage under `key`. */
+function usePersisted(key, initial) {
+  const [value, setValue] = useState(() => readJson(key, initial));
+  const update = useCallback(
+    (fn) =>
+      setValue((prev) => {
+        const next = fn(prev);
+        writeJson(key, next);
         return next;
       }),
-    [update],
+    [key],
+  );
+  return [value, update];
+}
+
+const without = (obj, key) => {
+  const next = { ...obj };
+  delete next[key];
+  return next;
+};
+
+/**
+ * The cart only remembers product ids and quantities. Prices and
+ * availability always come from the selected branch's live catalog, so a
+ * price change or a branch switch is reflected instead of a stale snapshot.
+ * The name seen when adding is kept too, purely as a label for an item the
+ * current branch doesn't sell (and so can't name).
+ */
+export function CartProvider({ children }) {
+  const [lines, updateLines] = usePersisted(STORAGE_KEY, {});
+  const [names, updateNames] = usePersisted(NAMES_KEY, {});
+
+  const setQuantity = useCallback(
+    (productId, qty) => {
+      const clamped = Math.min(MAX_QTY, Math.max(0, Math.floor(qty)));
+      if (clamped === 0) {
+        updateLines((prev) => without(prev, productId));
+        updateNames((prev) => without(prev, productId));
+      } else {
+        updateLines((prev) => ({ ...prev, [productId]: clamped }));
+      }
+    },
+    [updateLines, updateNames],
   );
 
   const add = useCallback(
-    (productId, qty = 1) => update((prev) => ({ ...prev, [productId]: Math.min(MAX_QTY, (prev[productId] ?? 0) + qty) })),
-    [update],
+    (product, qty = 1) => {
+      updateNames((prev) => ({ ...prev, [product.id]: product.name }));
+      updateLines((prev) => ({ ...prev, [product.id]: Math.min(MAX_QTY, (prev[product.id] ?? 0) + qty) }));
+    },
+    [updateLines, updateNames],
   );
 
-  const clear = useCallback(() => update(() => ({})), [update]);
+  const clear = useCallback(() => {
+    updateLines(() => ({}));
+    updateNames(() => ({}));
+  }, [updateLines, updateNames]);
 
   const value = useMemo(
     () => ({
       lines,
+      names,
       count: Object.values(lines).reduce((sum, q) => sum + q, 0),
       add,
       setQuantity,
       remove: (productId) => setQuantity(productId, 0),
       clear,
     }),
-    [lines, add, setQuantity, clear],
+    [lines, names, add, setQuantity, clear],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

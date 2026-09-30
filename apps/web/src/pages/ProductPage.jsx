@@ -148,7 +148,7 @@ function ProductPage({ productId }) {
               type="button"
               disabled={soldOut || inCart >= 99}
               onClick={() => {
-                add(p.id, qty);
+                add(p, qty);
                 setQty(1);
               }}
               className="h-14 min-w-56 flex-1 rounded-[14px] bg-brand px-6 text-[17px] font-semibold text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-line-strong disabled:text-muted"

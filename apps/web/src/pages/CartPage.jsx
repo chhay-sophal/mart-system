@@ -24,7 +24,7 @@ function LineStepper({ name, qty, onChange }) {
 
 export default function CartPage() {
   const { branch, loading: branchesLoading } = useBranch();
-  const { lines, setQuantity, remove, clear } = useCart();
+  const { lines, names, setQuantity, remove, clear } = useCart();
   const catalog = useCatalog();
 
   const ids = Object.keys(lines);
@@ -100,11 +100,7 @@ export default function CartPage() {
                 {unavailable.map(({ id, product }) => (
                   <li key={id} className="flex items-center justify-between gap-3">
                     <span className="text-[15px]">
-                      {product ? (
-                        <Link to={`/products/${id}`}>{product.name}</Link>
-                      ) : (
-                        <Link to={`/products/${id}`}>An item from another branch</Link>
-                      )}
+                      <Link to={`/products/${id}`}>{product?.name ?? names[id] ?? 'An item from another branch'}</Link>
                       <span className="text-muted"> · {product ? 'out of stock' : 'not sold here'}</span>
                     </span>
                     <button type="button" onClick={() => remove(id)} className="min-h-11 font-semibold text-brand">

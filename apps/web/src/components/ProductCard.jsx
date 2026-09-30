@@ -24,7 +24,7 @@ export default function ProductCard({ product }) {
         </div>
         <button
           type="button"
-          onClick={() => add(product.id)}
+          onClick={() => add(product)}
           disabled={soldOut}
           aria-label={soldOut ? `${product.name} is out of stock` : `Add ${product.name} to cart`}
           className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-line-strong disabled:text-muted"
