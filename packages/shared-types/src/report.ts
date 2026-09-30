@@ -27,7 +27,10 @@ export interface DailySummaryTopProduct {
 export interface DailySummaryByStore {
   storeId: string;
   storeName: string;
+  /** Till sales plus collected online orders. */
   orderCount: number;
+  /** How many of orderCount were online orders collected in the period. */
+  onlineOrderCount: number;
   totalRevenue: number;
   avgOrder: number;
   grossProfit: number;
@@ -39,6 +42,7 @@ export interface DailySummaryReport {
   byStore: DailySummaryByStore[];
   combined: {
     orderCount: number;
+    onlineOrderCount: number;
     totalRevenue: number;
     avgOrder: number;
     grossProfit: number;

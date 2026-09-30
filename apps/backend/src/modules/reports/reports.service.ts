@@ -60,17 +60,32 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
     where: { storeId, isDeleted: false, createdAt: { gte: dateFrom, lt: dateTo } },
   });
 
-  const orderCount = orders.length;
-  // Order.totalAmountMinor is always USD (sync.service.ts hardcodes currency: "USD" on every Order).
-  const totalRevenue = orders.reduce((sum, order) => sum + fromMinorUnits(order.totalAmountMinor, "USD"), 0);
+  // Online orders count on the day they're handed over (docs/online-orders-plan.md), not when placed or paid.
+  const onlineOrders = await prisma.onlineOrder.findMany({
+    where: { storeId, status: "COLLECTED", collectedAt: { gte: dateFrom, lt: dateTo } },
+    include: { items: true },
+  });
+
+  // Order.totalAmountMinor and OnlineOrder.totalAmountMinor are both always USD.
+  const sales = [
+    ...orders.map((order) => ({ total: fromMinorUnits(order.totalAmountMinor, "USD"), method: order.paymentMethod })),
+    ...onlineOrders.map((order) => ({
+      total: fromMinorUnits(order.totalAmountMinor, "USD"),
+      // A KHQR online order was paid on the storefront; a pay-at-counter one records what the counter took.
+      method: order.collectedPaymentMethod ?? "KHQR",
+    })),
+  ];
+
+  const orderCount = sales.length;
+  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
 
   const byMethodMap = new Map<string, { count: number; total: number }>();
-  for (const order of orders) {
-    const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0 };
+  for (const sale of sales) {
+    const entry = byMethodMap.get(sale.method) ?? { count: 0, total: 0 };
     entry.count += 1;
-    entry.total += fromMinorUnits(order.totalAmountMinor, "USD");
-    byMethodMap.set(order.paymentMethod, entry);
+    entry.total += sale.total;
+    byMethodMap.set(sale.method, entry);
   }
   const byMethod = [...byMethodMap.entries()]
     .map(([paymentMethod, v]) => ({ paymentMethod, count: v.count, total: v.total }))
@@ -81,7 +96,28 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
     ? await prisma.orderItem.findMany({ where: { orderId: { in: orderIds } }, include: { product: true } })
     : [];
 
-  const productIds = [...new Set(items.map((item) => item.productId))];
+  // Online lines were priced (and KHR converted) at the order's own exchange rate, not today's.
+  const lines = [
+    ...items.map((item) => ({
+      productId: item.productId,
+      name: item.product.name,
+      quantity: item.quantity,
+      priceUsd: toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency),
+    })),
+    ...onlineOrders.flatMap((order) =>
+      order.items.map((item) => {
+        const price = fromMinorUnits(item.priceAtOrderMinor, item.currency);
+        return {
+          productId: item.productId,
+          name: item.nameAtOrder,
+          quantity: item.quantity,
+          priceUsd: item.currency === "KHR" ? price / order.exchangeRate : price,
+        };
+      })
+    ),
+  ];
+
+  const productIds = [...new Set(lines.map((line) => line.productId))];
   const storeProducts = productIds.length
     ? await prisma.storeProduct.findMany({ where: { storeId, productId: { in: productIds } } })
     : [];
@@ -90,18 +126,17 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
   const productAgg = new Map<string, { name: string; qty: number; revenue: number }>();
   let grossProfit = 0;
 
-  for (const item of items) {
-    const priceUsd = toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency);
-    const lineRevenue = priceUsd * item.quantity;
+  for (const line of lines) {
+    const lineRevenue = line.priceUsd * line.quantity;
 
-    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0 };
-    agg.qty += item.quantity;
+    const agg = productAgg.get(line.productId) ?? { name: line.name, qty: 0, revenue: 0 };
+    agg.qty += line.quantity;
     agg.revenue += lineRevenue;
-    productAgg.set(item.productId, agg);
+    productAgg.set(line.productId, agg);
 
-    const costInfo = costByProductId.get(item.productId);
+    const costInfo = costByProductId.get(line.productId);
     const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
-    grossProfit += (priceUsd - costUsd) * item.quantity;
+    grossProfit += (line.priceUsd - costUsd) * line.quantity;
   }
 
   const topProducts = [...productAgg.entries()]
@@ -109,7 +144,16 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
     .sort((a, b) => b.totalQty - a.totalQty)
     .slice(0, 5);
 
-  return { storeId, orderCount, totalRevenue, avgOrder, grossProfit, byMethod, topProducts };
+  return {
+    storeId,
+    orderCount,
+    onlineOrderCount: onlineOrders.length,
+    totalRevenue,
+    avgOrder,
+    grossProfit,
+    byMethod,
+    topProducts,
+  };
 }
 
 export async function getDailySummary(
@@ -125,6 +169,7 @@ export async function getDailySummary(
   );
 
   const combinedOrderCount = byStore.reduce((sum, s) => sum + s.orderCount, 0);
+  const combinedOnlineOrderCount = byStore.reduce((sum, s) => sum + s.onlineOrderCount, 0);
   const combinedRevenue = byStore.reduce((sum, s) => sum + s.totalRevenue, 0);
   const combinedGrossProfit = byStore.reduce((sum, s) => sum + s.grossProfit, 0);
 
@@ -132,6 +177,7 @@ export async function getDailySummary(
     byStore,
     combined: {
       orderCount: combinedOrderCount,
+      onlineOrderCount: combinedOnlineOrderCount,
       totalRevenue: combinedRevenue,
       avgOrder: combinedOrderCount > 0 ? combinedRevenue / combinedOrderCount : 0,
       grossProfit: combinedGrossProfit,
