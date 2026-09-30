@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 import BranchesPage from './pages/BranchesPage.jsx';
+import CartPage from './pages/CartPage.jsx';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="shop" element={<CatalogPage />} />
             <Route path="products/:productId" element={<ProductPage />} />
             <Route path="branches" element={<BranchesPage />} />
+            <Route path="cart" element={<CartPage />} />
             <Route path="*" element={<EmptyState title="Page not found" />} />
           </Route>
         </Routes>
