@@ -26,6 +26,7 @@ describe("public stores", () => {
       "address",
       "code",
       "id",
+      "khqrAvailable",
       "latitude",
       "longitude",
       "name",

@@ -30,8 +30,22 @@ type PublicStoreRow = Prisma.StoreGetPayload<{ select: typeof PUBLIC_STORE_SELEC
 
 // openingHours is stored as untyped JSON; its shape is enforced on write
 // (stores.schema.ts's openingHoursSchema), so it's safe to type it here.
-function toPublicStore(row: PublicStoreRow): PublicStore {
-  return { ...row, openingHours: (row.openingHours as OpeningHours | null) ?? null };
+function toPublicStore(row: PublicStoreRow, khqrStoreIds: Set<string>): PublicStore {
+  return {
+    ...row,
+    openingHours: (row.openingHours as OpeningHours | null) ?? null,
+    khqrAvailable: khqrStoreIds.has(row.id),
+  };
+}
+
+/** Same rule as onlineOrders' isKhqrAvailable, batched: a Bakong account id and a registered email. */
+async function storesWithKhqr(storeIds: string[]): Promise<Set<string>> {
+  const [accounts, credentials] = await Promise.all([
+    prisma.storeSetting.findMany({ where: { storeId: { in: storeIds }, key: "bakong_account_id" } }),
+    prisma.bakongCredential.findMany({ where: { storeId: { in: storeIds }, registeredEmail: { not: null } } }),
+  ]);
+  const withEmail = new Set(credentials.map((c) => c.storeId));
+  return new Set(accounts.filter((a) => a.value.trim() && withEmail.has(a.storeId)).map((a) => a.storeId));
 }
 
 export function toStockLevel(stock: number, lowStockThreshold: number): StockLevel {
@@ -59,7 +73,8 @@ export async function listPublicStores(): Promise<PublicStore[]> {
     select: PUBLIC_STORE_SELECT,
     orderBy: { name: "asc" },
   });
-  return rows.map(toPublicStore);
+  const khqr = await storesWithKhqr(rows.map((r) => r.id));
+  return rows.map((row) => toPublicStore(row, khqr));
 }
 
 export async function getPublicStoreOrThrow(storeId: string): Promise<PublicStore> {
@@ -68,7 +83,7 @@ export async function getPublicStoreOrThrow(storeId: string): Promise<PublicStor
     select: PUBLIC_STORE_SELECT,
   });
   if (!store) throw notFound("Store not found");
-  return toPublicStore(store);
+  return toPublicStore(store, await storesWithKhqr([store.id]));
 }
 
 export async function listPublicProducts(storeId: string, filter: { category?: string }): Promise<PublicProduct[]> {

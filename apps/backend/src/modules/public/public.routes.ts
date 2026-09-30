@@ -2,7 +2,6 @@ import { Router } from "express";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { createRequestRateLimiter } from "../../middleware/rateLimiter";
 import { env } from "../../env";
-import { badRequest } from "../../lib/httpError";
 import { listPublicProductsQuerySchema } from "./public.schema";
 import { placeOnlineOrderSchema } from "../onlineOrders/onlineOrders.schema";
 import {
@@ -86,8 +85,6 @@ publicRouter.post(
   placeOrderLimiter,
   asyncHandler(async (req, res) => {
     const input = placeOnlineOrderSchema.parse(req.body);
-    // KHQR checkout lands in the next step (onlineOrderPayments); pay at the counter works now.
-    if (input.paymentMethod === "KHQR") throw badRequest("KHQR isn't available for online orders yet");
     const order = await placeOnlineOrder(req.params.storeId!, input);
     res.status(201).json(toPublicOrder(order));
   })

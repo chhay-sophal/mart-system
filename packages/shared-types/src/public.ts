@@ -17,6 +17,8 @@ export interface PublicStore {
   openingHours: OpeningHours | null;
   latitude: number | null;
   longitude: number | null;
+  /** Whether this branch can take KHQR for online orders (its Bakong account is set up). */
+  khqrAvailable: boolean;
 }
 
 /** Coarse availability instead of a raw count — enough for a shopper, nothing a competitor can inventory. */

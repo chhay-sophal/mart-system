@@ -5,6 +5,8 @@ import { prisma } from "../../prisma";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/httpError";
 import { fromMinorUnits, toMinorUnits } from "../../lib/money";
 import { isOpenAt, isValidPickupSlot, nextOpening, pickupSlots } from "../../lib/hours";
+import { logger } from "../../lib/logger";
+import { checkKhqrStatus, generateKhqr } from "../payments/payments.service";
 import type { PlaceOnlineOrderInput } from "./onlineOrders.schema";
 
 const DEFAULT_EXCHANGE_RATE = 4100;
@@ -12,8 +14,16 @@ const DEFAULT_HOLD_MINUTES = 60;
 // No 0/O, 1/I/L — read aloud at a busy counter.
 const PICKUP_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const OPEN_STATUSES = ["AWAITING_PAYMENT", "CONFIRMED", "READY"] as const;
+/** Matches generateKhqr's own QR expiry; stock is held for the same time. */
+const KHQR_LIFETIME_MS = 5 * 60_000;
+/** Many open tabs polling one order still reach Bakong at most this often. */
+const PAYMENT_CHECK_INTERVAL_MS = 3_000;
 
-export const ORDER_INCLUDE = { items: true, store: { select: { name: true } } } as const;
+export const ORDER_INCLUDE = {
+  items: true,
+  store: { select: { name: true } },
+  paymentTransactions: { orderBy: { createdAt: "desc" } },
+} as const;
 export type OrderWithItems = Prisma.OnlineOrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
 
 async function getSetting(storeId: string, key: string) {
@@ -51,6 +61,26 @@ async function uniquePickupCode(tx: Prisma.TransactionClient, storeId: string) {
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
+function khqrView(order: OrderWithItems): PublicOnlineOrder["khqr"] {
+  const pending = order.paymentTransactions.find((t) => t.status === "PENDING");
+  if (order.status !== "AWAITING_PAYMENT" || !pending || !order.paymentExpiresAt) return null;
+  return {
+    qrString: pending.qrString,
+    amount: fromMinorUnits(pending.amountMinor, pending.currency),
+    currency: pending.currency,
+    expiresAt: order.paymentExpiresAt.toISOString(),
+  };
+}
+
+/** KHQR needs both halves of a branch's Bakong setup: an account to be paid into, and the email that mints status-check tokens. */
+export async function isKhqrAvailable(storeId: string) {
+  const [account, credential] = await Promise.all([
+    getSetting(storeId, "bakong_account_id"),
+    prisma.bakongCredential.findUnique({ where: { storeId } }),
+  ]);
+  return Boolean(account?.trim() && credential?.registeredEmail);
+}
+
 export function toPublicOrder(order: OrderWithItems): PublicOnlineOrder {
   const items: OnlineOrderLine[] = order.items.map((item) => ({
     productId: item.productId,
@@ -75,7 +105,7 @@ export function toPublicOrder(order: OrderWithItems): PublicOnlineOrder {
     totalAmount: fromMinorUnits(order.totalAmountMinor, "USD"),
     currency: "USD",
     exchangeRate: order.exchangeRate,
-    khqr: null,
+    khqr: khqrView(order),
     cancelReason: order.cancelReason,
     createdAt: order.createdAt.toISOString(),
     paidAt: iso(order.paidAt),
@@ -102,8 +132,8 @@ type Shortage = { productId: string; name: string; available: number };
 
 /**
  * Places an order: prices from the server, stock reserved atomically (the
- * whole order or nothing), and idempotent on clientOrderUuid. KHQR payment is
- * attached separately (onlineOrderPayments.ts).
+ * whole order or nothing), and idempotent on clientOrderUuid. A KHQR order
+ * gets its QR code (and a PENDING PaymentTransaction) in the same transaction.
  */
 export async function placeOnlineOrder(
   storeId: string,
@@ -160,6 +190,18 @@ export async function placeOnlineOrder(
     return sum + (l.currency === "KHR" ? unit / exchangeRate : unit) * l.quantity;
   }, 0);
 
+  // Built before any stock is touched: the SDK call is local (no network), and
+  // if it fails the shopper just sees an error with nothing reserved.
+  let khqr: Awaited<ReturnType<typeof generateKhqr>> | null = null;
+  if (input.paymentMethod === "KHQR") {
+    if (!(await isKhqrAvailable(storeId))) {
+      throw badRequest("KHQR isn't set up at this branch yet — please choose to pay at the counter");
+    }
+    const mainCurrency = (await getSetting(storeId, "main_currency")) === "KHR" ? "KHR" : "USD";
+    const amount = mainCurrency === "KHR" ? Math.round(totalUsd * exchangeRate) : Math.round(totalUsd * 100) / 100;
+    khqr = await generateKhqr(storeId, { amount, currency: mainCurrency });
+  }
+
   let holdUntil: Date | null = null;
   if (input.paymentMethod === "PAY_AT_COUNTER") {
     // "As soon as ready" while closed counts from when the branch next opens.
@@ -212,7 +254,7 @@ export async function placeOnlineOrder(
           publicToken: crypto.randomBytes(16).toString("base64url"),
           clientOrderUuid: input.clientOrderUuid,
           pickupCode: await uniquePickupCode(tx, storeId),
-          // KHQR orders start AWAITING_PAYMENT and get their QR attached by the payments step.
+          // KHQR orders wait for Bakong to confirm payment (refreshKhqrPayment).
           status: input.paymentMethod === "PAY_AT_COUNTER" ? "CONFIRMED" : "AWAITING_PAYMENT",
           paymentMethod: input.paymentMethod,
           customerName: input.customerName,
@@ -220,10 +262,22 @@ export async function placeOnlineOrder(
           note: input.note || null,
           pickupAt,
           holdUntil,
+          paymentExpiresAt: khqr ? new Date(now.getTime() + KHQR_LIFETIME_MS) : null,
           totalAmountMinor: toMinorUnits(totalUsd, "USD"),
           currency: "USD",
           exchangeRate,
           createdAt: now,
+          paymentTransactions: khqr
+            ? {
+                create: {
+                  md5Hash: khqr.md5Hash,
+                  qrString: khqr.qrString,
+                  currency: khqr.currency,
+                  amountMinor: toMinorUnits(khqr.amount, khqr.currency),
+                  status: "PENDING",
+                },
+              }
+            : undefined,
           items: {
             create: lines.map((l) => ({
               productId: l.productId,
@@ -253,8 +307,52 @@ export async function placeOnlineOrder(
   }
 }
 
-export async function getOnlineOrderByToken(token: string): Promise<OrderWithItems> {
+/**
+ * While an order awaits KHQR payment, asks Bakong whether it's been paid —
+ * at most once per PAYMENT_CHECK_INTERVAL_MS per order, however many tabs
+ * are polling (the claim on lastPaymentCheckAt is a single conditional
+ * update, so concurrent polls can't both win). A Bakong outage just means
+ * "still waiting"; the next poll tries again.
+ */
+export async function refreshKhqrPayment(order: OrderWithItems, now = new Date()): Promise<OrderWithItems> {
+  if (order.status !== "AWAITING_PAYMENT" || !order.paymentExpiresAt || now >= order.paymentExpiresAt) return order;
+  const pending = order.paymentTransactions.find((t) => t.status === "PENDING");
+  if (!pending) return order;
+
+  const claimed = await prisma.onlineOrder.updateMany({
+    where: {
+      id: order.id,
+      status: "AWAITING_PAYMENT",
+      OR: [
+        { lastPaymentCheckAt: null },
+        { lastPaymentCheckAt: { lt: new Date(now.getTime() - PAYMENT_CHECK_INTERVAL_MS) } },
+      ],
+    },
+    data: { lastPaymentCheckAt: now },
+  });
+  if (claimed.count === 0) return order;
+
+  let status;
+  try {
+    status = await checkKhqrStatus(order.storeId, pending.md5Hash);
+  } catch (err) {
+    logger.warn({ err, onlineOrderId: order.id }, "Bakong status check failed; will retry on next poll");
+    return order;
+  }
+  if (status !== "PAID") return order;
+
+  await prisma.$transaction([
+    prisma.onlineOrder.updateMany({
+      where: { id: order.id, status: "AWAITING_PAYMENT" },
+      data: { status: "CONFIRMED", paidAt: now },
+    }),
+    prisma.paymentTransaction.update({ where: { id: pending.id }, data: { status: "PAID" } }),
+  ]);
+  return prisma.onlineOrder.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
+}
+
+export async function getOnlineOrderByToken(token: string, now = new Date()): Promise<OrderWithItems> {
   const order = await prisma.onlineOrder.findUnique({ where: { publicToken: token }, include: ORDER_INCLUDE });
   if (!order) throw notFound("Order not found");
-  return order;
+  return refreshKhqrPayment(order, now);
 }
