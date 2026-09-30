@@ -38,9 +38,13 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
 
 No SPA-routing config is needed — Cloudflare Pages auto-serves `index.html` for any unmatched deep-link route (`/staff`, `/products`, etc.) as long as the build output has no `404.html`, which Vite's default output never does.
 
+### Storefront (`apps/web`) → a second Cloudflare Pages project
+
+Same steps as IMS, as its own Pages project: **Root directory** `apps/web`, **Build command** `pnpm --filter @mart-system/web build`, **Build output directory** `dist`, and the same `VITE_API_BASE_URL`. Also set `VITE_MART_NAME` to the mart's name (shown in the header and browser tab). It needs no login — it only reads the backend's public `/api/public/*` routes.
+
 ## 3. Close the loop
 
-Go back to Render's dashboard and update the backend's `CORS_ALLOWED_ORIGINS` env var to the real Cloudflare Pages URL from step 2. This triggers a redeploy automatically.
+Go back to Render's dashboard and update the backend's `CORS_ALLOWED_ORIGINS` env var to the real Cloudflare Pages URL from step 2 — comma-separated with the storefront's URL too if you deployed it (e.g. `https://ims.pages.dev,https://shop.pages.dev`). This triggers a redeploy automatically.
 
 ## 4. Verify end-to-end
 

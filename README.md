@@ -1,15 +1,16 @@
 # mart-system
 
-Mini-mart chain management system: **one organization per deployment**, with any number of `Store` branches sharing one catalog, one staff list, and one backend. (Not a multi-tenant/SaaS system — a separate business gets its own separate deployment.) Split into three apps sharing a pnpm/Turborepo monorepo:
+Mini-mart chain management system: **one organization per deployment**, with any number of `Store` branches sharing one catalog, one staff list, and one backend. (Not a multi-tenant/SaaS system — a separate business gets its own separate deployment.) Split into four apps sharing a pnpm/Turborepo monorepo:
 
 - `apps/pos` — offline-first Tauri desktop cashier terminal (React + a local Express/sql.js sidecar). Never blocks a sale on network availability; syncs to the backend via an outbox/pull queue when connected.
 - `apps/ims` — always-online back-office web app (React) for catalog, staff, terminals, inter-store transfers, reporting, and reconciliation.
+- `apps/web` — public customer storefront (React): shoppers pick a branch, browse its live catalog, and build a cart for in-store pickup. Talks only to the backend's unauthenticated `/api/public/*` routes. See `docs/storefront-plan.md`.
 - `apps/backend` — central API (Express + Prisma + [Turso](https://turso.tech)/libSQL) that every store branch and every IMS session talks to; also generates KHQR payment QR codes via Bakong.
 
 Shared code lives under `packages/`:
 
 - `packages/shared-types` — wire contracts (DTOs) shared across apps. Not a shared data-access layer — `pos` runs sql.js/SQLite locally, `backend` runs Prisma/Turso, and those stay independent.
-- `packages/api-client` — typed fetch wrapper used by `pos` and `ims` to talk to their respective backends.
+- `packages/api-client` — typed fetch wrapper used by `pos`, `ims` and `web` to talk to their respective backends.
 - `packages/ui` — shared UI building blocks between `pos` and `ims`.
 
 ## Getting started
