@@ -94,3 +94,23 @@ export async function addCashier(storeId: string, pin: string) {
 
   return user;
 }
+
+/** Bakong setup that makes a store offer KHQR, with a cached token so status checks skip the renewal call. */
+export async function addKhqrSetup(storeId: string) {
+  await prisma.storeSetting.createMany({
+    data: [
+      { storeId, key: "bakong_account_id", value: "merchant@bank" },
+      { storeId, key: "bakong_merchant_name", value: "Test Mart" },
+    ],
+  });
+  await prisma.bakongCredential.create({
+    data: { storeId, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+  });
+}
+
+export function jsonResponse(body: unknown, init: { status?: number } = {}) {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
