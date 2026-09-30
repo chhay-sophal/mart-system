@@ -37,3 +37,24 @@ body {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
+
+/* Branch map pins (Leaflet divIcons, see BranchMap.jsx) — anchored at the pin's bottom-left point. */
+.branch-pin {
+  display: inline-block;
+  transform: translate(-12px, -100%);
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: 700 13px/1.2 var(--font-sans);
+  box-shadow: 0 6px 16px rgb(23 39 31 / 0.2);
+  cursor: pointer;
+}
+.branch-pin--selected {
+  background: var(--color-brand);
+  color: #fff;
+}
+.leaflet-container {
+  font-family: var(--font-sans);
+}
