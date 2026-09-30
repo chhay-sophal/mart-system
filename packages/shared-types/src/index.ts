@@ -7,3 +7,4 @@ export * from "./auth";
 export * from "./report";
 export * from "./transfer";
 export * from "./public";
+export * from "./onlineOrder";
