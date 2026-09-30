@@ -2,6 +2,8 @@
 
 Detailed plan for build step 4 of [storefront-plan.md](storefront-plan.md): a shopper checks out the storefront cart, pays by KHQR or chooses to pay at the counter, and the order waits at the branch for pickup. Step 5 (the IMS "Online orders" page) builds on the staff endpoints listed here.
 
+**Status: built.** Two details were settled during the build: before expiring a KHQR order the backend asks Bakong once more (a payment can land in the last seconds), and if Bakong can't be reached it waits up to 10 more minutes rather than releasing stock that may have been paid for; and collected orders are read into reports directly rather than copied into `Order` (see "Other schema changes").
+
 ## The flow
 
 ```

@@ -42,6 +42,10 @@ No SPA-routing config is needed — Cloudflare Pages auto-serves `index.html` fo
 
 Same steps as IMS, as its own Pages project: **Root directory** `apps/web`, **Build command** `pnpm --filter @mart-system/web build`, **Build output directory** `dist`, and the same `VITE_API_BASE_URL`. Also set `VITE_MART_NAME` to the mart's name (shown in the header and browser tab). It needs no login — it only reads the backend's public `/api/public/*` routes.
 
+### Updating an existing deployment
+
+New migrations must reach the real database before the backend code that needs them: run `pnpm db:migrate:turso` from `apps/backend` (against the real `DATABASE_URL`/`TURSO_AUTH_TOKEN`) first, then let Render deploy. It skips anything already applied. The online-orders sweep (expiring unpaid KHQR orders, cancelling uncollected ones) runs inside the backend process; on Render's free tier it pauses while the service sleeps and catches up on the next request, and order reads settle overdue orders themselves either way.
+
 ## 3. Close the loop
 
 Go back to Render's dashboard and update the backend's `CORS_ALLOWED_ORIGINS` env var to the real Cloudflare Pages URL from step 2 — comma-separated with the storefront's URL too if you deployed it (e.g. `https://ims.pages.dev,https://shop.pages.dev`). This triggers a redeploy automatically.
