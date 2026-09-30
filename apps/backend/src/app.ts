@@ -13,6 +13,7 @@ import { paymentsRouter } from "./modules/payments/payments.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { stockTransfersRouter } from "./modules/stockTransfers/stockTransfers.routes";
 import { publicRouter } from "./modules/public/public.routes";
+import { onlineOrdersRouter } from "./modules/onlineOrders/onlineOrders.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function buildApp(): Express {
@@ -43,6 +44,7 @@ export function buildApp(): Express {
   app.use("/api", paymentsRouter);
   app.use("/api", reportsRouter);
   app.use("/api", stockTransfersRouter);
+  app.use("/api", onlineOrdersRouter);
   app.use("/api/public", publicRouter);
 
   app.use(errorHandler);
