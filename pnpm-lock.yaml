@@ -256,6 +256,58 @@ importers:
         specifier: ^5.12.0
         version: 5.16.1(supports-color@8.1.1)
 
+  apps/web:
+    dependencies:
+      '@mart-system/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@mart-system/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@tailwindcss/vite':
+        specifier: ^4.3.1
+        version: 4.3.3(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+      react:
+        specifier: ^19.2.6
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.3.0(react@19.3.0)
+      react-router-dom:
+        specifier: ^7.9.6
+        version: 7.18.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+    devDependencies:
+      '@eslint/js':
+        specifier: ^10.0.1
+        version: 10.0.1(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.1
+        version: 6.1.1(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+      eslint:
+        specifier: ^10.3.0
+        version: 10.10.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint-plugin-react-hooks:
+        specifier: ^7.1.1
+        version: 7.1.1(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)
+      eslint-plugin-react-refresh:
+        specifier: ^0.5.2
+        version: 0.5.7(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))
+      globals:
+        specifier: ^17.6.0
+        version: 17.12.0
+      tailwindcss:
+        specifier: ^4.3.1
+        version: 4.3.3
+      vite:
+        specifier: ^8.0.12
+        version: 8.3.0(@types/node@22.20.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)
+
   packages/api-client:
     dependencies:
       '@mart-system/shared-types':
