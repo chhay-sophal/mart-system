@@ -4,6 +4,7 @@ import Logo from '../components/Logo.jsx';
 import { CartIcon, GridIcon, HomeIcon, PinIcon, SearchIcon } from '../components/Icons.jsx';
 import { useBranch } from '../state/BranchContext.jsx';
 import { useCart } from '../state/CartContext.jsx';
+import { useOpenLabel } from '../lib/useOpenLabel.js';
 import { MART_NAME } from '../lib/config.js';
 
 function SearchBox({ className = '' }) {
@@ -66,6 +67,7 @@ const navClass = ({ isActive }) =>
 
 function BranchBar() {
   const { branch, loading } = useBranch();
+  const openLabel = useOpenLabel(branch);
   let label;
   if (loading) label = 'Finding branches…';
   else if (branch)
@@ -81,6 +83,14 @@ function BranchBar() {
       <div className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-2.5 md:px-8">
         <PinIcon className="size-[18px] shrink-0" />
         <span className="truncate">{label}</span>
+        {openLabel && (
+          <>
+            <span className="hidden text-faint sm:inline" aria-hidden="true">
+              ·
+            </span>
+            <span className="hidden truncate sm:inline">{openLabel}</span>
+          </>
+        )}
         <Link to="/branches" className="ml-auto shrink-0 font-semibold text-sun hover:text-sun">
           Change branch
         </Link>

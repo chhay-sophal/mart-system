@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { PinIcon, SearchIcon } from '../components/Icons.jsx';
 import { EmptyState, ErrorState, Loading } from '../components/Status.jsx';
 import { useBranch } from '../state/BranchContext.jsx';
+import { OpenBadge, WeeklyHours } from '../components/BranchHours.jsx';
 
-// Store has no coordinates or opening hours yet (build step 3), so this is a
-// searchable list with address-based directions rather than the design's map.
 export default function BranchesPage() {
   const { stores, branch, chooseBranch, loading, error, reload } = useBranch();
   const [q, setQ] = useState('');
@@ -50,7 +49,10 @@ export default function BranchesPage() {
                 className={`flex flex-col gap-4 rounded-[20px] border-2 bg-surface p-5 ${mine ? 'border-brand' : 'border-line'}`}
               >
                 <div className="flex flex-col gap-1">
-                  <strong className="font-display text-[22px]">{s.name}</strong>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <strong className="font-display text-[22px]">{s.name}</strong>
+                    <OpenBadge store={s} />
+                  </div>
                   {s.address && <span className="text-[15px] text-muted">{s.address}</span>}
                   {s.phone && (
                     <a href={`tel:${s.phone.replace(/\s/g, '')}`} className="self-start text-[15px]">
@@ -58,6 +60,7 @@ export default function BranchesPage() {
                     </a>
                   )}
                 </div>
+                <WeeklyHours store={s} />
                 <div className="mt-auto flex flex-wrap gap-2.5">
                   <button
                     type="button"
