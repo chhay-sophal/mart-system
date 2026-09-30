@@ -54,3 +54,4 @@ pnpm test
 
 - **Back-office (IMS)**: `POST /api/auth/login` (email/password) → short-lived access token + rotating refresh token.
 - **Cashier terminal**: requests to `/api/auth/pin-login` must carry `X-Terminal-Id`/`X-Terminal-Secret` headers (issued once at terminal pairing) *and* a valid PIN in the body — the device credential is checked first, so PIN attempts from anything that isn't a paired terminal are rejected before the PIN is even looked at.
+- **Storefront (public, no auth)**: read-only routes under `/api/public/*` for the customer website — active stores, a store's catalog (`?category=` to filter), a single product, and a product's stock level across branches. They return only the narrow shapes in `packages/shared-types/src/public.ts`: effective price and a stock *level* (`IN_STOCK` / `LOW_STOCK` / `OUT_OF_STOCK`), never cost price or exact counts. Rate limited to 120 requests/min per IP. See `docs/storefront-plan.md`.
