@@ -5,6 +5,7 @@ import { CartProvider } from './state/CartContext.jsx';
 import { EmptyState } from './components/Status.jsx';
 import HomePage from './pages/HomePage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
+import ProductPage from './pages/ProductPage.jsx';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route element={<SiteLayout />}>
             <Route index element={<HomePage />} />
             <Route path="shop" element={<CatalogPage />} />
+            <Route path="products/:productId" element={<ProductPage />} />
             <Route path="*" element={<EmptyState title="Page not found" />} />
           </Route>
         </Routes>
