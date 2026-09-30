@@ -6,3 +6,4 @@ export * from "./sync";
 export * from "./auth";
 export * from "./report";
 export * from "./transfer";
+export * from "./public";
