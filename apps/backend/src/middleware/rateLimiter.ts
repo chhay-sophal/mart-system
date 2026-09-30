@@ -1,3 +1,4 @@
+import type { NextFunction, Request, Response } from "express";
 import { tooManyRequests } from "../lib/httpError";
 
 interface WindowState {
@@ -60,3 +61,40 @@ export const pinLoginLimiter = createSlidingWindowLimiter({
   windowMs: 5 * 60_000,
   lockoutStepsMs: [30_000, 120_000, 300_000],
 });
+
+export interface RequestRateLimiterOptions {
+  /** Requests allowed per client IP within one `windowMs` window. */
+  max: number;
+  windowMs: number;
+}
+
+/**
+ * Fixed-window per-IP request cap for unauthenticated routes (the public
+ * storefront API), unlike the failure-counting limiter above which only
+ * reacts to bad PINs. Same in-memory, single-process caveat applies.
+ */
+export function createRequestRateLimiter(options: RequestRateLimiterOptions) {
+  const windows = new Map<string, { count: number; resetAt: number }>();
+
+  return function requestRateLimiter(req: Request, res: Response, next: NextFunction) {
+    const now = Date.now();
+    const key = req.ip ?? "unknown";
+    let w = windows.get(key);
+    if (!w || w.resetAt <= now) {
+      // Opportunistic sweep so one-off visitors don't accumulate forever.
+      if (windows.size > 10_000) {
+        for (const [k, v] of windows) if (v.resetAt <= now) windows.delete(k);
+      }
+      w = { count: 0, resetAt: now + options.windowMs };
+      windows.set(key, w);
+    }
+
+    w.count += 1;
+    if (w.count > options.max) {
+      const retryAfterSec = Math.ceil((w.resetAt - now) / 1000);
+      res.setHeader("Retry-After", String(retryAfterSec));
+      return next(tooManyRequests(`Too many requests. Try again in ${retryAfterSec}s.`));
+    }
+    next();
+  };
+}
