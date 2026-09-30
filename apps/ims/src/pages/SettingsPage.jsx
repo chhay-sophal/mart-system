@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import BranchDetailsCard from '../components/BranchDetailsCard.jsx';
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
@@ -88,6 +89,8 @@ export default function SettingsPage() {
       <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">Store settings</h1>
 
       {message && <p className="text-sm text-slate-600 mb-3">{message}</p>}
+
+      <BranchDetailsCard key={storeId} storeId={storeId} />
 
       <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Bakong KHQR</h2>

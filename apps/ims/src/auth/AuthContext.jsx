@@ -117,8 +117,9 @@ export function AuthProvider({ children }) {
   }, [clearAuth]);
 
   const value = useMemo(
-    () => ({ status, user, stores, currentStoreId, setCurrentStoreId, login, logout }),
-    [status, user, stores, currentStoreId, login, logout]
+    // reloadStores: for pages that edit a store's own details (name, etc.) so the switcher stays current.
+    () => ({ status, user, stores, currentStoreId, setCurrentStoreId, reloadStores: loadStores, login, logout }),
+    [status, user, stores, currentStoreId, loadStores, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
