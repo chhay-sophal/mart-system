@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type {
+  OpeningHours,
   PublicProduct,
   PublicProductAvailability,
   PublicStore,
@@ -20,7 +21,18 @@ const PUBLIC_STORE_SELECT = {
   address: true,
   phone: true,
   timezone: true,
+  openingHours: true,
+  latitude: true,
+  longitude: true,
 } as const;
+
+type PublicStoreRow = Prisma.StoreGetPayload<{ select: typeof PUBLIC_STORE_SELECT }>;
+
+// openingHours is stored as untyped JSON; its shape is enforced on write
+// (stores.schema.ts's openingHoursSchema), so it's safe to type it here.
+function toPublicStore(row: PublicStoreRow): PublicStore {
+  return { ...row, openingHours: (row.openingHours as OpeningHours | null) ?? null };
+}
 
 export function toStockLevel(stock: number, lowStockThreshold: number): StockLevel {
   if (stock <= 0) return "OUT_OF_STOCK";
@@ -42,11 +54,12 @@ function toPublicProduct(row: StoreProductWithProduct): PublicProduct {
 }
 
 export async function listPublicStores(): Promise<PublicStore[]> {
-  return prisma.store.findMany({
+  const rows = await prisma.store.findMany({
     where: { isActive: true },
     select: PUBLIC_STORE_SELECT,
     orderBy: { name: "asc" },
   });
+  return rows.map(toPublicStore);
 }
 
 export async function getPublicStoreOrThrow(storeId: string): Promise<PublicStore> {
@@ -55,7 +68,7 @@ export async function getPublicStoreOrThrow(storeId: string): Promise<PublicStor
     select: PUBLIC_STORE_SELECT,
   });
   if (!store) throw notFound("Store not found");
-  return store;
+  return toPublicStore(store);
 }
 
 export async function listPublicProducts(storeId: string, filter: { category?: string }): Promise<PublicProduct[]> {

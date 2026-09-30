@@ -1,4 +1,5 @@
 import type { Currency } from "./product";
+import type { OpeningHours } from "./store";
 
 /**
  * Wire contracts for the unauthenticated storefront API (/api/public/*).
@@ -13,6 +14,9 @@ export interface PublicStore {
   address: string | null;
   phone: string | null;
   timezone: string;
+  openingHours: OpeningHours | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 /** Coarse availability instead of a raw count — enough for a shopper, nothing a competitor can inventory. */

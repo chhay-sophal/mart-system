@@ -22,7 +22,17 @@ describe("public stores", () => {
     const res = await request(app).get("/api/public/stores");
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(Object.keys(res.body[0]).sort()).toEqual(["address", "code", "id", "name", "phone", "timezone"]);
+    expect(Object.keys(res.body[0]).sort()).toEqual([
+      "address",
+      "code",
+      "id",
+      "latitude",
+      "longitude",
+      "name",
+      "openingHours",
+      "phone",
+      "timezone",
+    ]);
     expect(res.body[0].name).toBe("Test Store");
   });
 
