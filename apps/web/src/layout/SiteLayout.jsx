@@ -148,6 +148,9 @@ function Footer() {
             <Link to="/cart" className="text-ground no-underline hover:underline">
               Your cart
             </Link>
+            <Link to="/orders" className="text-ground no-underline hover:underline">
+              Your orders
+            </Link>
           </div>
           <div className="flex flex-col gap-2.5">
             <strong className="text-[13px] tracking-[0.08em] text-faint uppercase">Visit</strong>

@@ -33,6 +33,10 @@ export default function CartPage() {
       <EmptyState title="Your cart is empty">
         <Link to="/shop" className="font-semibold">
           Start shopping
+        </Link>{' '}
+        or see{' '}
+        <Link to="/orders" className="font-semibold">
+          your orders
         </Link>
       </EmptyState>
     );

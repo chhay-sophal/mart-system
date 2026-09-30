@@ -10,6 +10,7 @@ import BranchesPage from './pages/BranchesPage.jsx';
 import CartPage from './pages/CartPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrderPage from './pages/OrderPage.jsx';
+import MyOrdersPage from './pages/MyOrdersPage.jsx';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="branches" element={<BranchesPage />} />
             <Route path="cart" element={<CartPage />} />
             <Route path="checkout" element={<CheckoutPage />} />
+            <Route path="orders" element={<MyOrdersPage />} />
             <Route path="orders/:token" element={<OrderPage />} />
             <Route path="*" element={<EmptyState title="Page not found" />} />
           </Route>
