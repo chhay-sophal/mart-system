@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma";
 import { notFound } from "../../lib/httpError";
 import type { updateStoreSchema } from "./stores.schema";
@@ -22,7 +23,15 @@ export async function getStoreOrThrow(storeId: string) {
 
 export async function updateStore(storeId: string, input: z.infer<typeof updateStoreSchema>) {
   await getStoreOrThrow(storeId);
-  return prisma.store.update({ where: { id: storeId }, data: input });
+  const { openingHours, ...rest } = input;
+  return prisma.store.update({
+    where: { id: storeId },
+    data: {
+      ...rest,
+      // A Json? column can't take a plain null in Prisma — clearing it needs DbNull.
+      ...(openingHours !== undefined ? { openingHours: openingHours ?? Prisma.DbNull } : {}),
+    },
+  });
 }
 
 export async function getStoreSettings(storeId: string): Promise<Record<string, string>> {
