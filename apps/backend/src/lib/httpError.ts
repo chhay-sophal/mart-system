@@ -1,10 +1,13 @@
 export class HttpError extends Error {
   readonly status: number;
+  /** Extra fields merged into the JSON error body, e.g. which items are out of stock. */
+  readonly details?: Record<string, unknown>;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "HttpError";
     this.status = status;
+    this.details = details;
   }
 }
 

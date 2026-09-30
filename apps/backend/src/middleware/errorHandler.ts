@@ -7,7 +7,7 @@ import { logger } from "../lib/logger";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof HttpError) {
-    return res.status(err.status).json({ error: err.message });
+    return res.status(err.status).json({ ...err.details, error: err.message });
   }
 
   if (err instanceof ZodError) {
