@@ -40,6 +40,6 @@ Steps 1–3 are done; step 4 is next.
 1. **Public branch and catalog endpoints**, with tests and a per-IP rate limit.
 2. **`apps/web`** — browsing and cart against those endpoints, no checkout yet.
 3. **Branch details** — opening hours and location on `Store`, editable in IMS, exposed publicly.
-4. **Online orders** — `OnlineOrder` model, checkout (KHQR and pay at counter), payment status, stock deduction, auto-cancel of uncollected pay-at-counter orders.
+4. **Online orders** — `OnlineOrder` model, checkout (KHQR and pay at counter), payment status, stock deduction, auto-cancel of uncollected pay-at-counter orders. Detailed in [online-orders-plan.md](online-orders-plan.md).
 5. **IMS "Online orders" page** — staff mark orders ready and collected, take counter payment.
 6. **Later** — POS-side order display, photos, Khmer names, promotions.
