@@ -8,6 +8,8 @@ const TABLES = [
   "StockMovement",
   "OrderItem",
   "PaymentTransaction",
+  "OnlineOrderItem",
+  "OnlineOrder",
   "Order",
   "Terminal",
   "StoreProduct",

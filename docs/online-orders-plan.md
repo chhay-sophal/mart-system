@@ -37,8 +37,7 @@ New `OnlineOrder` and `OnlineOrderItem` tables, deliberately separate from `Orde
 | `pickupAt` | Null = "as soon as it's ready". Otherwise a slot inside the branch's opening hours. |
 | `holdUntil` | Pay-at-counter only: when auto-cancel kicks in. |
 | `totalAmountMinor`, `currency` | Always USD, like `Order` (KHR-priced items converted at the store's `exchange_rate` setting, as POS and reports already do). |
-| `cancelReason` | `STAFF`, `UNCOLLECTED`, `PAYMENT_EXPIRED` |
-| `orderId` | Set on collection — see "Reports" below. |
+| `cancelReason` | `STAFF` or `UNCOLLECTED` (an expired KHQR order has status `EXPIRED` instead) |
 | timestamps | `createdAt`, `paidAt`, `readyAt`, `collectedAt`, `cancelledAt` |
 
 `OnlineOrderItem`: `productId`, `quantity`, `priceAtOrderMinor`, `currency`, plus `nameAtOrder` so the order still reads correctly if the product is renamed or deleted later.
@@ -46,7 +45,7 @@ New `OnlineOrder` and `OnlineOrderItem` tables, deliberately separate from `Orde
 Other schema changes:
 - `PaymentTransaction.orderId` becomes optional, and gains an optional `onlineOrderId`. The KHQR code is recorded as `PENDING` when created and flipped to `PAID` / `EXPIRED`.
 - `StockMovementReason` gains `ONLINE_ORDER` (stock taken) and `ONLINE_ORDER_RELEASED` (given back), with `refType: "OnlineOrder"`, `refId` set.
-- `Order.terminalId` becomes optional, and `Order` gains `channel` (`POS` default, or `ONLINE`) and nothing else. Existing POS sync is untouched.
+- `Order` is **not** changed. An earlier draft made `Order.terminalId` optional so collected online orders could be copied into `Order`, but on SQLite that means rebuilding the `Order` table, and if `PRAGMA foreign_keys=OFF` were ignored during the rebuild (it is inside a transaction), dropping `Order` would cascade-delete every `OrderItem`. The `PaymentTransaction` rebuild is safe because no table references it.
 
 ## Stock
 
@@ -76,7 +75,7 @@ Other schema changes:
 
 ## Reports
 
-Sales reports read `Order` only. When an online order is **collected**, a matching `Order` row is created (`channel: ONLINE`, no terminal, items copied from the online order, payment method = KHQR or whatever was taken at the counter) in the same transaction, without touching stock again. So an online sale lands in the daily summary on the day it's handed over, alongside till sales, with no changes to the reports code. Its `clientOrderUuid` is the online order's, so it can never be created twice.
+An online sale counts on the day it's **collected** (`collectedAt`). The daily summary reads collected `OnlineOrder`s alongside `Order`s: they add to the order count, revenue, gross profit, top products, and the by-payment-method split (KHQR, or whatever was taken at the counter), plus a separate online count so staff can see the channel mix. Till sales are read exactly as before.
 
 ## API
 
@@ -110,17 +109,17 @@ Invalid transitions (e.g. collecting an expired order) return 409.
 
 ## Testing
 
-Backend tests for: placing an order (prices from the server, not the request); rejecting short stock without changing any stock; idempotent retries; KHQR paid and expired paths (Bakong mocked); lazy expiry and the sweep releasing stock exactly once; auto-cancel of pay-at-counter orders only; each staff transition and the invalid ones; collection creating exactly one `Order` that shows up in the daily summary; pickup-slot validation around opening hours and midnight; the public view never exposing the full phone number. Then an end-to-end run in the browser, as in steps 2 and 3.
+Backend tests for: placing an order (prices from the server, not the request); rejecting short stock without changing any stock; idempotent retries; KHQR paid and expired paths (Bakong mocked); lazy expiry and the sweep releasing stock exactly once; auto-cancel of pay-at-counter orders only; each staff transition and the invalid ones; a collected online order showing up in the daily summary exactly once, on its collection day; pickup-slot validation around opening hours and midnight; the public view never exposing the full phone number. Then an end-to-end run in the browser, as in steps 2 and 3.
 
 ## Build order (micro commits)
 
-1. Schema + migration (`OnlineOrder`, `OnlineOrderItem`, enum values, nullable `PaymentTransaction.orderId` / `Order.terminalId`, `Order.channel`).
+1. Schema + migration (`OnlineOrder`, `OnlineOrderItem`, enum values, nullable `PaymentTransaction.orderId`).
 2. Shared types for online orders.
 3. Backend: opening-hours and pickup-slot logic, with tests.
 4. Backend: placing orders (stock reservation, pricing, idempotency), with tests.
 5. Backend: KHQR payment and status polling, with tests.
 6. Backend: expiry, auto-cancel and the sweep, with tests.
-7. Backend: staff transitions and collection → `Order`, with tests.
+7. Backend: staff transitions, and collected online orders in the daily summary, with tests.
 8. Storefront: checkout page.
 9. Storefront: KHQR payment screen.
 10. Storefront: order status page and "my orders".

@@ -26,6 +26,8 @@ enum StockMovementReason {
   TRANSFER_OUT
   ADJUSTMENT
   STOCKTAKE
+  ONLINE_ORDER
+  ONLINE_ORDER_RELEASED
 }
 
 enum PaymentMethod {
@@ -37,6 +39,25 @@ enum PaymentMethod {
 enum OrderStatus {
   COMPLETED
   VOIDED
+}
+
+enum OnlineOrderStatus {
+  AWAITING_PAYMENT
+  CONFIRMED
+  READY
+  COLLECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum OnlineOrderPaymentMethod {
+  KHQR
+  PAY_AT_COUNTER
+}
+
+enum OnlineOrderCancelReason {
+  STAFF
+  UNCOLLECTED
 }
 
 enum KhqrStatus {
@@ -81,11 +102,12 @@ model Store {
   latitude     Float?
   longitude    Float?
 
-  userRoles       UserStoreRole[]
+  userRoles        UserStoreRole[]
   terminals        Terminal[]
   storeProducts    StoreProduct[]
   stockMovements   StockMovement[]
   orders           Order[]
+  onlineOrders     OnlineOrder[]
   settings         StoreSetting[]
   transfersFrom    StockTransfer[]   @relation("TransferFromStore")
   transfersTo      StockTransfer[]   @relation("TransferToStore")
@@ -162,9 +184,10 @@ model Product {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  storeProducts  StoreProduct[]
-  orderItems     OrderItem[]
-  stockMovements StockMovement[]
+  storeProducts    StoreProduct[]
+  orderItems       OrderItem[]
+  onlineOrderItems OnlineOrderItem[]
+  stockMovements   StockMovement[]
 }
 
 model StoreProduct {
@@ -257,19 +280,89 @@ model BakongCredential {
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
+// Exactly one of orderId (a till sale's KHQR payment) or onlineOrderId (a
+// storefront order's) is set.
 model PaymentTransaction {
-  id          String     @id @default(cuid())
-  orderId     String
-  md5Hash     String     @unique
-  qrString    String
-  bankName    String?
-  currency    Currency
-  amountMinor Int
-  status      KhqrStatus @default(PENDING)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id            String     @id @default(cuid())
+  orderId       String?
+  onlineOrderId String?
+  md5Hash       String     @unique
+  qrString      String
+  bankName      String?
+  currency      Currency
+  amountMinor   Int
+  status        KhqrStatus @default(PENDING)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  onlineOrder OnlineOrder? @relation(fields: [onlineOrderId], references: [id], onDelete: Cascade)
+
+  @@index([onlineOrderId])
+}
+
+// A storefront order for in-store pickup. See docs/online-orders-plan.md.
+// Deliberately not an Order (a till sale, which needs a terminal); reports
+// read collected OnlineOrders alongside Orders instead.
+model OnlineOrder {
+  id                     String                   @id @default(cuid())
+  storeId                String
+  // The shopper's only handle on the order (/orders/:publicToken) — random, never the id.
+  publicToken            String                   @unique
+  // Browser-generated per checkout attempt, so a double submit returns the same order.
+  clientOrderUuid        String                   @unique
+  pickupCode             String
+  status                 OnlineOrderStatus
+  paymentMethod          OnlineOrderPaymentMethod
+  // What was actually taken at the counter for a PAY_AT_COUNTER order.
+  collectedPaymentMethod PaymentMethod?
+  customerName           String
+  customerPhone          String
+  note                   String?
+  // Null = "as soon as it's ready".
+  pickupAt               DateTime?
+  // PAY_AT_COUNTER only: auto-cancelled (UNCOLLECTED) if still open after this.
+  holdUntil              DateTime?
+  // KHQR only: the QR code (and the stock held for it) expires at this time.
+  paymentExpiresAt       DateTime?
+  // Throttles Bakong status checks across many polling tabs.
+  lastPaymentCheckAt     DateTime?
+  // Always USD, like Order — KHR-priced lines converted at exchangeRate (the store's setting at order time).
+  totalAmountMinor       Int
+  currency               Currency                 @default(USD)
+  exchangeRate           Float
+  cancelReason           OnlineOrderCancelReason?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  paidAt                 DateTime?
+  readyAt                DateTime?
+  collectedAt            DateTime?
+  cancelledAt            DateTime?
+
+  store               Store                @relation(fields: [storeId], references: [id])
+  items               OnlineOrderItem[]
+  paymentTransactions PaymentTransaction[]
+
+  @@index([storeId, status])
+  @@index([storeId, collectedAt])
+  @@index([status, holdUntil])
+  @@index([status, paymentExpiresAt])
+}
+
+model OnlineOrderItem {
+  id                String   @id @default(cuid())
+  onlineOrderId     String
+  productId         String
+  // Kept so the order still reads right if the product is renamed or deleted later.
+  nameAtOrder       String
+  quantity          Int
+  priceAtOrderMinor Int
+  currency          Currency
+
+  onlineOrder OnlineOrder @relation(fields: [onlineOrderId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+
+  @@index([onlineOrderId])
 }
 
 model SyncEvent {
