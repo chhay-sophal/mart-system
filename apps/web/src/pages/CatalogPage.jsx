@@ -13,7 +13,7 @@ const SORTS = {
 };
 
 export default function CatalogPage() {
-  const { branch, error: branchError, reload: reloadBranches } = useBranch();
+  const { branch, loading: branchesLoading, error: branchError, reload: reloadBranches } = useBranch();
   const catalog = useCatalog();
   // Filters live in the URL so a filtered aisle can be linked to, shared, and survives reload.
   const [params, setParams] = useSearchParams();
@@ -47,7 +47,7 @@ export default function CatalogPage() {
 
   if (branchError) return <ErrorState error={branchError} onRetry={reloadBranches} />;
   if (catalog.error) return <ErrorState error={catalog.error} onRetry={catalog.reload} />;
-  if (!branch && !catalog.loading) return <EmptyState title="No branches are open yet" />;
+  if (!branch && !branchesLoading) return <EmptyState title="No branches are open yet" />;
 
   const heading = q ? `Results for “${q}”` : aisle ?? 'Shop all';
   const aisleButton = (value, label, count) => {
@@ -125,7 +125,7 @@ export default function CatalogPage() {
         </aside>
 
         <div className="flex-1">
-          {catalog.loading ? (
+          {catalog.loading || branchesLoading ? (
             <Loading label="Loading the shelves…" />
           ) : shown.length === 0 ? (
             <EmptyState title="Nothing here right now">
