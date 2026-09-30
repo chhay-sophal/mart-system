@@ -22,4 +22,5 @@ pnpm dev               # http://localhost:5174 (IMS keeps Vite's default 5173)
 - **Cart** — stores only product ids and quantities (plus each item's name, as a label). Prices always come from the live catalog, so a price change or a branch switch is reflected rather than a stale snapshot. Items the branch doesn't carry or has run out of are listed separately and left out of the total.
 - **Filters** — the catalog's aisle, search, stock and sort filters live in the URL, so a filtered view can be linked and survives a reload.
 - **Aisles** come from `Product.category`, which is free text set in IMS; products without one are grouped under "Other".
-- **Not yet**: checkout (build step 4), product photos, Khmer product names, opening hours and a map (build step 3).
+- **Branch finder** — opening hours and map pins are entered per branch in IMS (Settings → Branch details). "Open now" is worked out in the branch's own timezone and re-checked every minute. The map is Leaflet on OpenStreetMap's tile server (attribution required by its usage policy), lazy-loaded so it only downloads on the branches page; for heavy traffic, switch `BranchMap.jsx` to a paid tile provider.
+- **Not yet**: checkout (build step 4), product photos, Khmer product names.

@@ -35,6 +35,8 @@ Deferred: product photos (`Product.imageUrl`), Khmer product names (`nameKm`), p
 
 ## Build order
 
+Steps 1–3 are done; step 4 is next.
+
 1. **Public branch and catalog endpoints**, with tests and a per-IP rate limit.
 2. **`apps/web`** — browsing and cart against those endpoints, no checkout yet.
 3. **Branch details** — opening hours and location on `Store`, editable in IMS, exposed publicly.
