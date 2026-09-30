@@ -8,6 +8,10 @@ import { isOpenAt, isValidPickupSlot, nextOpening, pickupSlots } from "../../lib
 import { logger } from "../../lib/logger";
 import { checkKhqrStatus, generateKhqr } from "../payments/payments.service";
 import type { PlaceOnlineOrderInput } from "./onlineOrders.schema";
+import { ORDER_INCLUDE, type OrderWithItems } from "./onlineOrders.include";
+import { settleOnlineOrder } from "./onlineOrderLifecycle";
+
+export { ORDER_INCLUDE, type OrderWithItems };
 
 const DEFAULT_EXCHANGE_RATE = 4100;
 const DEFAULT_HOLD_MINUTES = 60;
@@ -18,13 +22,6 @@ const OPEN_STATUSES = ["AWAITING_PAYMENT", "CONFIRMED", "READY"] as const;
 const KHQR_LIFETIME_MS = 5 * 60_000;
 /** Many open tabs polling one order still reach Bakong at most this often. */
 const PAYMENT_CHECK_INTERVAL_MS = 3_000;
-
-export const ORDER_INCLUDE = {
-  items: true,
-  store: { select: { name: true } },
-  paymentTransactions: { orderBy: { createdAt: "desc" } },
-} as const;
-export type OrderWithItems = Prisma.OnlineOrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
 
 async function getSetting(storeId: string, key: string) {
   const row = await prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key } } });
@@ -354,5 +351,6 @@ export async function refreshKhqrPayment(order: OrderWithItems, now = new Date()
 export async function getOnlineOrderByToken(token: string, now = new Date()): Promise<OrderWithItems> {
   const order = await prisma.onlineOrder.findUnique({ where: { publicToken: token }, include: ORDER_INCLUDE });
   if (!order) throw notFound("Order not found");
-  return refreshKhqrPayment(order, now);
+  // Expire / auto-cancel first if overdue, then (if still awaiting payment) ask Bakong.
+  return refreshKhqrPayment(await settleOnlineOrder(order, now), now);
 }
