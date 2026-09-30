@@ -135,15 +135,16 @@ export default function CartPage() {
               Change
             </Link>
           </p>
-          {/* Checkout (KHQR or pay at the counter) arrives with online orders in build step 4. */}
-          <button
-            type="button"
-            disabled
-            className="h-14 cursor-not-allowed rounded-[14px] bg-line-strong text-[17px] font-semibold text-muted"
-          >
-            Checkout opening soon
-          </button>
-          <p className="m-0 text-center text-sm text-muted">Online ordering is almost ready — your cart will be kept.</p>
+          {available.length > 0 ? (
+            <Link
+              to="/checkout"
+              className="flex h-14 items-center justify-center rounded-[14px] bg-brand text-[17px] font-semibold text-white no-underline hover:bg-brand-dark hover:text-white"
+            >
+              Checkout
+            </Link>
+          ) : (
+            <p className="m-0 text-center text-sm text-muted">Nothing in your cart is available at {branch.name}.</p>
+          )}
         </aside>
       </div>
     </div>
