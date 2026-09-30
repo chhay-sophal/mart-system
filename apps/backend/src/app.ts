@@ -12,10 +12,16 @@ import { syncRouter } from "./modules/sync/sync.routes";
 import { paymentsRouter } from "./modules/payments/payments.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { stockTransfersRouter } from "./modules/stockTransfers/stockTransfers.routes";
+import { publicRouter } from "./modules/public/public.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function buildApp(): Express {
   const app = express();
+
+  // Render terminates TLS at one proxy hop in front of us — trust it so req.ip
+  // is the real client (the public API's per-IP rate limit keys on it). Not in
+  // dev/test, where nothing sits in front and X-Forwarded-For would be spoofable.
+  if (env.NODE_ENV === "production") app.set("trust proxy", 1);
 
   // Only IMS calls this API from a browser — POS's sidecar talks to it via a
   // server-to-server fetch, never subject to CORS. Dev/test stay permissive
@@ -37,6 +43,7 @@ export function buildApp(): Express {
   app.use("/api", paymentsRouter);
   app.use("/api", reportsRouter);
   app.use("/api", stockTransfersRouter);
+  app.use("/api/public", publicRouter);
 
   app.use(errorHandler);
 
