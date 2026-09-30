@@ -14,8 +14,8 @@ const envSchema = z.object({
   CASHIER_SESSION_TTL: z.string().default("14h"),
   PASSWORD_BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(12),
   PIN_BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(10),
-  // Comma-separated allow-list (e.g. "https://ims.example.com"). Only IMS
-  // calls this API from a browser (POS's sidecar is a server-to-server
+  // Comma-separated allow-list (e.g. "https://ims.example.com,https://shop.example.com").
+  // Only IMS and the web storefront call this API from a browser (POS's sidecar is a server-to-server
   // fetch, never subject to CORS at all) — required in production so the
   // API doesn't ship wide open to any origin; optional in dev/test so local
   // work isn't blocked by not having set it yet.

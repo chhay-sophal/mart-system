@@ -23,8 +23,8 @@ export function buildApp(): Express {
   // dev/test, where nothing sits in front and X-Forwarded-For would be spoofable.
   if (env.NODE_ENV === "production") app.set("trust proxy", 1);
 
-  // Only IMS calls this API from a browser — POS's sidecar talks to it via a
-  // server-to-server fetch, never subject to CORS. Dev/test stay permissive
+  // IMS and the web storefront call this API from a browser — POS's sidecar
+  // talks to it via a server-to-server fetch, never subject to CORS. Dev/test stay permissive
   // (no friction from not having CORS_ALLOWED_ORIGINS set locally); env.ts
   // already refuses to boot in production without an explicit allow-list.
   app.use(cors(env.NODE_ENV === "production" ? { origin: env.corsAllowedOrigins } : {}));
