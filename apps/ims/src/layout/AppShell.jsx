@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useOpenOnlineOrderCount } from '../lib/useOpenOnlineOrderCount';
 
 const NAV_ITEMS = [
   { to: '/online-orders', label: 'Online orders' },
@@ -21,6 +23,12 @@ function navLinkClass({ isActive }) {
 
 export default function AppShell() {
   const { user, stores, currentStoreId, setCurrentStoreId, logout } = useAuth();
+  const openOrders = useOpenOnlineOrderCount(currentStoreId);
+
+  // Shows in the browser tab too, for a counter that keeps IMS in the background.
+  useEffect(() => {
+    document.title = openOrders ? `(${openOrders}) Mart System IMS` : 'Mart System IMS';
+  }, [openOrders]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -32,6 +40,14 @@ export default function AppShell() {
               {NAV_ITEMS.map((item) => (
                 <NavLink key={item.to} to={item.to} className={navLinkClass}>
                   {item.label}
+                  {item.to === '/online-orders' && openOrders > 0 && (
+                    <span
+                      className="ml-1.5 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-[var(--accent)] text-white text-xs font-semibold"
+                      aria-label={`${openOrders} open`}
+                    >
+                      {openOrders}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </nav>
