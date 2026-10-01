@@ -35,7 +35,7 @@ Deferred: product photos (`Product.imageUrl`), Khmer product names (`nameKm`), p
 
 ## Build order
 
-Steps 1–4 are done; step 5 (the IMS page) is next — its backend endpoints already exist.
+Steps 1–5 are done. What's left is under step 6.
 
 1. **Public branch and catalog endpoints**, with tests and a per-IP rate limit.
 2. **`apps/web`** — browsing and cart against those endpoints, no checkout yet.
