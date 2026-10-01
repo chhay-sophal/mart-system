@@ -87,6 +87,41 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
 
   const hasData = summary && summary.order_count > 0;
 
+  // Website orders handed over at this till: not the till's own sales (they're
+  // counted in the backend's reports), but their cash is in this drawer.
+  const online = summary?.online_collected;
+  const onlineCard = online?.count > 0 && (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
+      <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 font-display">
+        {s.onlineCollected || 'Online orders handed over here'}
+      </h2>
+      <div className="flex items-baseline justify-between mb-3">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          {online.count} {s.txCount || 'txns'}
+        </span>
+        <span className="text-lg font-bold text-slate-900 dark:text-white">{fmt(online.total)}</span>
+      </div>
+      <div className="space-y-1.5 text-sm">
+        {online.by_method.map((m) => (
+          <div key={m.payment_method} className="flex justify-between">
+            <span className="text-slate-600 dark:text-slate-300">
+              {m.payment_method === 'KHQR_ONLINE' ? s.onlineKhqrPaid || 'Paid online' : methodLabel(m.payment_method)}
+            </span>
+            <span className="font-bold text-slate-800 dark:text-slate-100">
+              {fmt(m.total)} <span className="text-xs font-normal text-slate-400">{m.count}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      {online.cash_total > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-between text-sm">
+          <span className="font-bold text-slate-700 dark:text-slate-200">{s.onlineCash || 'Cash in drawer'}</span>
+          <span className="font-black text-emerald-600 dark:text-emerald-400">+{fmt(online.cash_total)}</span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
 
@@ -144,6 +179,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
         ) : !hasData ? (
           <div className="text-center py-16 text-slate-400 dark:text-slate-500">
             <p className="text-sm font-bold">{s.noOrders || 'No orders recorded for this day.'}</p>
+            {onlineCard && <div className="mt-6 text-left">{onlineCard}</div>}
           </div>
         ) : (
           <>
@@ -212,6 +248,8 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                 </div>
               </div>
             )}
+
+            {onlineCard}
 
             {/* Top products */}
             {summary.top_products?.length > 0 && (
