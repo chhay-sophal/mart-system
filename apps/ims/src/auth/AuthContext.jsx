@@ -108,8 +108,9 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // apiClient's onUnauthorized fires on any 401/403 — if our proactive
-  // refresh somehow missed, drop the session so the login screen reappears.
+  // apiClient's onUnauthorized fires on a 401 — if our proactive refresh
+  // somehow missed, drop the session so the login screen reappears. A 403
+  // (signed in, but this role can't do that) is left to the page to report.
   useEffect(() => {
     const handler = () => clearAuth();
     window.addEventListener('ims:unauthorized', handler);

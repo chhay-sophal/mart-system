@@ -7,7 +7,12 @@ export interface ApiClientConfig {
   baseUrl: string;
   /** Returns the current bearer token (JWT, PIN session token, or device credential), if any. */
   getAuthToken?: () => string | null | Promise<string | null>;
-  /** Called once when a request comes back 401/403, so the app can force a re-login. */
+  /**
+   * Called when a request comes back 401 (not signed in, or the session
+   * expired), so the app can force a re-login. Not on 403: that means signed
+   * in but not allowed this action, which the caller reports as an error —
+   * logging the user out for it would throw away a perfectly good session.
+   */
   onUnauthorized?: () => void;
 }
 
@@ -48,7 +53,7 @@ export class ApiClient {
       throw new ApiError(0, "Network request failed", cause);
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       this.config.onUnauthorized?.();
     }
 
