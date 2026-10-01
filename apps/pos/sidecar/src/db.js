@@ -167,6 +167,18 @@ const SCHEMA = `
     is_active INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT
   );
+  -- Online (storefront) orders collected at this till, recorded when the
+  -- backend confirms the collection — so the till's daily summary (and the
+  -- cash drawer count at close) includes money taken for them. The orders
+  -- themselves live on the backend; this is only this till's ledger of them.
+  CREATE TABLE IF NOT EXISTS online_order_collections (
+    backend_order_id TEXT PRIMARY KEY,
+    pickup_code TEXT NOT NULL,
+    total_usd REAL NOT NULL,
+    payment_method TEXT NOT NULL,
+    collected_by TEXT,
+    collected_at TEXT NOT NULL
+  );
   INSERT OR IGNORE INTO store_settings (key, value) VALUES
     ('exchange_rate', '4100'),
     ('locale', 'km'),
