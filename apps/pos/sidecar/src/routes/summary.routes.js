@@ -50,7 +50,26 @@ router.get('/api/summary/daily', (req, res) => {
     base
   )[0] || { gross_profit: 0 };
 
+  // Online orders handed over at this till (routes/onlineOrders.routes.js).
+  // Kept separate from the till's own sales above: they were rung up on the
+  // website, not here, but cash taken for them is in this drawer.
+  const onlineByMethod = query(
+    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(total_usd), 0) as total
+     FROM online_order_collections WHERE collected_at >= ? AND collected_at < ?
+     GROUP BY payment_method ORDER BY total DESC`,
+    base
+  );
+  const onlineCount = onlineByMethod.reduce((n, m) => n + m.count, 0);
+  const onlineTotal = onlineByMethod.reduce((n, m) => n + m.total, 0);
+
   res.json({
+    online_collected: {
+      count: onlineCount,
+      total: onlineTotal,
+      // Taken at this counter as cash — what to add when counting the drawer.
+      cash_total: onlineByMethod.find((m) => m.payment_method === 'CASH')?.total ?? 0,
+      by_method: onlineByMethod,
+    },
     order_count: stats.order_count,
     total_revenue: stats.total_revenue,
     avg_order: stats.order_count > 0 ? stats.total_revenue / stats.order_count : 0,
