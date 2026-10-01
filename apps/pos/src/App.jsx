@@ -3,12 +3,14 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer, Globe } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
+import OnlineOrders from './OnlineOrders';
+import { useOnlineOrderAlerts } from './hooks/useOnlineOrderAlerts';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
@@ -62,6 +64,8 @@ export default function App() {
   // place via setBaseUrl() below once Tauri's async port-discovery resolves
   // the sidecar's real port. The setter is never called again.
   const [client] = useState(() => new ApiClient({ baseUrl: initialBackendUrl }));
+  // Website orders waiting at this branch: header badge + chime, on every screen while unlocked.
+  const onlineAlerts = useOnlineOrderAlerts(client, Boolean(session));
 
   // In production Tauri builds, discover the actual port the sidecar bound to,
   // then poll until the backend is ready.
@@ -563,6 +567,21 @@ export default function App() {
     );
   }
 
+  if (view === 'ONLINE_ORDERS') {
+    return (
+      <BackendContext.Provider value={client}>
+        <OnlineOrders
+          onBackToRegister={() => setView('REGISTER')}
+          currentLocale={locale}
+          dynamicRate={dynamicRate}
+          session={session}
+          soundOn={onlineAlerts.soundOn}
+          onToggleSound={onlineAlerts.toggleSound}
+        />
+      </BackendContext.Provider>
+    );
+  }
+
   if (view === 'SUMMARY') {
     return (
       <BackendContext.Provider value={client}>
@@ -616,6 +635,20 @@ export default function App() {
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <BarChart3 size={14} /> {(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}
+          </button>
+          <button
+            onClick={() => setView('ONLINE_ORDERS')}
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+          >
+            <Globe size={14} /> {t[locale].onlineOrders.navLabel}
+            {onlineAlerts.count > 0 && (
+              <span
+                className="ml-0.5 min-w-5 h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-black flex items-center justify-center"
+                aria-label={`${onlineAlerts.count} ${t[locale].onlineOrders.newOrder}`}
+              >
+                {onlineAlerts.count}
+              </span>
+            )}
           </button>
           {session.role === 'ADMIN' && (
             <button
