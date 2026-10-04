@@ -1,4 +1,4 @@
-import { Prisma, type PaymentMethod } from "@prisma/client";
+import type { PaymentMethod } from "@prisma/client";
 import { prisma } from "../../prisma";
 import { toMinorUnits } from "../../lib/money";
 import { logger } from "../../lib/logger";
@@ -17,12 +17,12 @@ export interface LegacyOrderImportResult {
   errors: Array<{ legacyId: unknown; error: string }>;
 }
 
-type Tx = Prisma.TransactionClient;
+type LegacyItem = LegacyOrder["items"][number];
 
-async function getLegacyTerminalId(tx: Tx, storeId: string): Promise<string> {
-  const existing = await tx.terminal.findFirst({ where: { storeId, name: LEGACY_TERMINAL_NAME } });
+async function getLegacyTerminalId(storeId: string): Promise<string> {
+  const existing = await prisma.terminal.findFirst({ where: { storeId, name: LEGACY_TERMINAL_NAME } });
   if (existing) return existing.id;
-  const created = await tx.terminal.create({
+  const created = await prisma.terminal.create({
     data: { storeId, name: LEGACY_TERMINAL_NAME, deviceCredentialHash: "!disabled", isActive: false },
   });
   return created.id;
@@ -48,45 +48,58 @@ export function zonedLocalToUtc(local: string, timeZone: string): Date {
   return new Date(asUtc.getTime() - zoneOffsetMs);
 }
 
+const itemBarcode = (item: LegacyItem) => item.barcode?.trim() || null;
+const itemKey = (item: LegacyItem) => {
+  const barcode = itemBarcode(item);
+  return barcode ? `barcode:${barcode}` : `name:${item.name}`;
+};
+
 /**
  * Items are matched to the catalog by barcode (by name when there's none).
  * A product that's gone -- deleted in online-pos, so the product import left
  * it out -- is created as deleted, so the sale still shows what was sold.
+ * Returns item key -> product id, in a fixed number of queries.
  */
-async function resolveProductId(
-  tx: Tx,
-  item: LegacyOrder["items"][number],
-  cache: Map<string, string>,
-  result: LegacyOrderImportResult
-): Promise<string> {
-  const barcode = item.barcode?.trim() || null;
-  const key = barcode ? `barcode:${barcode}` : `name:${item.name}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
+async function resolveProductIds(items: LegacyItem[], result: LegacyOrderImportResult): Promise<Map<string, string>> {
+  const barcodes = [...new Set(items.flatMap((i) => (itemBarcode(i) ? [itemBarcode(i)!] : [])))];
+  const names = [...new Set(items.flatMap((i) => (itemBarcode(i) ? [] : [i.name])))];
+  const [byBarcode, byName] = await Promise.all([
+    barcodes.length ? prisma.product.findMany({ where: { barcode: { in: barcodes } }, select: { id: true, barcode: true } }) : [],
+    names.length
+      ? prisma.product.findMany({ where: { name: { in: names }, barcode: null }, select: { id: true, name: true } })
+      : [],
+  ]);
+  const ids = new Map<string, string>();
+  for (const p of byBarcode) ids.set(`barcode:${p.barcode}`, p.id);
+  for (const p of byName) if (!ids.has(`name:${p.name}`)) ids.set(`name:${p.name}`, p.id);
 
-  let product = barcode
-    ? await tx.product.findUnique({ where: { barcode } })
-    : await tx.product.findFirst({ where: { name: item.name, barcode: null } });
-  if (!product) {
-    product = await tx.product.create({
-      data: {
+  const missing = new Map<string, LegacyItem>();
+  for (const item of items) if (!ids.has(itemKey(item)) && !missing.has(itemKey(item))) missing.set(itemKey(item), item);
+  if (missing.size) {
+    const created = await prisma.product.createManyAndReturn({
+      data: [...missing.values()].map((item) => ({
         name: item.name,
-        barcode,
+        barcode: itemBarcode(item),
         defaultPriceMinor: toMinorUnits(item.priceAtSale, item.currency),
         currency: item.currency,
         isDeleted: true,
-      },
+      })),
+      select: { id: true, name: true, barcode: true },
     });
-    result.productsCreated += 1;
+    for (const p of created) ids.set(p.barcode ? `barcode:${p.barcode}` : `name:${p.name}`, p.id);
+    result.productsCreated += created.length;
   }
-  cache.set(key, product.id);
-  return product.id;
+  return ids;
 }
 
 /**
  * Imports historical sales from an online-pos database. Unlike sync push,
  * this never touches stock: the product import already brought over stock
  * levels that reflect these sales.
+ *
+ * In production every query is a network round trip to Turso, and Prisma
+ * cancels an interactive transaction after 5s, so a batch is a fixed handful
+ * of queries (lookups, then bulk inserts) rather than several per order.
  */
 export async function importLegacyOrders(
   storeId: string,
@@ -96,71 +109,87 @@ export async function importLegacyOrders(
   const store = await getStoreOrThrow(storeId);
   const result: LegacyOrderImportResult = { imported: 0, skipped: 0, productsCreated: 0, errors: [] };
 
-  await prisma.$transaction(
-    async (tx) => {
-      const terminalId = await getLegacyTerminalId(tx, storeId);
-      const productCache = new Map<string, string>();
+  // Validate, and drop a legacyId repeated within the batch.
+  const orders: Array<LegacyOrder & { clientOrderUuid: string; paymentMethod: PaymentMethod }> = [];
+  const seen = new Set<string>();
+  for (const raw of rawOrders) {
+    const parsed = legacyOrderSchema.safeParse(raw);
+    if (!parsed.success) {
+      const legacyId = (raw as { legacyId?: unknown } | null)?.legacyId ?? null;
+      const reason = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      result.errors.push({ legacyId, error: `Invalid order — ${reason}` });
+      continue;
+    }
+    const order = parsed.data;
+    const paymentMethod = order.paymentMethod.toUpperCase() as PaymentMethod;
+    if (!PAYMENT_METHODS.includes(paymentMethod)) {
+      result.errors.push({ legacyId: order.legacyId, error: `Unknown payment method "${order.paymentMethod}"` });
+      continue;
+    }
+    const clientOrderUuid = `online-pos:${sourceId}:${order.legacyId}`;
+    if (seen.has(clientOrderUuid)) {
+      result.skipped += 1;
+      continue;
+    }
+    seen.add(clientOrderUuid);
+    orders.push({ ...order, clientOrderUuid, paymentMethod });
+  }
 
-      for (const raw of rawOrders) {
-        const parsed = legacyOrderSchema.safeParse(raw);
-        if (!parsed.success) {
-          const legacyId = (raw as { legacyId?: unknown } | null)?.legacyId ?? null;
-          const reason = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-          result.errors.push({ legacyId, error: `Invalid order — ${reason}` });
-          continue;
-        }
-        const order = parsed.data;
-        const clientOrderUuid = `online-pos:${sourceId}:${order.legacyId}`;
-
-        try {
-          if (await tx.order.findUnique({ where: { clientOrderUuid } })) {
-            result.skipped += 1;
-            continue;
-          }
-          const paymentMethod = order.paymentMethod.toUpperCase() as PaymentMethod;
-          if (!PAYMENT_METHODS.includes(paymentMethod)) {
-            result.errors.push({ legacyId: order.legacyId, error: `Unknown payment method "${order.paymentMethod}"` });
-            continue;
-          }
-
-          const items = [];
-          for (const item of order.items) {
-            items.push({
-              productId: await resolveProductId(tx, item, productCache, result),
-              quantity: item.quantity,
-              priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
-              currency: item.currency,
-            });
-          }
-
-          await tx.order.create({
-            data: {
-              storeId,
-              terminalId,
-              clientOrderUuid,
-              totalAmountMinor: toMinorUnits(order.totalAmount, order.currency),
-              currency: order.currency,
-              paymentMethod,
-              bankName: order.bankName,
-              amountPaidUsdMinor: toMinorUnits(order.amountPaidUsd, "USD"),
-              amountPaidKhrMinor: toMinorUnits(order.amountPaidKhr, "KHR"),
-              changeGivenKhrMinor: toMinorUnits(order.changeGivenKhr, "KHR"),
-              status: order.status.toUpperCase() === "VOIDED" ? "VOIDED" : "COMPLETED",
-              isDeleted: order.isDeleted,
-              createdAt: zonedLocalToUtc(order.createdAt, store.timezone),
-              items: { create: items },
-            },
-          });
-          result.imported += 1;
-        } catch (err) {
-          logger.error({ err, storeId, legacyId: order.legacyId }, "importLegacyOrders order failed");
-          result.errors.push({ legacyId: order.legacyId, error: err instanceof Error ? err.message : "Unknown error" });
-        }
-      }
-    },
-    // A 200-order batch runs ~1k queries; Prisma's 5s default is too tight on a remote DB.
-    { timeout: 60_000 }
+  const alreadyImported = new Set(
+    (
+      await prisma.order.findMany({
+        where: { clientOrderUuid: { in: orders.map((o) => o.clientOrderUuid) } },
+        select: { clientOrderUuid: true },
+      })
+    ).map((o) => o.clientOrderUuid)
   );
+  const toImport = orders.filter((o) => !alreadyImported.has(o.clientOrderUuid));
+  result.skipped += orders.length - toImport.length;
+  if (toImport.length === 0) return result;
+
+  try {
+    const terminalId = await getLegacyTerminalId(storeId);
+    const productIds = await resolveProductIds(toImport.flatMap((o) => o.items), result);
+
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.order.createManyAndReturn({
+        data: toImport.map((order) => ({
+          storeId,
+          terminalId,
+          clientOrderUuid: order.clientOrderUuid,
+          totalAmountMinor: toMinorUnits(order.totalAmount, order.currency),
+          currency: order.currency,
+          paymentMethod: order.paymentMethod,
+          bankName: order.bankName,
+          amountPaidUsdMinor: toMinorUnits(order.amountPaidUsd, "USD"),
+          amountPaidKhrMinor: toMinorUnits(order.amountPaidKhr, "KHR"),
+          changeGivenKhrMinor: toMinorUnits(order.changeGivenKhr, "KHR"),
+          status: order.status.toUpperCase() === "VOIDED" ? ("VOIDED" as const) : ("COMPLETED" as const),
+          isDeleted: order.isDeleted,
+          createdAt: zonedLocalToUtc(order.createdAt, store.timezone),
+        })),
+        select: { id: true, clientOrderUuid: true },
+      });
+      const orderIds = new Map(created.map((o) => [o.clientOrderUuid, o.id]));
+      await tx.orderItem.createMany({
+        data: toImport.flatMap((order) =>
+          order.items.map((item) => ({
+            orderId: orderIds.get(order.clientOrderUuid)!,
+            productId: productIds.get(itemKey(item))!,
+            quantity: item.quantity,
+            priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
+            currency: item.currency,
+          }))
+        ),
+      });
+    });
+    result.imported += toImport.length;
+  } catch (err) {
+    // The whole batch rolls back together; report every order in it.
+    logger.error({ err, storeId }, "importLegacyOrders batch failed");
+    const message = err instanceof Error ? err.message : "Unknown error";
+    for (const order of toImport) result.errors.push({ legacyId: order.legacyId, error: message });
+  }
 
   return result;
 }

@@ -132,6 +132,17 @@ describe("POST /api/stores/:storeId/legacy-import/online-pos/orders", () => {
     ]);
   });
 
+  it("imports an order repeated within one batch only once", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    await addKhrProduct(store.id, "111", 7);
+
+    const res = await importOrders(store.id, token, [legacyOrder(), legacyOrder()]);
+
+    expect(res.body).toMatchObject({ imported: 1, skipped: 1, errors: [] });
+    expect(await prisma.order.count()).toBe(1);
+  });
+
   it("keeps deleted and voided orders as such", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
