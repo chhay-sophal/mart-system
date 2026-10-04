@@ -1,5 +1,5 @@
 const express = require('express');
-const { getSyncConfig } = require('../db');
+const { getSyncConfig, getSyncSetting } = require('../db');
 
 const router = express.Router();
 
@@ -12,6 +12,17 @@ function authHeaders(config) {
 // locally. This proxy keeps the exact same request/response shape the
 // frontend already calls, so no frontend changes are needed beyond this file
 // existing: the frontend still talks to its local sidecar exactly as before.
+function merchantDetails() {
+  const details = {
+    bakongAccountId: getSyncSetting('bakong_account_id'),
+    merchantName: getSyncSetting('bakong_merchant_name'),
+    merchantCity: getSyncSetting('bakong_merchant_city'),
+    storePhone: getSyncSetting('store_phone'),
+  };
+  // Blank ones are left out so the backend falls back to the store's values.
+  return Object.fromEntries(Object.entries(details).filter(([, value]) => value && value.trim()));
+}
+
 router.post('/api/payments/khqr', async (req, res) => {
   const config = getSyncConfig();
   if (!config) {
@@ -22,7 +33,13 @@ router.post('/api/payments/khqr', async (req, res) => {
     const response = await fetch(`${config.backendUrl}/api/payments/khqr`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(config) },
-      body: JSON.stringify({ amount: req.body.amount, currency: req.body.currency }),
+      body: JSON.stringify({
+        amount: req.body.amount,
+        currency: req.body.currency,
+        // This branch's merchant details, kept on the register (issue #5).
+        // The backend uses them for this QR only and never stores them.
+        ...merchantDetails(),
+      }),
     });
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json(data);
