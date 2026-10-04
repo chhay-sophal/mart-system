@@ -157,6 +157,7 @@ export const translations = {
 
     // INVOICE LABELS
     invoice: {
+      printFailed: "មិនអាចបោះពុម្ពវិក្កយបត្របានទេ។ សូមពិនិត្យម៉ាស៊ីនបោះពុម្ព ហើយព្យាយាមម្តងទៀត។",
       receiptTitle: 'សម្រង់តម្លៃទំនិញ',
       orderId: 'លេខកុម្ម៉ង់',
       date: 'កាលបរិច្ឆេទ',
@@ -489,6 +490,7 @@ export const translations = {
 
     // INVOICE LABELS
     invoice: {
+      printFailed: "Couldn't print the receipt. Check the printer and try again.",
       receiptTitle: 'Sales Receipt',
       orderId: 'Order No.',
       date: 'Date',

@@ -4,6 +4,9 @@ import { Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { translations as t } from './locales';
 import { usdToKhr } from './khr';
+import { useToast } from './Toast';
+
+const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
 export default function Invoice({ invoiceData, locale, onClose, autoPrint = false }) {
   const { order_id, items, subtotalBeforeDiscountUsd, transactionDiscountUsd, totalDiscountUsd, totalUsd, mainCurrency, dynamicRate, paymentMethod, bankName, amountPaidUsd, amountPaidKhr, changeDueKhr, timestamp, storeName, storeAddress, storePhone } = invoiceData;
@@ -13,6 +16,7 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
   const [printing, setPrinting] = useState(false);
   const componentRef = useRef(null);
   const hasAutoPrinted = useRef(false);
+  const notify = useToast();
 
   const printPageStyle = `
     @page {
@@ -36,6 +40,16 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
   `;
 
   const printFallback = () => {
+    // Inside the Tauri window, window.open('', '_blank') replaces the app with
+    // an empty page that only reopening the app recovers from (issue #9), so
+    // report the failure there instead. A plain browser (web dev) still gets
+    // the popup fallback.
+    if (IS_TAURI) {
+      notify(inv.printFailed || "Couldn't print the receipt. Check the printer and try again.");
+      setPrinting(false);
+      if (autoPrint) onClose();
+      return;
+    }
     const printWindow = window.open('', '_blank', 'width=400,height=600');
     if (!printWindow) {
       downloadPDF();
