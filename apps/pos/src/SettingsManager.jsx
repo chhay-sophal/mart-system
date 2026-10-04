@@ -3,6 +3,7 @@ import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
 import { ArrowLeft, Store, Wallet, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
 import { translations as t } from './locales';
+import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 
 function CriticalBadge({ label }) {
   return (
@@ -40,6 +41,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [updateProgress, setUpdateProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('store');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
+  const [overridingUrl, setOverridingUrl] = useState(false);
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -60,6 +62,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const fetchSettings = async () => {
     try {
       const data = await client.get('/api/settings');
+      if (!data.sync_backend_url && DEFAULT_SYNC_BACKEND_URL) data.sync_backend_url = DEFAULT_SYNC_BACKEND_URL;
       setSettings(prev => ({ ...prev, ...data }));
       setInitialSettings(data);
       setCloudFolder(data.cloud_backup_folder || '');
@@ -568,9 +571,28 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       </p>
                       <div>
                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Backend URL</label>
-                        <input type="text" value={settings.sync_backend_url}
-                          onChange={(e) => setSettings({ ...settings, sync_backend_url: e.target.value })}
-                          className={inputNormal} placeholder="https://api.example.com" />
+                        {DEFAULT_SYNC_BACKEND_URL && !overridingUrl && settings.sync_backend_url === DEFAULT_SYNC_BACKEND_URL ? (
+                          <div className="flex items-center justify-between gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            <span className="truncate">{settings.sync_backend_url}</span>
+                            <button type="button" onClick={() => setOverridingUrl(true)}
+                              className="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+                              Override
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <input type="text" value={settings.sync_backend_url}
+                              onChange={(e) => setSettings({ ...settings, sync_backend_url: e.target.value })}
+                              className={inputNormal} placeholder="https://api.example.com" />
+                            {DEFAULT_SYNC_BACKEND_URL && (
+                              <button type="button"
+                                onClick={() => { setSettings({ ...settings, sync_backend_url: DEFAULT_SYNC_BACKEND_URL }); setOverridingUrl(false); }}
+                                className="mt-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
+                                Use default ({DEFAULT_SYNC_BACKEND_URL})
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Terminal ID</label>
