@@ -4,6 +4,7 @@ import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 import { usdToKhr } from './khr';
 import { useShortcuts } from './hooks/useShortcuts';
+import { DEFAULT_SHORTCUTS } from './shortcuts';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -12,7 +13,7 @@ const pad = n => String(n).padStart(2, '0');
 const toSqliteDate = (d) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 00:00:00`;
 
-export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
+export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shortcuts = DEFAULT_SHORTCUTS }) {
   const client = useBackend();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -71,11 +72,12 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
 
   const prevDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
-  // ← / → step through days (issue #7); → stops at today, like the button.
-  useShortcuts([
-    { keys: 'ArrowLeft', run: prevDay },
-    { keys: 'ArrowRight', when: () => !isToday(selectedDate), run: nextDay },
-  ]);
+  // Previous / next day by keyboard (issue #7; keys set in Settings > Shortcuts).
+  // Next stops at today, like the button.
+  useShortcuts(shortcuts, {
+    prevDay: { run: prevDay },
+    nextDay: { when: () => !isToday(selectedDate), run: nextDay },
+  });
 
   const isKhr = mainCurrency === 'KHR';
   const fmt = (n) => isKhr

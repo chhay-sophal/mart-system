@@ -185,6 +185,21 @@ export const translations = {
 
     // SETTINGS SPECIFIC LABELS
     shortcuts: {
+      prevDay: "ថ្ងៃមុន",
+      nextDay: "ថ្ងៃបន្ទាប់",
+      noKeys: "គ្មាន",
+      sectionHeader: "ផ្លូវកាត់",
+      intro: "កំណត់គ្រាប់ចុចសម្រាប់សកម្មភាពនីមួយៗ។ រក្សាទុកតែលើម៉ាស៊ីននេះប៉ុណ្ណោះ។",
+      colAction: "សកម្មភាព",
+      colKeys: "គ្រាប់ចុច",
+      add: "បន្ថែមផ្លូវកាត់",
+      change: "ប្តូរ",
+      remove: "លុប",
+      pressKeys: "ចុចគ្រាប់ចុច…",
+      resetDefaults: "កំណត់ឡើងវិញ",
+      unsafe: "មិនអាចប្រើបានទេ — ម៉ាស៊ីនស្កេនបាកូដវាយអក្សរ លេខ និង Enter។ សូមប្រើ F1–F12 ឬ Ctrl/Alt + គ្រាប់ចុច។",
+      duplicate: "ប្រើរួចហើយសម្រាប់",
+      reserved: "F5 និង Ctrl+R តែងតែត្រូវបានរារាំង មិនឲ្យផ្ទុកកម្មវិធីឡើងវិញ។",
       title: "ផ្លូវកាត់ក្តារចុច",
       hint: "ផ្លូវកាត់ (F1)",
       groupGeneral: "ទូទៅ",
@@ -479,6 +494,21 @@ export const translations = {
 
     // SETTINGS SPECIFIC LABELS
     shortcuts: {
+      prevDay: "Previous day",
+      nextDay: "Next day",
+      noKeys: "None",
+      sectionHeader: "Shortcuts",
+      intro: "Choose the keys for each action. Saved on this register only.",
+      colAction: "Action",
+      colKeys: "Keys",
+      add: "Add shortcut",
+      change: "Change",
+      remove: "Delete",
+      pressKeys: "Press keys…",
+      resetDefaults: "Reset to defaults",
+      unsafe: "Not allowed — barcode scanners type letters, numbers and Enter. Use F1–F12 or Ctrl/Alt + a key.",
+      duplicate: "Already used by",
+      reserved: "F5 and Ctrl+R are always blocked so the app can't reload mid-sale.",
       title: "Keyboard Shortcuts",
       hint: "Shortcuts (F1)",
       groupGeneral: "General",

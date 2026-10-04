@@ -1,49 +1,47 @@
 import { useEffect, useRef } from 'react';
+import { RESERVED_COMBOS, comboFromEvent, worksWhileTyping } from '../shortcuts';
 
-// Keyboard shortcuts (issue #7). Bindings are { keys, run, when? }, e.g.
-// { keys: 'F3', run: openHistory } or { keys: 'Ctrl+Enter', run: checkout }.
+// Keyboard shortcuts (issue #7). `shortcuts` is the register's configured list
+// ([{ action, keys }], see shortcuts.js); `actions` maps an action id to
+// { run, when? } for the actions this screen handles. Several actions may
+// share a key -- the first whose `when` holds wins.
 //
-// Function keys and Ctrl combos work even while typing in a field -- that's
-// the point of them at a till -- and never collide with the barcode scanner,
-// which only "types" characters and Enter. Keys a field needs for itself
-// (arrows, Escape, plain letters) are skipped while a field has focus.
-// A matched key's browser default is suppressed (F5 would otherwise reload
-// the app mid-sale); unmatched keys pass through untouched.
+// Function keys and Ctrl/Alt combos work even while typing in a field;
+// others (arrows, Escape) are left to the field. A matched key's browser
+// default is suppressed, and F5 / Ctrl+R always are, so the app can't reload
+// mid-sale. Keys pressed into the Settings key recorder are ignored.
 
 const isTyping = () => {
   const el = document.activeElement;
   return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 };
 
-function comboOf(e) {
-  const parts = [];
-  if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
-  if (e.altKey) parts.push('Alt');
-  if (e.shiftKey) parts.push('Shift');
-  parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
-  return parts.join('+');
-}
-
-const worksWhileTyping = (combo) => /^F\d{1,2}$/.test(combo) || combo.startsWith('Ctrl+');
-
-export function useShortcuts(bindings, enabled = true) {
-  // Latest bindings without re-subscribing every render (handlers close over state).
-  const bindingsRef = useRef(bindings);
+export function useShortcuts(shortcuts, actions, enabled = true) {
+  // Latest config and handlers without re-subscribing every render.
+  const latest = useRef({ shortcuts, actions });
   useEffect(() => {
-    bindingsRef.current = bindings;
+    latest.current = { shortcuts, actions };
   });
 
   useEffect(() => {
     if (!enabled) return undefined;
     const onKeyDown = (e) => {
+      if (e.target?.closest?.('[data-shortcut-recorder]')) return;
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      if (RESERVED_COMBOS.includes(combo)) e.preventDefault();
       if (e.repeat) return;
-      const combo = comboOf(e);
       if (isTyping() && !worksWhileTyping(combo)) return;
-      const binding = bindingsRef.current.find((b) => b.keys === combo && (b.when?.() ?? true));
-      if (!binding) return;
+
+      const { shortcuts: list, actions: handlers } = latest.current;
+      const match = list
+        .filter((s) => s.keys === combo)
+        .map((s) => handlers[s.action])
+        .find((handler) => handler && (handler.when?.() ?? true));
+      if (!match) return;
       e.preventDefault();
       e.stopPropagation();
-      binding.run(e);
+      match.run(e);
     };
     // Capture phase, so a shortcut wins over the register's scanner listener.
     window.addEventListener('keydown', onKeyDown, true);

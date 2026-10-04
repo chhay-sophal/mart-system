@@ -18,6 +18,7 @@ import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
+import { DEFAULT_SHORTCUTS, SHORTCUTS_SETTING_KEY, combosFor, displayCombo, parseShortcuts } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const manualInputRef = useRef(null);
   const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
@@ -409,6 +411,7 @@ export default function App() {
         if (data.store_name) setStoreName(data.store_name);
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
+        setShortcuts(parseShortcuts(data[SHORTCUTS_SETTING_KEY]));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -540,7 +543,9 @@ export default function App() {
     }
   };
 
-  // ── Keyboard shortcuts (issue #7); the list lives in ShortcutHelp.jsx ──
+  // ── Keyboard shortcuts (issue #7). Which keys trigger what is configured
+  // per register (Settings > Shortcuts, shortcuts.js); this is what each
+  // action does. Daily Summary's day actions live in DailySummary.jsx.
   const sc = t[locale]?.shortcuts || {};
   const onRegister = view === 'REGISTER';
   // Mirrors the on-screen buttons: KHQR completes itself once paid.
@@ -552,26 +557,29 @@ export default function App() {
     setView(next);
   };
   const focusSoon = (ref) => setTimeout(() => ref.current?.focus(), 0);
-  const checkoutByKey = { when: () => onRegister && canCheckout, run: () => handleCheckout() };
+  const keyHint = (action) => {
+    const combos = combosFor(shortcuts, action);
+    return combos.length ? ` (${combos.map(displayCombo).join(' / ')})` : '';
+  };
   useShortcuts(
-    [
-      { keys: 'F1', run: () => setShowShortcuts((open) => !open) },
-      { keys: 'Escape', when: () => showShortcuts, run: () => setShowShortcuts(false) },
-      { keys: 'Escape', when: () => view === 'HISTORY' || view === 'SUMMARY', run: () => goTo('REGISTER') },
-      { keys: 'F2', run: () => goTo('REGISTER') },
-      { keys: 'F3', run: () => goTo('HISTORY') },
-      { keys: 'F4', run: () => goTo('SUMMARY') },
-      { keys: 'F9', when: () => session?.role === 'ADMIN', run: () => goTo('SETTINGS') },
-      { keys: 'Ctrl+L', run: () => { setShowShortcuts(false); setSession(null); } },
-      // Always bound, so F5 never reloads the app; it jumps to the register first.
-      { keys: 'F5', run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
-      { keys: 'F6', when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
-      { keys: 'F7', when: () => onRegister, run: () => { setPaymentMethod('KHQR'); setCheckoutResult(null); } },
-      { keys: 'F8', when: () => onRegister, run: () => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); } },
-      { keys: 'F10', ...checkoutByKey },
-      { keys: 'Ctrl+Enter', ...checkoutByKey },
-      {
-        keys: 'Ctrl+Delete',
+    shortcuts,
+    {
+      help: { run: () => setShowShortcuts((open) => !open) },
+      back: {
+        when: () => showShortcuts || view === 'HISTORY' || view === 'SUMMARY',
+        run: () => (showShortcuts ? setShowShortcuts(false) : goTo('REGISTER')),
+      },
+      register: { run: () => goTo('REGISTER') },
+      history: { run: () => goTo('HISTORY') },
+      summary: { run: () => goTo('SUMMARY') },
+      settings: { when: () => session?.role === 'ADMIN', run: () => goTo('SETTINGS') },
+      lock: { run: () => { setShowShortcuts(false); setSession(null); } },
+      manualBarcode: { run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
+      payCash: { when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
+      payKhqr: { when: () => onRegister, run: () => { setPaymentMethod('KHQR'); setCheckoutResult(null); } },
+      payStaticQr: { when: () => onRegister, run: () => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); } },
+      checkout: { when: () => onRegister && canCheckout, run: () => handleCheckout() },
+      clearCart: {
         when: () => onRegister && cart.length > 0,
         run: () => {
           if (!window.confirm(sc.confirmClearCart || 'Remove every item from the cart?')) return;
@@ -580,10 +588,10 @@ export default function App() {
           setActiveKhqr(null);
         },
       },
-    ],
+    },
     Boolean(session)
   );
-  const shortcutHelp = showShortcuts ? <ShortcutHelp locale={locale} onClose={() => setShowShortcuts(false)} /> : null;
+  const shortcutHelp = showShortcuts ? <ShortcutHelp locale={locale} shortcuts={shortcuts} onClose={() => setShowShortcuts(false)} /> : null;
 
   if (backendStatus === 'loading' || (backendStatus === 'ready' && isPaired === null)) {
     return (
@@ -641,6 +649,7 @@ export default function App() {
         <DailySummary
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
+          shortcuts={shortcuts}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
         />
@@ -680,14 +689,14 @@ export default function App() {
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-600 ml-2"></div>
           <button
             onClick={() => setView('HISTORY')}
-            title={`${t[locale].salesHistory.title} (F3)`}
+            title={`${t[locale].salesHistory.title}${keyHint('history')}`}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <History size={14} /> {t[locale].salesHistory.title}
           </button>
           <button
             onClick={() => setView('SUMMARY')}
-            title={`${(t[locale].dailySummary || {}).navLabel || 'Daily Summary'} (F4)`}
+            title={`${(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}${keyHint('summary')}`}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <BarChart3 size={14} /> {(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}
@@ -695,7 +704,7 @@ export default function App() {
           {session.role === 'ADMIN' && (
             <button
               onClick={() => setView('SETTINGS')}
-              title={`${t[locale].settings} (F9)`}
+              title={`${t[locale].settings}${keyHint('settings')}`}
               className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
             >
               <Settings size={14} /> {t[locale].settings}
@@ -706,7 +715,7 @@ export default function App() {
           <button
             onClick={() => setShowShortcuts(true)}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-            title={sc.hint || 'Shortcuts (F1)'}
+            title={`${sc.title || 'Keyboard Shortcuts'}${keyHint('help')}`}
           >
             <KeyboardIcon size={16} />
           </button>
@@ -721,7 +730,7 @@ export default function App() {
           <button
             onClick={() => setSession(null)}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-            title={`${t[locale].lockTerminal} (Ctrl+L)`}
+            title={`${t[locale].lockTerminal}${keyHint('lock')}`}
           >
             <Lock size={16} />
           </button>
