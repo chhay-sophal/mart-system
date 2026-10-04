@@ -47,4 +47,19 @@ router.post('/api/sync/now', async (req, res) => {
   }
 });
 
+// Settings > Backend Sync > Resync everything: pulls the whole catalog again
+// (ignoring the cursor), so every local product -- price, currency, stock --
+// matches the backend, not just the ones changed since the last pull.
+router.post('/api/sync/resync', async (req, res) => {
+  const config = getSyncConfig();
+  if (!config) return res.status(400).json({ error: 'Not paired yet' });
+
+  try {
+    const products = await pullCatalog(config, { full: true });
+    res.json({ success: true, products });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 module.exports = router;

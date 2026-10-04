@@ -104,11 +104,29 @@ function upsertProduct(item) {
   }
 }
 
-async function pullCatalog(config) {
+// Products synced before the backend sent each price's currency were stored
+// with the local default, USD -- so a 3,000 ៛ product sold as $3,000. Sync
+// only re-sends changed products, so those rows never got corrected. Once,
+// pull the whole catalog again; it only counts as done when the backend
+// actually sent currencies (an older backend gets retried next app start,
+// not on every 20s tick).
+const CURRENCY_RESYNC_MARKER = 'catalog_resync_currency_v1';
+let currencyResyncTriedThisRun = false;
+
+/**
+ * Pulls catalog changes since the last pull. `full: true` ignores the cursor
+ * and pulls everything (Settings > Backend Sync > Resync everything).
+ * Returns how many products came down.
+ */
+async function pullCatalog(config, { full = false } = {}) {
   const cursor = db.query("SELECT value FROM sync_state WHERE key = 'pull_cursor'")[0]?.value;
+  const currencyResync =
+    !currencyResyncTriedThisRun && !db.query('SELECT 1 FROM sync_state WHERE key = ?', [CURRENCY_RESYNC_MARKER]).length;
+  if (currencyResync) currencyResyncTriedThisRun = true;
+  const fullPull = full || currencyResync;
   // Join like push does: new URL('/api/...', base) would drop any base subpath.
   const url = new URL(`${config.backendUrl}/api/sync/pull`);
-  if (cursor) url.searchParams.set('since', cursor);
+  if (cursor && !fullPull) url.searchParams.set('since', cursor);
 
   let response;
   try {
@@ -183,6 +201,15 @@ async function pullCatalog(config) {
   if (productErrors.length > 0) {
     throw new Error(`${productErrors.length} product(s) couldn't be saved and will be retried: ${productErrors[0]}`);
   }
+
+  if (fullPull && productUpserts.every((item) => item.currency === 'KHR' || item.currency === 'USD')) {
+    db.run("INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [
+      CURRENCY_RESYNC_MARKER,
+      db.localNow(),
+    ]);
+    db.saveDb();
+  }
+  return productUpserts.length;
 }
 
 async function tick() {
