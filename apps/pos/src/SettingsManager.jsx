@@ -1,17 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
-
-function CriticalBadge({ label }) {
-  return (
-    <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-md uppercase tracking-wide animate-pulse">
-      <AlertTriangle size={9} />{label || 'Critical'}
-    </span>
-  );
-}
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -20,9 +12,6 @@ const IMS_MANAGED_KEYS = ['store_name', 'store_address', 'store_phone', 'exchang
 export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
-    bakong_account_id: '',
-    bakong_merchant_name: '',
-    bakong_merchant_city: '',
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: ''
@@ -36,7 +25,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [updateCheck, setUpdateCheck] = useState('idle'); // idle | checking | available | uptodate | error
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [updateProgress, setUpdateProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState('khqr');
+  const [activeSection, setActiveSection] = useState('backup');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
 
@@ -211,14 +200,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     key => String(settings[key] ?? '') !== String(initialSettings[key] ?? '')
   );
 
-  // Everything under KHQR is evaluated as a critical parameter
-  const isBakongAccountIdChanged = initialSettings && String(settings.bakong_account_id) !== String(initialSettings.bakong_account_id);
-  const isBakongMerchantNameChanged = initialSettings && String(settings.bakong_merchant_name) !== String(initialSettings.bakong_merchant_name);
-  const isBakongMerchantCityChanged = initialSettings && String(settings.bakong_merchant_city) !== String(initialSettings.bakong_merchant_city);
-
-  const hasKhqrChanges = isBakongAccountIdChanged || isBakongMerchantNameChanged || isBakongMerchantCityChanged;
-  const hasCriticalChanges = hasKhqrChanges;
-
   const currentTranslations = t[currentLocale] || {};
   const s = currentTranslations.settingsPage || {};
 
@@ -266,7 +247,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   };
 
   const navItems = [
-    { id: 'khqr',     icon: Smartphone,label: s.bakongHeader || 'KHQR',       badge: hasKhqrChanges },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
     { id: 'about',    icon: Info,      label: 'About' },
@@ -276,7 +256,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
 
   const inputBase = 'w-full px-3 py-2.5 border rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed';
   const inputNormal = `${inputBase} border-slate-200 dark:border-slate-700`;
-  const inputCritical = `${inputBase} border-amber-300 dark:border-amber-700`;
 
   return (
     <div className="h-screen bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden font-sans antialiased">
@@ -320,48 +299,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-lg space-y-5">
-
-                {/* ── KHQR ── */}
-                {activeSection === 'khqr' && (
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.bakongHeader || 'KHQR Profile'}</p>
-                      {!isPaired && hasKhqrChanges && <CriticalBadge label={s.criticalBadge} />}
-                    </div>
-                    {isPaired ? (
-                      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl px-3 py-2.5">
-                          <CheckCircle2 size={14} />
-                          KHQR is now generated by the backend using the merchant profile configured in IMS — these local fields no longer apply.
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 space-y-4 transition-all ${hasKhqrChanges ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.bakongAccountId || 'Bakong Account ID'}</label>
-                          <input type="text" value={settings.bakong_account_id}
-                            onChange={(e) => setSettings({ ...settings, bakong_account_id: e.target.value })}
-                            className={`${isBakongAccountIdChanged ? inputCritical : inputNormal} font-mono text-indigo-600 dark:text-indigo-400`}
-                            placeholder="store_account@abaa" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.shopNameLabel || 'Merchant Name'}</label>
-                            <input type="text" value={settings.bakong_merchant_name}
-                              onChange={(e) => setSettings({ ...settings, bakong_merchant_name: e.target.value })}
-                              className={isBakongMerchantNameChanged ? inputCritical : inputNormal} placeholder="Baby Mart" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeCityLabel || 'City'}</label>
-                            <input type="text" value={settings.bakong_merchant_city}
-                              onChange={(e) => setSettings({ ...settings, bakong_merchant_city: e.target.value })}
-                              className={isBakongMerchantCityChanged ? inputCritical : inputNormal} placeholder="Phnom Penh" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* ── BACKUP ── */}
                 {activeSection === 'backup' && (
@@ -586,7 +523,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                   : <div />}
                 {hasChanges && (
                   <button type="submit"
-                    className={`px-5 py-2 font-bold rounded-xl text-sm transition-colors cursor-pointer ${hasCriticalChanges ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                    className={`px-5 py-2 font-bold rounded-xl text-sm transition-colors cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white`}>
                     {s.commitSave || 'Save Changes'}
                   </button>
                 )}
@@ -600,15 +537,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       {/* Save confirm dialog */}
       {showConfirmPopup && (
         <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className={`bg-white dark:bg-slate-800 rounded-2xl border shadow-xl max-w-sm w-full p-6 space-y-4 ${hasCriticalChanges ? 'border-amber-300 dark:border-amber-700 ring-4 ring-amber-50 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-            <div className={`flex items-center gap-3 ${hasCriticalChanges ? 'text-red-500' : 'text-amber-500'}`}>
-              {hasCriticalChanges ? <AlertOctagon size={22} /> : <AlertTriangle size={22} />}
+          <div className={`bg-white dark:bg-slate-800 rounded-2xl border shadow-xl max-w-sm w-full p-6 space-y-4 border-slate-200 dark:border-slate-700`}>
+            <div className={`flex items-center gap-3 text-amber-500`}>
+              <AlertTriangle size={22} />
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {hasCriticalChanges ? (s.criticalPopupTitle || 'WARNING: Critical Shift') : (s.popupTitle || 'Confirm Settings Change')}
+                {s.popupTitle || 'Confirm Settings Change'}
               </h3>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {hasCriticalChanges ? (s.criticalPopupBody || 'You are altering core financial fields or routing channels that affect settlement calculations.') : (s.popupBody || 'Are you sure you want to update and commit these changes?')}
+              {s.popupBody || 'Are you sure you want to update and commit these changes?'}
             </p>
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" onClick={() => setShowConfirmPopup(false)}
@@ -616,7 +553,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                 {s.popupCancel || 'Cancel'}
               </button>
               <button type="button" onClick={handleConfirmSave}
-                className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer ${hasCriticalChanges ? 'bg-amber-500 hover:bg-amber-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                className={`px-4 py-2 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer bg-indigo-600 hover:bg-indigo-700`}>
                 {s.popupConfirm || 'Yes, Save'}
               </button>
             </div>
