@@ -7,6 +7,7 @@ import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 import ShortcutList from './ShortcutList';
 import { useShortcuts } from './hooks/useShortcuts';
+import ConfirmDialog from './ConfirmDialog';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -44,6 +45,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [overridingUrl, setOverridingUrl] = useState(false);
   const [standbyError, setStandbyError] = useState('');
   const [shopIconError, setShopIconError] = useState('');
+  const [leavePrompt, setLeavePrompt] = useState(false);
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -262,16 +264,18 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     }
   };
 
-  // Esc (issue #7): close the save prompt if it's open, otherwise back to the
-  // register -- confirming first if there are unsaved changes, which leaving
-  // would discard. Handled here rather than in App, which can't see them.
+  // Leaving Settings discards unsaved changes, so ask first (in-app dialog;
+  // window.confirm isn't reliably shown in the Tauri window).
+  const requestLeave = () => (hasChanges ? setLeavePrompt(true) : onBackToRegister());
+
+  // Esc (issue #7): close whichever prompt is open, otherwise leave. Handled
+  // here rather than in App, which can't see unsaved changes.
   useShortcuts({
     back: {
       run: () => {
+        if (leavePrompt) return setLeavePrompt(false);
         if (showConfirmPopup) return setShowConfirmPopup(false);
-        const shortcutText = currentTranslations.shortcuts || {};
-        if (hasChanges && !window.confirm(shortcutText.confirmDiscard || 'Leave Settings without saving your changes?')) return;
-        onBackToRegister();
+        requestLeave();
       },
     },
   });
@@ -297,7 +301,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       {/* Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-5 py-3 flex items-center gap-3 flex-shrink-0">
         <button
-          onClick={onBackToRegister}
+          onClick={requestLeave}
           className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
         >
           <ArrowLeft size={16} />
@@ -714,6 +718,21 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
 
         </form>
       </div>
+
+      {leavePrompt && (
+        <ConfirmDialog
+          title={currentTranslations.shortcuts?.leaveTitle || 'Unsaved changes'}
+          body={currentTranslations.shortcuts?.confirmDiscard || 'Leave Settings without saving your changes?'}
+          cancelLabel={currentTranslations.shortcuts?.leaveStay || 'Stay'}
+          confirmLabel={currentTranslations.shortcuts?.leaveConfirm || 'Leave without saving'}
+          onCancel={() => setLeavePrompt(false)}
+          onConfirm={() => {
+            setLeavePrompt(false);
+            onBackToRegister();
+          }}
+          danger
+        />
+      )}
 
       {/* Save confirm dialog */}
       {showConfirmPopup && (

@@ -60,10 +60,14 @@ export function comboFromEvent(e) {
   return parts.join('+');
 }
 
-/** Function keys and Ctrl/Alt combos also work while a text field has focus. */
+/**
+ * Function keys, Ctrl/Alt combos and Esc also work while a text field has
+ * focus (Esc does nothing useful in these fields, and leaving a screen right
+ * after editing one is exactly when it's pressed). Arrows stay with the field.
+ */
 export const worksWhileTyping = (combo) => {
   const parts = combo.split('+');
-  return /^F([1-9]|1[0-2])$/.test(parts[parts.length - 1]) || parts.includes('Ctrl') || parts.includes('Alt');
+  return combo === 'Escape' || /^F([1-9]|1[0-2])$/.test(parts[parts.length - 1]) || parts.includes('Ctrl') || parts.includes('Alt');
 };
 
 /** Readable form for the UI: "Ctrl + ←". */

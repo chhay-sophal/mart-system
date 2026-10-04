@@ -18,6 +18,7 @@ import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
+import ConfirmDialog from './ConfirmDialog';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
@@ -40,6 +41,7 @@ export default function App() {
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [clearCartPrompt, setClearCartPrompt] = useState(false);
   const manualInputRef = useRef(null);
   const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
@@ -563,8 +565,12 @@ export default function App() {
     {
       help: { run: () => setShowShortcuts((open) => !open) },
       back: {
-        when: () => showShortcuts || view === 'HISTORY' || view === 'SUMMARY',
-        run: () => (showShortcuts ? setShowShortcuts(false) : goTo('REGISTER')),
+        when: () => showShortcuts || clearCartPrompt || view === 'HISTORY' || view === 'SUMMARY',
+        run: () => {
+          if (showShortcuts) return setShowShortcuts(false);
+          if (clearCartPrompt) return setClearCartPrompt(false);
+          goTo('REGISTER');
+        },
       },
       register: { run: () => goTo('REGISTER') },
       history: { run: () => goTo('HISTORY') },
@@ -576,15 +582,7 @@ export default function App() {
       payKhqr: { when: () => onRegister, run: () => { setPaymentMethod('KHQR'); setCheckoutResult(null); } },
       payStaticQr: { when: () => onRegister, run: () => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); } },
       checkout: { when: () => onRegister && canCheckout, run: () => handleCheckout() },
-      clearCart: {
-        when: () => onRegister && cart.length > 0,
-        run: () => {
-          if (!window.confirm(sc.confirmClearCart || 'Remove every item from the cart?')) return;
-          setCart([]);
-          setCheckoutResult(null);
-          setActiveKhqr(null);
-        },
-      },
+      clearCart: { when: () => onRegister && cart.length > 0, run: () => setClearCartPrompt(true) },
     },
     Boolean(session)
   );
@@ -669,6 +667,22 @@ export default function App() {
   return (
     <>
     {shortcutHelp}
+    {clearCartPrompt && (
+      <ConfirmDialog
+        title={sc.clearCartTitle || 'Clear the cart?'}
+        body={sc.confirmClearCart || 'Remove every item from the cart?'}
+        cancelLabel={sc.cancel || 'Cancel'}
+        confirmLabel={sc.clearCartConfirm || 'Clear cart'}
+        onCancel={() => setClearCartPrompt(false)}
+        onConfirm={() => {
+          setClearCartPrompt(false);
+          setCart([]);
+          setCheckoutResult(null);
+          setActiveKhqr(null);
+        }}
+        danger
+      />
+    )}
     <div className="h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
       {/* Structural Header Grid */}
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-3.5 flex justify-between items-center shadow-xs flex-shrink-0">
