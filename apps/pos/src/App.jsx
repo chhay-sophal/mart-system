@@ -82,7 +82,10 @@ export default function App() {
   const barcodeRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
   // Opens itself on a second monitor when one is attached (issue #3).
-  const customerDisplayOpen = useCustomerDisplay(IS_TAURI);
+  const customerDisplay = useCustomerDisplay(IS_TAURI, (error) =>
+    notify((t[locale]?.settingsPage?.generalSection?.displayFailed || "Customer display couldn't open: {error}").replace('{error}', error))
+  );
+  const customerDisplayOpen = customerDisplay.open;
   const customerDisplayPayloadRef = useRef(null);
   // The standby image (issue #4) travels on its own event: it can be a few
   // hundred KB, so it's only sent when it changes or a display (re)opens, not
@@ -676,6 +679,7 @@ export default function App() {
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
           onLocaleChange={setLocale}
+          customerDisplay={IS_TAURI ? customerDisplay : null}
         />
         {shortcutHelp}
       </BackendContext.Provider>

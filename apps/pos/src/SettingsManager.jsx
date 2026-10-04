@@ -39,7 +39,7 @@ function ToggleRow({ label, help, checked, onChange }) {
   );
 }
 
-export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange }) {
+export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, customerDisplay }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
     // General (per register). Stored as 'true'/'false'; on unless turned off.
@@ -492,6 +492,22 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                           ))}
                         </div>
                       </div>
+                      {customerDisplay && (
+                        <div>
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{s.generalSection?.customerDisplay || 'Customer display'}</p>
+                          <p className={`text-xs mt-0.5 ${customerDisplay.error && !customerDisplay.open ? 'text-rose-600 dark:text-rose-400' : customerDisplay.open ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                            {customerDisplay.open
+                              ? (s.generalSection?.displayShowing || 'Showing on the second monitor ({name}). {count} monitors detected.')
+                                  .replace('{name}', customerDisplay.monitorName || '—')
+                                  .replace('{count}', customerDisplay.monitorCount)
+                              : customerDisplay.error
+                                ? (s.generalSection?.displayError || "Couldn't open it: {error}").replace('{error}', customerDisplay.error)
+                                : customerDisplay.monitorCount === null
+                                  ? s.generalSection?.displayChecking || 'Checking monitors…'
+                                  : s.generalSection?.displayOneMonitor || 'Only one monitor detected.'}
+                          </p>
+                        </div>
+                      )}
                       <ToggleRow
                         label={s.generalSection?.lowStockAlert || 'Show low-stock alert on the register'}
                         help={s.generalSection?.lowStockAlertHelp}
