@@ -44,7 +44,14 @@ export async function setBakongRegisteredEmail(storeId: string, registeredEmail:
 
 export async function generateKhqr(
   storeId: string,
-  input: { amount: number; currency: Currency }
+  input: {
+    amount: number;
+    currency: Currency;
+    bakongAccountId?: string;
+    merchantName?: string;
+    merchantCity?: string;
+    storePhone?: string;
+  }
 ): Promise<{ qrString: string; md5Hash: string; amount: number; currency: Currency }> {
   const currency: Currency = input.currency === "KHR" ? "KHR" : "USD";
   const amount = currency === "KHR" ? Math.round(input.amount) : Math.round(input.amount * 100) / 100;
@@ -56,13 +63,13 @@ export async function generateKhqr(
     amount,
     expirationTimestamp: Date.now() + 5 * 60 * 1000,
   };
-  const mobileNumber = toBakongMobile(cfg.store_phone);
+  const mobileNumber = toBakongMobile(input.storePhone || cfg.store_phone);
   if (mobileNumber) optionalData.mobileNumber = mobileNumber;
 
   const individualInfo = new IndividualInfo(
-    cfg.bakong_account_id ?? "",
-    cfg.bakong_merchant_name ?? "Mini Mart",
-    cfg.bakong_merchant_city ?? "Phnom Penh",
+    input.bakongAccountId || cfg.bakong_account_id || "",
+    input.merchantName || cfg.bakong_merchant_name || "Mini Mart",
+    input.merchantCity || cfg.bakong_merchant_city || "Phnom Penh",
     optionalData
   );
 

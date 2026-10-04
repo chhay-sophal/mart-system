@@ -52,6 +52,22 @@ describe("POST /api/payments/khqr", () => {
     expect(res.body).toMatchObject({ amount: 2.5, currency: "USD" });
   });
 
+  it("uses the register's own merchant details when it sends them, over the store's", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.storeSetting.create({ data: { storeId: store.id, key: "bakong_account_id", value: "store@bank" } });
+
+    const res = await request(app)
+      .post("/api/payments/khqr")
+      .set(terminalHeaders(terminal.id))
+      .send({ amount: 5000, currency: "KHR", bakongAccountId: "branch2@aclb", merchantName: "SOSO Branch 2", merchantCity: "Siem Reap" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.qrString).toContain("branch2@aclb");
+    expect(res.body.qrString).toContain("SOSO Branch 2");
+    expect(res.body.qrString).toContain("Siem Reap");
+    expect(res.body.qrString).not.toContain("store@bank");
+  });
+
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).post("/api/payments/khqr").send({ amount: 1, currency: "USD" });
     expect(res.status).toBe(401);
