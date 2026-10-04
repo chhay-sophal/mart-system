@@ -73,7 +73,8 @@ async function pushPending(config) {
 
 async function pullCatalog(config) {
   const cursor = db.query("SELECT value FROM sync_state WHERE key = 'pull_cursor'")[0]?.value;
-  const url = new URL('/api/sync/pull', config.backendUrl);
+  // Join like push does: new URL('/api/...', base) would drop any base subpath.
+  const url = new URL(`${config.backendUrl}/api/sync/pull`);
   if (cursor) url.searchParams.set('since', cursor);
 
   let response;
