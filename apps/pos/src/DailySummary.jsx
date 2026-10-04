@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-r
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 import { usdToKhr } from './khr';
+import { useShortcuts } from './hooks/useShortcuts';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -70,6 +71,11 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
 
   const prevDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });
+  // ← / → step through days (issue #7); → stops at today, like the button.
+  useShortcuts([
+    { keys: 'ArrowLeft', run: prevDay },
+    { keys: 'ArrowRight', when: () => !isToday(selectedDate), run: nextDay },
+  ]);
 
   const isKhr = mainCurrency === 'KHR';
   const fmt = (n) => isKhr
