@@ -88,6 +88,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [cloudFolder, setCloudFolder] = useState('');
   const [cloudFolderSaving, setCloudFolderSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [resyncing, setResyncing] = useState(false);
 
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -713,6 +714,31 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             <AlertOctagon size={14} />
                             {syncStatus.deadCount} sale(s) could not sync — needs a manual check, not just a wait
                           </div>
+                        </div>
+                      )}
+                      {isPaired && (
+                        <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-start justify-between gap-4">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{s.syncSection?.resyncHelp}</p>
+                          <button
+                            type="button"
+                            disabled={resyncing}
+                            onClick={async () => {
+                              setResyncing(true);
+                              try {
+                                const res = await client.post('/api/sync/resync');
+                                notify((s.syncSection?.resyncDone || '{count} products resynced.').replace('{count}', res.products), 'success');
+                              } catch (err) {
+                                const reason = (err instanceof ApiError && err.body?.error) || err.message || notices.unknownError;
+                                notify((s.syncSection?.resyncFailed || 'Resync failed: {reason}').replace('{reason}', reason));
+                              } finally {
+                                setResyncing(false);
+                              }
+                            }}
+                            className="flex-shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <RefreshCw size={12} className={resyncing ? 'animate-spin' : ''} />
+                            {resyncing ? s.syncSection?.resyncing || 'Resyncing…' : s.syncSection?.resyncAll || 'Resync everything'}
+                          </button>
                         </div>
                       )}
                     </div>

@@ -259,6 +259,13 @@ export const translations = {
       popupCancel: 'បោះបង់',
       popupConfirm: 'យល់ព្រម',
 
+      syncSection: {
+        resyncAll: "ធ្វើសមកាលកម្មទាំងអស់ឡើងវិញ",
+        resyncHelp: "ទាញយកផលិតផលទាំងអស់ម្តងទៀត (តម្លៃ រូបិយប័ណ្ណ ស្តុក) ជំនួសឲ្យតែការផ្លាស់ប្តូរថ្មីៗ។ ប្រើវានៅពេលតម្លៃមើលទៅមិនត្រឹមត្រូវ។",
+        resyncing: "កំពុងធ្វើសមកាលកម្ម…",
+        resyncDone: "បានធ្វើសមកាលកម្មផលិតផល {count}។",
+        resyncFailed: "ការធ្វើសមកាលកម្មបរាជ័យ៖ {reason}",
+      },
       generalSection: {
         header: "ទូទៅ",
         lowStockAlert: "បង្ហាញការជូនដំណឹងស្តុកទាបនៅលើទំព័រលក់",
@@ -578,6 +585,13 @@ export const translations = {
       popupCancel: 'Cancel',
       popupConfirm: 'Yes, Save',
 
+      syncSection: {
+        resyncAll: "Resync everything",
+        resyncHelp: "Pull every product again (prices, currencies, stock) instead of only recent changes. Use it if prices look wrong.",
+        resyncing: "Resyncing…",
+        resyncDone: "{count} products resynced.",
+        resyncFailed: "Resync failed: {reason}",
+      },
       generalSection: {
         header: "General",
         lowStockAlert: "Show low-stock alert on the register",
