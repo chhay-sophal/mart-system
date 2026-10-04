@@ -49,7 +49,7 @@ export async function listNegativeStock(user: ReportUser, storeId?: string) {
 }
 
 /** Ported from online-pos/backend-desktop/server.js:495-550, one store at a time, using Prisma instead of raw SQL. */
-async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
+export async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
   const exchangeRateSetting = await prisma.storeSetting.findUnique({
     where: { storeId_key: { storeId, key: "exchange_rate" } },
   });
@@ -61,15 +61,17 @@ async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo:
   });
 
   const orderCount = orders.length;
-  // Order.totalAmountMinor is always USD (sync.service.ts hardcodes currency: "USD" on every Order).
-  const totalRevenue = orders.reduce((sum, order) => sum + fromMinorUnits(order.totalAmountMinor, "USD"), 0);
+  // Synced sales are always USD, but imported online-pos orders carry their own currency.
+  const orderTotalUsd = (order: (typeof orders)[number]) =>
+    toUsd(fromMinorUnits(order.totalAmountMinor, order.currency), order.currency);
+  const totalRevenue = orders.reduce((sum, order) => sum + orderTotalUsd(order), 0);
   const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
 
   const byMethodMap = new Map<string, { count: number; total: number }>();
   for (const order of orders) {
     const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0 };
     entry.count += 1;
-    entry.total += fromMinorUnits(order.totalAmountMinor, "USD");
+    entry.total += orderTotalUsd(order);
     byMethodMap.set(order.paymentMethod, entry);
   }
   const byMethod = [...byMethodMap.entries()]
