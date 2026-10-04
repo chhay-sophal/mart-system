@@ -1,6 +1,6 @@
 import type { Currency } from "./product";
 
-export type PaymentMethod = "CASH" | "KHQR" | "CARD";
+export type PaymentMethod = "CASH" | "KHQR" | "CARD" | "STATIC_QR";
 export type OrderStatus = "COMPLETED" | "VOIDED";
 
 export interface OrderItem {

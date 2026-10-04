@@ -10,12 +10,14 @@ const orderItemSchema = z.object({
 export const saleCompletedPayloadSchema = z.object({
   clientOrderUuid: z.string().min(1),
   items: z.array(orderItemSchema).min(1),
-  paymentMethod: z.enum(["CASH", "KHQR", "CARD"]),
+  paymentMethod: z.enum(["CASH", "KHQR", "CARD", "STATIC_QR"]),
   totalAmount: z.number().nonnegative(),
   amountPaidUsd: z.number().nonnegative(),
   amountPaidKhr: z.number().nonnegative(),
   changeGivenKhr: z.number().nonnegative(),
   cashierUserId: z.string().optional(),
+  // Which bank's static QR the customer paid to (STATIC_QR sales).
+  bankName: z.string().optional(),
   khqrMd5Hash: z.string().optional(),
   khqrQrString: z.string().optional(),
   khqrBankName: z.string().optional(),

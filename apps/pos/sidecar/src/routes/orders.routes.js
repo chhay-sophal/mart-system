@@ -77,6 +77,7 @@ router.post('/api/orders/checkout', (req, res) => {
         amountPaidKhr: amount_paid_khr,
         changeGivenKhr,
         ...(cashier_user_id ? { cashierUserId: cashier_user_id } : {}),
+        ...(bank_name ? { bankName: bank_name } : {}),
         ...(khqr_data?.md5_hash
           ? {
               khqrMd5Hash: khqr_data.md5_hash,

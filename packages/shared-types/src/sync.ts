@@ -11,6 +11,8 @@ export interface SaleCompletedPayload {
   amountPaidKhr: number;
   changeGivenKhr: number;
   cashierUserId?: string;
+  /** Which bank's static QR the customer paid to (STATIC_QR sales). */
+  bankName?: string;
   khqrMd5Hash?: string;
   khqrQrString?: string;
   khqrBankName?: string;

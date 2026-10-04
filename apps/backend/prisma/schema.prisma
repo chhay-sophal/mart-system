@@ -32,6 +32,9 @@ enum PaymentMethod {
   CASH
   KHQR
   CARD
+  // Customer scans the shop's printed bank QR; the cashier confirms payment
+  // by eye, so there's no PaymentTransaction (bankName says which bank).
+  STATIC_QR
 }
 
 enum OrderStatus {

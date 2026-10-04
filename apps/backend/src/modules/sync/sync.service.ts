@@ -38,6 +38,7 @@ async function applySaleCompleted(
       totalAmountMinor: toMinorUnits(payload.totalAmount, "USD"),
       currency: "USD",
       paymentMethod: payload.paymentMethod,
+      bankName: payload.bankName ?? null,
       amountPaidUsdMinor: toMinorUnits(payload.amountPaidUsd, "USD"),
       amountPaidKhrMinor: toMinorUnits(payload.amountPaidKhr, "KHR"),
       changeGivenKhrMinor: toMinorUnits(payload.changeGivenKhr, "KHR"),

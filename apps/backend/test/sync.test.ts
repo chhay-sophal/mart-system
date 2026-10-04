@@ -59,6 +59,30 @@ describe("POST /api/sync/push", () => {
     expect(movements[0]).toMatchObject({ delta: -2, reason: "SALE" });
   });
 
+  it("applies a STATIC_QR sale and keeps which bank it was paid to", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }],
+        paymentMethod: "STATIC_QR",
+        bankName: "ABA",
+      },
+    });
+
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+
+    expect(res.body.results[0].status).toBe("applied");
+    const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid } });
+    expect(order).toMatchObject({ paymentMethod: "STATIC_QR", bankName: "ABA" });
+    const storeProduct = await prisma.storeProduct.findUnique({
+      where: { storeId_productId: { storeId: store.id, productId: product.id } },
+    });
+    expect(storeProduct?.stock).toBe(8);
+  });
+
   it("treats a replayed eventId as a duplicate and does not double-decrement stock", async () => {
     const { store, terminal } = await seedFixtures();
     const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
