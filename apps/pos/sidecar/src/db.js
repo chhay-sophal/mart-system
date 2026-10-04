@@ -211,6 +211,26 @@ function runMigrations() {
   if (!khqrCols.includes('deleted_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN deleted_at TEXT');
 
   requeueRejectedStaticQrSales();
+  roundStoredUsdAmounts();
+}
+
+/**
+ * USD is stored to the cent (see money.js); older builds saved full-precision
+ * floats (a riel cart's total as 10.731707...). Rounds those in place. Only
+ * rows that still have extra digits match, so later startups touch nothing.
+ * Riel columns are already whole numbers.
+ */
+function roundStoredUsdAmounts() {
+  const usdColumns = [
+    ['orders', 'total_amount', ''],
+    ['orders', 'amount_paid_usd', ''],
+    ['order_items', 'price_at_sale', "currency = 'USD' AND"],
+    ['products', 'price', "currency = 'USD' AND"],
+    ['products', 'cost_price', "currency = 'USD' AND"],
+  ];
+  for (const [table, column, scope] of usdColumns) {
+    run(`UPDATE ${table} SET ${column} = ROUND(${column}, 2) WHERE ${scope} ${column} <> ROUND(${column}, 2)`);
+  }
 }
 
 /**

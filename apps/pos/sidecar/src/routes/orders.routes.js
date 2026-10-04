@@ -1,12 +1,9 @@
 const express = require('express');
 const { query, run, saveDb, localNow, begin, commit, rollback, generateUuid, enqueueOutboxEvent } = require('../db');
 const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
+const { roundUsd, roundAmount, roundKhrToNote } = require('../money');
 
 const router = express.Router();
-
-// Same rule as the POS screens (src/khr.js): the smallest riel note is 100,
-// so change handed back in riel is rounded to the nearest 100.
-const KHR_STEP = 100;
 
 function storeExchangeRate() {
   const rate = parseFloat(query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0]?.value);
@@ -29,10 +26,19 @@ router.post('/api/orders/checkout', (req, res) => {
     return res.status(400).json({ error: 'Cannot check out an empty cart' });
   }
 
+  // Stored at payment precision (money.js): USD to the cent, riel whole.
+  // Change is worked out from the stored total so the two always agree.
+  const totalUsd = roundUsd(total_amount);
+  const paidUsd = roundUsd(amount_paid_usd);
+  const paidKhr = roundAmount(amount_paid_khr, 'KHR');
+  const lines = items.map((item) => {
+    const currency = item.currency || 'USD';
+    return { id: item.id, quantity: item.quantity, currency, price: roundAmount(item.price, currency) };
+  });
+
   const rate = storeExchangeRate();
-  const totalPaidInUsd = parseFloat(amount_paid_usd || 0) + parseFloat(amount_paid_khr || 0) / rate;
-  const changeInUsd = totalPaidInUsd - parseFloat(total_amount);
-  const changeGivenKhr = changeInUsd > 0 ? Math.round((changeInUsd * rate) / KHR_STEP) * KHR_STEP : 0;
+  const changeInUsd = paidUsd + paidKhr / rate - totalUsd;
+  const changeGivenKhr = changeInUsd > 0 ? roundKhrToNote(changeInUsd * rate) : 0;
   const clientOrderUuid = generateUuid();
 
   try {
@@ -45,11 +51,11 @@ router.post('/api/orders/checkout', (req, res) => {
       [
         customer_id || null,
         cashier_user_id || null,
-        total_amount,
+        totalUsd,
         payment_method,
         bank_name || null,
-        amount_paid_usd,
-        amount_paid_khr,
+        paidUsd,
+        paidKhr,
         changeGivenKhr,
         clientOrderUuid,
         localNow(),
@@ -57,15 +63,15 @@ router.post('/api/orders/checkout', (req, res) => {
     );
 
     const backendItems = [];
-    for (const item of items) {
+    for (const item of lines) {
       run(
         'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [orderId, item.id, item.quantity, item.price, item.currency || 'USD', localNow(), localNow()]
+        [orderId, item.id, item.quantity, item.price, item.currency, localNow(), localNow()]
       );
       run('UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?', [item.quantity, localNow(), item.id]);
 
       const backendProductId = query('SELECT backend_product_id FROM products WHERE id = ?', [item.id])[0]?.backend_product_id;
-      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, currency: item.currency || 'USD' });
+      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, currency: item.currency });
     }
 
     // Only enqueue a sync event if every item resolves to a backend product —
@@ -81,9 +87,9 @@ router.post('/api/orders/checkout', (req, res) => {
           currency: i.currency,
         })),
         paymentMethod: payment_method,
-        totalAmount: total_amount,
-        amountPaidUsd: amount_paid_usd,
-        amountPaidKhr: amount_paid_khr,
+        totalAmount: totalUsd,
+        amountPaidUsd: paidUsd,
+        amountPaidKhr: paidKhr,
         changeGivenKhr,
         ...(cashier_user_id ? { cashierUserId: cashier_user_id } : {}),
         ...(bank_name ? { bankName: bank_name } : {}),
@@ -101,7 +107,7 @@ router.post('/api/orders/checkout', (req, res) => {
       run(
         `INSERT INTO khqr_transactions (order_id, md5_hash, qr_string, bank_name, transaction_currency, amount, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS', ?, ?)`,
-        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, total_amount, localNow(), localNow()]
+        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, totalUsd, localNow(), localNow()]
       );
     }
 
