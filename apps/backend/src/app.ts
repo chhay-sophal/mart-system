@@ -12,6 +12,7 @@ import { syncRouter } from "./modules/sync/sync.routes";
 import { paymentsRouter } from "./modules/payments/payments.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { stockTransfersRouter } from "./modules/stockTransfers/stockTransfers.routes";
+import { legacyImportRouter } from "./modules/legacyImport/legacyImport.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function buildApp(): Express {
@@ -37,6 +38,7 @@ export function buildApp(): Express {
   app.use("/api", paymentsRouter);
   app.use("/api", reportsRouter);
   app.use("/api", stockTransfersRouter);
+  app.use("/api", legacyImportRouter);
 
   app.use(errorHandler);
 
