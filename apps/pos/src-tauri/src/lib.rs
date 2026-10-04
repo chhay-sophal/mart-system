@@ -37,17 +37,15 @@ pub fn run() {
 
       if !cfg!(debug_assertions) {
         // Kill any stale backend-server left over from a previous crash or session.
+        // The bundler strips the target triple, so the installed sidecar is
+        // plain `backend-server(.exe)` next to the app executable.
         #[cfg(target_os = "windows")]
         let _ = std::process::Command::new("taskkill")
-          .args(["/F", "/IM", "backend-server-x86_64-pc-windows-msvc.exe"])
+          .args(["/F", "/IM", "backend-server.exe"])
           .output();
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         let _ = std::process::Command::new("pkill")
-          .args(["-f", "backend-server-aarch64-apple-darwin"])
-          .output();
-        #[cfg(target_os = "linux")]
-        let _ = std::process::Command::new("pkill")
-          .args(["-f", "backend-server-x86_64-unknown-linux-gnu"])
+          .args(["-x", "backend-server"])
           .output();
 
         let shell = app.shell();
