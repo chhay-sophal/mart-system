@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 
@@ -135,6 +135,14 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
             <ChevronRight size={18} />
           </button>
         </div>
+
+        {/* Store-wide when online; sidecar storeReports.js falls back to this register only. */}
+        {!loading && summary?.offline && (
+          <div className="mb-4 flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+            <WifiOff size={14} className="flex-shrink-0" />
+            {s.offlineNotice}
+          </div>
+        )}
 
         {/* Body */}
         {loading ? (

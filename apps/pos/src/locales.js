@@ -111,6 +111,8 @@ export const translations = {
       loading: 'កំពុងដំណើរការ...',
       searchPlaceholder: 'ស្វែងរកតាមលេខ ឬឈ្មោះទំនិញ...',
       voidOrder: 'លុបការបញ្ជាទិញ',
+      offlineNotice: 'គ្មានការតភ្ជាប់ — បង្ហាញតែការលក់របស់ម៉ាស៊ីននេះប៉ុណ្ណោះ។ ការលក់ពីម៉ាស៊ីនផ្សេង និងប្រវត្តិចាស់ នឹងបង្ហាញវិញនៅពេលភ្ជាប់ឡើងវិញ។',
+      otherTerminalNotice: 'លក់ពីម៉ាស៊ីនផ្សេង — អាចលុបបាននៅក្នុង IMS ប៉ុណ្ណោះ។',
       voidWarningTitle: 'លុបការបញ្ជាទិញ?',
       voidWarningBody: 'ការបញ្ជាទិញ',
       voidWarningBody2: 'នឹងត្រូវបានលុបចេញពីប្រវត្តិការលក់ និងមិនគិតក្នុងចំណូលទេ។ សកម្មភាពនេះមិនអាចត្រឡប់វិញបានឡើយ។',
@@ -240,6 +242,7 @@ export const translations = {
     },
     dailySummary: {
       navLabel: 'សរុបប្រចាំថ្ងៃ',
+      offlineNotice: 'គ្មានការតភ្ជាប់ — តួលេខទាំងនេះរាប់តែការលក់របស់ម៉ាស៊ីននេះប៉ុណ្ណោះ មិនមែនហាងទាំងមូលទេ។',
       title: 'សេចក្តីសង្ខេបការលក់ប្រចាំថ្ងៃ',
       subtitle: 'របាយការណ៍បញ្ចប់ថ្ងៃ',
       print: 'បោះពុម្ព',
@@ -373,6 +376,8 @@ export const translations = {
       loading: 'Loading...',
       searchPlaceholder: 'Search by order no. or product name...',
       voidOrder: 'Void Order',
+      offlineNotice: "Offline — showing only this register's sales. Other registers and older history show again once it reconnects.",
+      otherTerminalNotice: 'Sold on another register — it can only be voided in IMS.',
       voidWarningTitle: 'Void This Order?',
       voidWarningBody: 'Order',
       voidWarningBody2: 'will be removed from sales history and excluded from revenue totals. This cannot be undone.',
@@ -502,6 +507,7 @@ export const translations = {
     },
     dailySummary: {
       navLabel: 'Daily Summary',
+      offlineNotice: "Offline — these figures only count this register's sales, not the whole store.",
       title: 'Daily Sales Summary',
       subtitle: 'End of Day Report',
       print: 'Print',

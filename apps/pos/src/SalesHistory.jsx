@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBackend } from './BackendContext';
 import * as XLSX from 'xlsx';
-import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
 
@@ -16,6 +16,15 @@ function getPeriodRange(period) {
   return { from: null, to: null };
 }
 
+// Store-wide lists (sidecar storeReports.js) carry a receipt_no: this
+// register's own number, "OP-0123" for imported online-pos sales, or a short
+// code for another register's. Local-only lists fall back to the id.
+const receiptLabel = (order) => order.receipt_no ?? String(order.id).padStart(4, '0');
+const isOwnOrder = (order) => order.can_delete !== false;
+
+// The sidecar returns { source, offline, orders }; older builds a bare array.
+const unwrapOrders = (data) => (Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []);
+
 export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
   const client = useBackend();
   const s = t[currentLocale].salesHistory;
@@ -23,6 +32,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
   const [period, setPeriod] = useState('today');
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
@@ -56,10 +66,12 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     const { from, to } = getPeriodRange(period);
     try {
       const data = await client.get('/api/orders', { date_from: from ?? undefined, date_to: to ?? undefined });
-      setOrders(Array.isArray(data) ? data : []);
+      setOrders(unwrapOrders(data));
+      setOffline(Boolean(data?.offline));
     } catch (err) {
       console.error('Failed to fetch orders:', err);
       setOrders([]);
+      setOffline(false);
     } finally {
       setLoading(false);
     }
@@ -83,7 +95,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const q = search.trim().toLowerCase();
   const filteredOrders = [...orders]
     .filter(o => payFilter === 'all' || o.payment_method === payFilter)
-    .filter(o => !q || String(o.id).includes(q) || o.payment_method.toLowerCase().includes(q) || (o.items || []).some(i => i.product_name && i.product_name.toLowerCase().includes(q)))
+    .filter(o => !q || receiptLabel(o).toLowerCase().includes(q) || o.payment_method.toLowerCase().includes(q) || (o.items || []).some(i => i.product_name && i.product_name.toLowerCase().includes(q)))
     .sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
       switch (sortCol) {
@@ -95,7 +107,9 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         }
         case 'total':   return dir * (parseFloat(a.total_amount) - parseFloat(b.total_amount));
         case 'payment': return dir * a.payment_method.localeCompare(b.payment_method);
-        default:        return dir * (a.id - b.id);
+        // Store-wide ids aren't comparable numbers (backend ids, other
+        // registers' sales), so "by number" orders by time like local ids did.
+        default:        return dir * (new Date(a.created_at) - new Date(b.created_at));
       }
     });
 
@@ -135,7 +149,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 
   const openInvoice = (order) => {
     setInvoiceModal({
-      order_id: order.id,
+      order_id: isOwnOrder(order) ? order.id : receiptLabel(order),
       items: (order.items || []).filter(i => i.product_name).map((i, idx) => ({
         id: idx,
         name: i.product_name,
@@ -155,7 +169,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   };
 
   const EXPORT_COL_DEFS = [
-    { key: 'orderId',   header: 'Order #',      labelKey: 'colOrderId',   wch: 10, val: (o) => o.id },
+    { key: 'orderId',   header: 'Order #',      labelKey: 'colOrderId',   wch: 10, val: (o) => receiptLabel(o) },
     { key: 'date',      header: 'Date',          labelKey: 'colDate',      wch: 14, val: (o) => new Date(o.created_at).toLocaleDateString('en-US') },
     { key: 'time',      header: 'Time',          labelKey: 'colTime',      wch: 10, val: (o) => new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
     { key: 'items',     header: 'Items',         labelKey: 'colItems',     wch: 8,  val: (o) => (o.items || []).filter(i => i.product_name).length },
@@ -187,8 +201,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         const end = new Date(exportDateTo); end.setHours(23, 59, 59, 999);
         query.date_to = end.toISOString();
       }
-      let data = await client.get('/api/orders', query);
-      if (!Array.isArray(data)) data = [];
+      let data = unwrapOrders(await client.get('/api/orders', query));
       if (exportPayment !== 'all') data = data.filter(o => o.payment_method === exportPayment);
 
       const activeCols = EXPORT_COL_DEFS.filter(c => exportCols[c.key]);
@@ -325,6 +338,12 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       {/* Order list */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="flex-1 overflow-y-auto p-5">
+          {offline && !loading && (
+            <div className="mb-4 flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
+              <WifiOff size={14} className="flex-shrink-0" />
+              {s.offlineNotice}
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 text-sm font-bold">{s.loading}</div>
           ) : orders.length === 0 ? (
@@ -340,7 +359,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           ) : (
             <div className="space-y-2 max-w-4xl mx-auto">
               {/* Table header */}
-              <div className="grid grid-cols-[56px_1fr_80px_120px_80px_32px] gap-3 px-4 py-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[72px_1fr_80px_120px_80px_32px] gap-3 px-4 py-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 <button className="text-left cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none" onClick={() => toggleSort('id')}>{s.orderId}{si('id')}</button>
                 <button className="text-left cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none" onClick={() => toggleSort('date')}>{s.dateTime}{si('date')}</button>
                 <button className="text-center cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 select-none" onClick={() => toggleSort('itemCount')}>{s.itemCount}{si('itemCount')}</button>
@@ -572,9 +591,14 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
       {/* Row summary */}
       <button
         onClick={onToggle}
-        className="w-full grid grid-cols-[56px_1fr_80px_120px_80px_32px] gap-3 px-4 py-3.5 items-center text-left"
+        className="w-full grid grid-cols-[72px_1fr_80px_120px_80px_32px] gap-3 px-4 py-3.5 items-center text-left"
       >
-        <span className="font-black text-sm text-indigo-600 dark:text-indigo-400">#{String(order.id).padStart(4, '0')}</span>
+        <span className="min-w-0">
+          <span className="block font-black text-sm text-indigo-600 dark:text-indigo-400 truncate">#{receiptLabel(order)}</span>
+          {order.terminal_name && (
+            <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate">{order.terminal_name}</span>
+          )}
+        </span>
 
         <span className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate">{formatDateTime(order.created_at)}</span>
 
@@ -686,12 +710,16 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
 
           {/* Actions */}
           <div className="mt-3 flex justify-between items-center">
-            <button
-              onClick={onDelete}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-            >
-              <Trash2 size={14} /> {s.voidOrder || 'Void Order'}
-            </button>
+            {isOwnOrder(order) ? (
+              <button
+                onClick={onDelete}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                <Trash2 size={14} /> {s.voidOrder || 'Void Order'}
+              </button>
+            ) : (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">{s.otherTerminalNotice}</span>
+            )}
             <button
               onClick={onInvoice}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
