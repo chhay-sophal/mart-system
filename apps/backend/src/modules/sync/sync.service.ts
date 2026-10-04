@@ -238,10 +238,47 @@ export interface StaffRosterUpsert {
   isActive: boolean;
 }
 
+/**
+ * Store-wide settings managed in IMS. Sent in full on every pull (it's a
+ * handful of fields), so no delta tracking. null = never set in IMS, and the
+ * terminal keeps whatever it has locally.
+ */
+export interface StoreSettingsSnapshot {
+  storeName: string;
+  storeAddress: string | null;
+  storePhone: string | null;
+  mainCurrency: string | null;
+  locale: string | null;
+  exchangeRate: string | null;
+}
+
+async function getStoreSettingsSnapshot(storeId: string): Promise<StoreSettingsSnapshot> {
+  const [store, rows] = await Promise.all([
+    prisma.store.findUniqueOrThrow({ where: { id: storeId } }),
+    prisma.storeSetting.findMany({
+      where: { storeId, key: { in: ["main_currency", "locale", "exchange_rate"] } },
+    }),
+  ]);
+  const setting = (key: string) => rows.find((row) => row.key === key)?.value ?? null;
+  return {
+    storeName: store.name,
+    storeAddress: store.address,
+    storePhone: store.phone,
+    mainCurrency: setting("main_currency"),
+    locale: setting("locale"),
+    exchangeRate: setting("exchange_rate"),
+  };
+}
+
 export async function pullCatalog(
   storeId: string,
   since?: string
-): Promise<{ cursor: string; productUpserts: ProductUpsert[]; staffRoster: StaffRosterUpsert[] }> {
+): Promise<{
+  cursor: string;
+  productUpserts: ProductUpsert[];
+  staffRoster: StaffRosterUpsert[];
+  storeSettings: StoreSettingsSnapshot;
+}> {
   const cursor = new Date().toISOString();
   const sinceDate = since ? new Date(since) : null;
 
@@ -288,5 +325,7 @@ export async function pullCatalog(
     isActive: row.isActive,
   }));
 
-  return { cursor, productUpserts, staffRoster };
+  const storeSettings = await getStoreSettingsSnapshot(storeId);
+
+  return { cursor, productUpserts, staffRoster, storeSettings };
 }

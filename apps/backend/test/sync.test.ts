@@ -217,6 +217,32 @@ describe("GET /api/sync/pull", () => {
     expect(afterChange.body.productUpserts[0].stock).toBe(4);
   });
 
+  it("includes the store's IMS-managed settings in full on every pull", async () => {
+    const { store, terminal } = await seedFixtures();
+
+    const before = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    expect(before.body.storeSettings).toMatchObject({ storeName: store.name, mainCurrency: null, locale: null, exchangeRate: null });
+
+    await prisma.store.update({ where: { id: store.id }, data: { name: "Renamed Mart", address: "Phnom Penh", phone: "012 345 678" } });
+    await prisma.storeSetting.createMany({
+      data: [
+        { storeId: store.id, key: "main_currency", value: "KHR" },
+        { storeId: store.id, key: "locale", value: "en" },
+        { storeId: store.id, key: "exchange_rate", value: "4050" },
+      ],
+    });
+
+    const after = await request(app).get("/api/sync/pull").query({ since: before.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(after.body.storeSettings).toEqual({
+      storeName: "Renamed Mart",
+      storeAddress: "Phnom Penh",
+      storePhone: "012 345 678",
+      mainCurrency: "KHR",
+      locale: "en",
+      exchangeRate: "4050",
+    });
+  });
+
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).get("/api/sync/pull");
     expect(res.status).toBe(401);

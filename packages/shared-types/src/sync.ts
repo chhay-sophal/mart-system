@@ -70,4 +70,13 @@ export interface SyncPullResponse {
     pinHash: string;
     isActive: boolean;
   }>;
+  /** Managed in IMS; sent in full every pull. null = not set, keep the local value. */
+  storeSettings: {
+    storeName: string;
+    storeAddress: string | null;
+    storePhone: string | null;
+    mainCurrency: string | null;
+    locale: string | null;
+    exchangeRate: string | null;
+  };
 }
