@@ -77,6 +77,8 @@ async function readOnlinePosProducts(buffer) {
   }
 }
 
+const IMPORT_BATCH_SIZE = 300;
+
 const EXPORT_COLUMNS = [
   { key: 'name', header: 'Name', wch: 28, val: (p) => p.name },
   { key: 'barcode', header: 'Barcode', wch: 16, val: (p) => p.barcode ?? '' },
@@ -99,6 +101,8 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [sourceNote, setSourceNote] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
 
   const [exportCols, setExportCols] = useState(() =>
@@ -171,16 +175,35 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       return obj;
     });
 
+    // Batched: the backend's JSON body limit is 100KB (~800 rows), and a real
+    // online-pos catalog is well past that. Each batch is its own transaction,
+    // so on failure the earlier batches stay imported -- the counts say how far
+    // it got, and re-running with "update existing" is safe.
+    const totals = { imported: 0, updated: 0, skipped: 0, errors: 0 };
+    setImporting(true);
+    setError('');
     try {
-      const res = await apiClient.post(`/api/stores/${storeId}/products/bulk-import`, {
-        products: productsPayload,
-        updateExisting,
-      });
-      setResult(res);
+      for (let i = 0; i < productsPayload.length; i += IMPORT_BATCH_SIZE) {
+        setProgress(i);
+        const res = await apiClient.post(`/api/stores/${storeId}/products/bulk-import`, {
+          products: productsPayload.slice(i, i + IMPORT_BATCH_SIZE),
+          updateExisting,
+        });
+        for (const key of Object.keys(totals)) totals[key] += res[key] ?? 0;
+      }
+      setResult(totals);
       setStep('result');
-      onImported?.();
     } catch {
-      setError('Import failed.');
+      const done = totals.imported + totals.updated + totals.skipped + totals.errors;
+      setError(
+        done > 0
+          ? `Import stopped after ${done} of ${productsPayload.length} rows (${totals.imported} imported, ${totals.updated} updated). Re-run with "Update existing" to finish.`
+          : 'Import failed.'
+      );
+    } finally {
+      setImporting(false);
+      // Even a partial import changed the catalog, so refresh the list.
+      if (totals.imported + totals.updated > 0) onImported?.();
     }
   }
 
@@ -294,15 +317,15 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
           </label>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setStep('upload')} className="text-sm px-3 py-1.5">
+            <button onClick={() => setStep('upload')} disabled={importing} className="text-sm px-3 py-1.5 disabled:opacity-50">
               Back
             </button>
             <button
               onClick={handleImportSubmit}
-              disabled={!canSubmitImport}
+              disabled={!canSubmitImport || importing}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
             >
-              Import {rows.length} rows
+              {importing ? `Importing… ${progress} / ${rows.length}` : `Import ${rows.length} rows`}
             </button>
           </div>
         </div>
