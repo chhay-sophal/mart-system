@@ -209,6 +209,52 @@ function runMigrations() {
   const khqrCols = cols('khqr_transactions');
   if (!khqrCols.includes('updated_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN updated_at TEXT');
   if (!khqrCols.includes('deleted_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN deleted_at TEXT');
+
+  requeueRejectedStaticQrSales();
+}
+
+/**
+ * The backend used to reject paymentMethod STATIC_QR, so those sales (and
+ * any void of them, which then had no order to void) went DEAD after
+ * sync.js's retry limit. Put them back in the queue, filling in the bank
+ * name that older payloads didn't carry. Runs every startup rather than
+ * once: if this build reaches a terminal before the fixed backend does, the
+ * requeued events just die again and get another chance next launch. Only
+ * events rejected for that specific reason are touched.
+ */
+function requeueRejectedStaticQrSales() {
+  const dead = query(
+    "SELECT id, event_type, payload, last_error FROM outbox_events WHERE status = 'DEAD' ORDER BY sequence_no ASC"
+  );
+  const requeuedOrders = new Set();
+  for (const row of dead) {
+    let payload;
+    try {
+      payload = JSON.parse(row.payload);
+    } catch {
+      continue;
+    }
+    if (
+      row.event_type === 'SALE_COMPLETED' &&
+      payload.paymentMethod === 'STATIC_QR' &&
+      String(row.last_error).includes('paymentMethod')
+    ) {
+      if (!payload.bankName) {
+        const bank = query('SELECT bank_name FROM orders WHERE client_order_uuid = ?', [payload.clientOrderUuid])[0]?.bank_name;
+        if (bank) payload.bankName = bank;
+      }
+      run("UPDATE outbox_events SET status = 'PENDING', retry_count = 0, last_error = NULL, payload = ? WHERE id = ?", [
+        JSON.stringify(payload),
+        row.id,
+      ]);
+      requeuedOrders.add(payload.clientOrderUuid);
+    } else if (row.event_type === 'SALE_VOIDED' && requeuedOrders.has(payload.clientOrderUuid)) {
+      run("UPDATE outbox_events SET status = 'PENDING', retry_count = 0, last_error = NULL WHERE id = ?", [row.id]);
+    }
+  }
+  if (requeuedOrders.size > 0) {
+    console.log(`[sync] Re-queued ${requeuedOrders.size} STATIC_QR sale(s) the backend previously rejected`);
+  }
 }
 
 // --- BACKUP --- (ported from online-pos/backend-desktop/server.js:427-467,596-616)
