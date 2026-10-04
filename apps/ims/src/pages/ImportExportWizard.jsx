@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Modal from '../components/Modal.jsx';
-import { apiClient } from '../lib/apiClient';
+import { openOnlinePosDb, readProducts } from '../lib/onlinePosFile';
+import { importProductsInBatches } from '../lib/productImport';
 
 // Ported from online-pos/frontend/src/StockManager.jsx — same field keys, same
 // auto-detection heuristic. Tauri-specific drag-drop (invoke('read_file_bytes'))
@@ -43,41 +44,9 @@ function autoDetectMapping(headers) {
 }
 
 // online-pos (backend-desktop/server.js) keeps its catalog in a local
-// database.sqlite. Its products columns already match IMPORT_HINTS, so the
-// rows go through the same mapping step as a spreadsheet. cost_price and
-// is_deleted were added by later online-pos migrations, so older files may
-// lack them.
+// database.sqlite; lib/onlinePosFile.js reads it into the same column names
+// IMPORT_HINTS auto-detects, so it goes through the usual mapping step.
 const SQLITE_EXTENSIONS = /\.(sqlite3?|db)$/i;
-const ONLINE_POS_PRODUCT_COLUMNS = ['name', 'barcode', 'price', 'cost_price', 'currency', 'stock'];
-
-async function readOnlinePosProducts(buffer) {
-  // Loaded on demand so the wasm only downloads for SQLite imports.
-  const [{ default: initSqlJs }, { default: wasmUrl }] = await Promise.all([
-    import('sql.js'),
-    import('sql.js/dist/sql-wasm.wasm?url'),
-  ]);
-  const SQL = await initSqlJs({ locateFile: () => wasmUrl });
-  const db = new SQL.Database(new Uint8Array(buffer));
-  try {
-    const tableInfo = db.exec('PRAGMA table_info(products)')[0];
-    const columns = tableInfo ? tableInfo.values.map((r) => r[1]) : [];
-    if (!columns.includes('name') || !columns.includes('price')) {
-      throw new Error('This SQLite file has no online-pos products table.');
-    }
-    const selected = ONLINE_POS_PRODUCT_COLUMNS.filter((c) => columns.includes(c));
-    const where = columns.includes('is_deleted') ? 'WHERE is_deleted = 0' : '';
-    const result = db.exec(`SELECT ${selected.join(', ')} FROM products ${where} ORDER BY id`)[0];
-    const rows = (result?.values ?? []).map((values) =>
-      Object.fromEntries(selected.map((c, i) => [c, values[i] ?? '']))
-    );
-    const total = db.exec('SELECT COUNT(*) FROM products')[0].values[0][0];
-    return { headers: selected, rows, deletedSkipped: total - rows.length };
-  } finally {
-    db.close();
-  }
-}
-
-const IMPORT_BATCH_SIZE = 300;
 
 const EXPORT_COLUMNS = [
   { key: 'name', header: 'Name', wch: 28, val: (p) => p.name },
@@ -140,7 +109,14 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
   async function processSqliteBuffer(buffer) {
     try {
-      const { headers: sqliteHeaders, rows: sqliteRows, deletedSkipped } = await readOnlinePosProducts(buffer);
+      const db = await openOnlinePosDb(buffer);
+      let read;
+      try {
+        read = readProducts(db);
+      } finally {
+        db.close();
+      }
+      const { headers: sqliteHeaders, rows: sqliteRows, deletedSkipped } = read;
       if (sqliteRows.length === 0) {
         setError('The online-pos database has no products to import.');
         return;
@@ -175,25 +151,15 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       return obj;
     });
 
-    // Batched: the backend's JSON body limit is 100KB (~800 rows), and a real
-    // online-pos catalog is well past that. Each batch is its own transaction,
-    // so on failure the earlier batches stay imported -- the counts say how far
-    // it got, and re-running with "update existing" is safe.
-    const totals = { imported: 0, updated: 0, skipped: 0, errors: 0 };
+    let totals = { imported: 0, updated: 0, skipped: 0, errors: 0 };
     setImporting(true);
     setError('');
     try {
-      for (let i = 0; i < productsPayload.length; i += IMPORT_BATCH_SIZE) {
-        setProgress(i);
-        const res = await apiClient.post(`/api/stores/${storeId}/products/bulk-import`, {
-          products: productsPayload.slice(i, i + IMPORT_BATCH_SIZE),
-          updateExisting,
-        });
-        for (const key of Object.keys(totals)) totals[key] += res[key] ?? 0;
-      }
+      totals = await importProductsInBatches(storeId, productsPayload, updateExisting, setProgress);
       setResult(totals);
       setStep('result');
-    } catch {
+    } catch (err) {
+      totals = err.partialTotals ?? totals;
       const done = totals.imported + totals.updated + totals.skipped + totals.errors;
       setError(
         done > 0
