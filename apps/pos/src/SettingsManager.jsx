@@ -13,6 +13,17 @@ function CriticalBadge({ label }) {
   );
 }
 
+// Once paired, these settings sync down from IMS (sidecar sync.js overwrites
+// them on every pull), so local edits would just be reverted.
+function ManagedInImsNote() {
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl px-3 py-2.5 mb-4">
+      <Cloud size={14} />
+      Managed in IMS — changes there sync to this terminal automatically.
+    </div>
+  );
+}
+
 export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, onCurrencyChange }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
@@ -284,7 +295,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
 
   const isPaired = Boolean(settings.sync_backend_url && settings.sync_terminal_id && settings.sync_device_secret);
 
-  const inputBase = 'w-full px-3 py-2.5 border rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
+  const inputBase = 'w-full px-3 py-2.5 border rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed';
   const inputNormal = `${inputBase} border-slate-200 dark:border-slate-700`;
   const inputCritical = `${inputBase} border-amber-300 dark:border-amber-700`;
 
@@ -336,6 +347,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.storeProfileHeader || 'Store Profile'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                      {isPaired && <ManagedInImsNote />}
                       <div className="flex gap-4 items-start">
                         <div className="flex flex-col items-center gap-2 flex-shrink-0">
                           <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
@@ -361,14 +373,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             </button>
                           )}
                         </div>
-                        <div className="flex-1">
+                        <fieldset disabled={isPaired} className="flex-1 min-w-0 disabled:opacity-60">
                           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeNameLabel || 'Store Name'}</label>
                           <input type="text" value={settings.store_name}
                             onChange={(e) => setSettings({ ...settings, store_name: e.target.value })}
                             className={inputNormal} placeholder={s.storeNamePlaceholder || 'My Store'} />
                           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">{s.storeNameHelp || 'Shown in the top-left corner of the register.'}</p>
-                        </div>
+                        </fieldset>
                       </div>
+                      <fieldset disabled={isPaired} className="disabled:opacity-60">
                       <div className="mt-4">
                         <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeAddressLabel || 'Store Address'}</label>
                         <input type="text" value={settings.store_address}
@@ -381,21 +394,23 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                           onChange={(e) => setSettings({ ...settings, store_phone: e.target.value })}
                           className={inputNormal} placeholder={s.storePhonePlaceholder || '012 345 678'} />
                       </div>
+                      </fieldset>
                     </div>
                   </div>
 
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.languageHeader || 'Language'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                      {isPaired && <ManagedInImsNote />}
                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">{s.terminalLang || 'Terminal Display Language'}</label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <fieldset disabled={isPaired} className="grid grid-cols-2 gap-2 disabled:opacity-60">
                         {[{ val: 'km', label: '🇰🇭 ភាសាខ្មែរ' }, { val: 'en', label: '🇺🇸 English' }].map(({ val, label }) => (
                           <button key={val} type="button" onClick={() => setSettings({ ...settings, locale: val })}
                             className={`py-2.5 px-4 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${settings.locale === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
                             {label}
                           </button>
                         ))}
-                      </div>
+                      </fieldset>
                     </div>
                   </div>
                 </>}
@@ -408,15 +423,16 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       {isCurrencyChanged && <CriticalBadge label={s.criticalBadge} />}
                     </div>
                     <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isCurrencyChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
+                      {isPaired && <ManagedInImsNote />}
                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">{s.selectPrimaryCurr || 'Primary Transactional Currency'}</label>
-                      <div className="grid grid-cols-2 gap-2">
+                      <fieldset disabled={isPaired} className="grid grid-cols-2 gap-2 disabled:opacity-60">
                         {[{ val: 'USD', label: currentTranslations.mainCurrencyUsd || 'US Dollar (USD)' }, { val: 'KHR', label: currentTranslations.mainCurrencyKhr || 'Khmer Riel (KHR)' }].map(({ val, label }) => (
                           <button key={val} type="button" onClick={() => setSettings({ ...settings, main_currency: val })}
                             className={`py-2.5 px-4 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${settings.main_currency === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
                             {label}
                           </button>
                         ))}
-                      </div>
+                      </fieldset>
                     </div>
                   </div>
 
@@ -426,8 +442,9 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       {isExchangeRateChanged && <CriticalBadge label={s.criticalBadge} />}
                     </div>
                     <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isExchangeRateChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
+                      {isPaired && <ManagedInImsNote />}
                       <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{currentTranslations.exchangeRate || 'Exchange Rate'} (1 USD = ? KHR)</label>
-                      <input type="number" value={settings.exchange_rate}
+                      <input type="number" value={settings.exchange_rate} disabled={isPaired}
                         onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
                         className={isExchangeRateChanged ? inputCritical : inputNormal} placeholder="4100" />
                       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">{s.exchangeRateHelp || 'Used to automatically calculate Riel checkout conversions.'}</p>
