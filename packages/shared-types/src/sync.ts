@@ -78,5 +78,7 @@ export interface SyncPullResponse {
     mainCurrency: string | null;
     locale: string | null;
     exchangeRate: string | null;
+    /** Image data URL, only present when changed since the cursor; "" = removed. */
+    storeIcon?: string;
   };
 }

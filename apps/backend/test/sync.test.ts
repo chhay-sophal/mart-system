@@ -243,6 +243,22 @@ describe("GET /api/sync/pull", () => {
     });
   });
 
+  it("sends the store icon only on a first pull or when it changed since the cursor", async () => {
+    const { store, terminal } = await seedFixtures();
+    const icon = "data:image/png;base64,iVBORw0KGgo=";
+    await prisma.storeSetting.create({ data: { storeId: store.id, key: "store_icon", value: icon } });
+
+    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    expect(first.body.storeSettings.storeIcon).toBe(icon);
+
+    const unchanged = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(unchanged.body.storeSettings).not.toHaveProperty("storeIcon");
+
+    await prisma.storeSetting.update({ where: { storeId_key: { storeId: store.id, key: "store_icon" } }, data: { value: "" } });
+    const removed = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(removed.body.storeSettings.storeIcon).toBe("");
+  });
+
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).get("/api/sync/pull");
     expect(res.status).toBe(401);

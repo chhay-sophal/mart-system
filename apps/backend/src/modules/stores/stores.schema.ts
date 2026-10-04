@@ -14,6 +14,12 @@ const SYNCED_SETTING_RULES: Record<string, z.ZodType<string>> = {
   main_currency: z.enum(["USD", "KHR"]),
   locale: z.enum(["km", "en"]),
   exchange_rate: z.string().refine((v) => Number(v) > 0, "must be a positive number"),
+  // IMS downsizes to 256px before upload; the cap keeps a raw photo from being
+  // re-sent to every terminal (and stays under express.json's 100kb limit).
+  store_icon: z
+    .string()
+    .max(90_000, "image too large")
+    .refine((v) => v === "" || /^data:image\/(png|jpeg|webp|gif);base64,/.test(v), "must be an image data URL"),
 };
 
 export const putSettingsSchema = z.object({

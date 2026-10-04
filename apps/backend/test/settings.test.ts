@@ -39,7 +39,14 @@ describe("store settings", () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
-    for (const settings of [{ main_currency: "EUR" }, { locale: "fr" }, { exchange_rate: "0" }, { exchange_rate: "abc" }]) {
+    for (const settings of [
+      { main_currency: "EUR" },
+      { locale: "fr" },
+      { exchange_rate: "0" },
+      { exchange_rate: "abc" },
+      { store_icon: "https://example.com/logo.png" },
+      { store_icon: `data:image/png;base64,${"A".repeat(90_000)}` },
+    ]) {
       const res = await request(app)
         .put(`/api/stores/${store.id}/settings`)
         .set("Authorization", `Bearer ${token}`)

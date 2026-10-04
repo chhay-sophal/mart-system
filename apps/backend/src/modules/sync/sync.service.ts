@@ -239,9 +239,10 @@ export interface StaffRosterUpsert {
 }
 
 /**
- * Store-wide settings managed in IMS. Sent in full on every pull (it's a
- * handful of fields), so no delta tracking. null = never set in IMS, and the
- * terminal keeps whatever it has locally.
+ * Store-wide settings managed in IMS. The small fields are sent in full on
+ * every pull, so no delta tracking. null = never set in IMS, and the terminal
+ * keeps whatever it has locally. storeIcon is an image data URL, so it's only
+ * included when it changed since the cursor ("" = removed in IMS).
  */
 export interface StoreSettingsSnapshot {
   storeName: string;
@@ -250,16 +251,18 @@ export interface StoreSettingsSnapshot {
   mainCurrency: string | null;
   locale: string | null;
   exchangeRate: string | null;
+  storeIcon?: string;
 }
 
-async function getStoreSettingsSnapshot(storeId: string): Promise<StoreSettingsSnapshot> {
+async function getStoreSettingsSnapshot(storeId: string, sinceDate: Date | null): Promise<StoreSettingsSnapshot> {
   const [store, rows] = await Promise.all([
     prisma.store.findUniqueOrThrow({ where: { id: storeId } }),
     prisma.storeSetting.findMany({
-      where: { storeId, key: { in: ["main_currency", "locale", "exchange_rate"] } },
+      where: { storeId, key: { in: ["main_currency", "locale", "exchange_rate", "store_icon"] } },
     }),
   ]);
   const setting = (key: string) => rows.find((row) => row.key === key)?.value ?? null;
+  const icon = rows.find((row) => row.key === "store_icon");
   return {
     storeName: store.name,
     storeAddress: store.address,
@@ -267,6 +270,7 @@ async function getStoreSettingsSnapshot(storeId: string): Promise<StoreSettingsS
     mainCurrency: setting("main_currency"),
     locale: setting("locale"),
     exchangeRate: setting("exchange_rate"),
+    ...(icon && (!sinceDate || icon.updatedAt > sinceDate) ? { storeIcon: icon.value } : {}),
   };
 }
 
@@ -325,7 +329,7 @@ export async function pullCatalog(
     isActive: row.isActive,
   }));
 
-  const storeSettings = await getStoreSettingsSnapshot(storeId);
+  const storeSettings = await getStoreSettingsSnapshot(storeId, sinceDate);
 
   return { cursor, productUpserts, staffRoster, storeSettings };
 }
