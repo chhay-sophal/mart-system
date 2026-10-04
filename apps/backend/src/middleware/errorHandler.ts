@@ -4,6 +4,16 @@ import { ZodError } from "zod";
 import { HttpError } from "../lib/httpError";
 import { logger } from "../lib/logger";
 
+function isBodyParserError(err: unknown): err is { status: number; message: string } {
+  if (typeof err !== "object" || err === null) return false;
+  const { type, status } = err as { type?: unknown; status?: unknown };
+  return (
+    typeof type === "string" &&
+    (type === "entity.too.large" || type === "entity.parse.failed") &&
+    typeof status === "number"
+  );
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof HttpError) {
@@ -21,6 +31,12 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     if (err.code === "P2025") {
       return res.status(404).json({ error: "Record not found" });
     }
+  }
+
+  // express.json() errors (body over the size limit, malformed JSON) carry
+  // their own 4xx status; surface it instead of masking it as a 500.
+  if (isBodyParserError(err)) {
+    return res.status(err.status).json({ error: err.message });
   }
 
   logger.error({ err }, "Unhandled error");

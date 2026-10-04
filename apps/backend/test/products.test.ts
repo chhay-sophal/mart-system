@@ -171,6 +171,19 @@ describe("bulk import", () => {
     expect(list.body[0].stock).toBe(9);
   });
 
+  it("rejects an oversized request body with 413, not 500", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const products = Array.from({ length: 2000 }, (_, i) => ({ name: `Product ${i}`, barcode: `${1000000 + i}`, price: "1000" }));
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ products });
+
+    expect(res.status).toBe(413);
+  });
+
   it("skips (not errors) a row whose barcode already exists when updateExisting is false", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
