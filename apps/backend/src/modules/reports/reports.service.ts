@@ -57,7 +57,8 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   const toUsd = (amount: number, currency: string) => (currency === "KHR" ? amount / rate : amount);
 
   const orders = await prisma.order.findMany({
-    where: { storeId, isDeleted: false, createdAt: { gte: dateFrom, lt: dateTo } },
+    // A voided sale (refunded at the register, or in IMS) is not revenue.
+    where: { storeId, isDeleted: false, status: { not: "VOIDED" }, createdAt: { gte: dateFrom, lt: dateTo } },
   });
 
   const orderCount = orders.length;

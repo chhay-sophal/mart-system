@@ -115,6 +115,21 @@ describe("GET /api/terminal/daily-summary", () => {
     expect(res.body).toHaveProperty("gross_profit");
   });
 
+  it("leaves voided sales out of revenue", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await addOrder({ storeId: store.id, terminalId: terminal.id, productId: product.id, clientOrderUuid: "kept", createdAt: "2026-10-02T03:00:00Z", totalMinor: 300 });
+    const voided = await addOrder({ storeId: store.id, terminalId: terminal.id, productId: product.id, clientOrderUuid: "voided", createdAt: "2026-10-02T04:00:00Z", totalMinor: 900 });
+    await prisma.order.update({ where: { id: voided.id }, data: { status: "VOIDED" } });
+
+    const res = await request(app)
+      .get("/api/terminal/daily-summary")
+      .query({ date_from: "2026-10-01T17:00:00.000Z", date_to: "2026-10-02T17:00:00.000Z" })
+      .set(terminalHeaders(terminal.id));
+
+    expect(res.body).toMatchObject({ order_count: 1, total_revenue: 3 });
+  });
+
   it("rejects a missing date range", async () => {
     const { terminal } = await seedFixtures();
     const res = await request(app).get("/api/terminal/daily-summary").set(terminalHeaders(terminal.id));
