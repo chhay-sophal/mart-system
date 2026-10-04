@@ -16,6 +16,7 @@
   "dependencies": {
     "@mart-system/api-client": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
+    "@tanstack/react-query": "^5.104.1",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-process": "^2.3.1",
