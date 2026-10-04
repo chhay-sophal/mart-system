@@ -263,6 +263,9 @@ export const translations = {
         header: "ទូទៅ",
         lowStockAlert: "បង្ហាញការជូនដំណឹងស្តុកទាបនៅលើទំព័រលក់",
         lowStockAlertHelp: "ផ្ទាំងនៅលើទំព័រគិតលុយ ដែលបង្ហាញទំនិញជិតអស់ពីស្តុក។",
+        language: "ភាសាបង្ហាញ",
+        languageHelp: "សម្រាប់ម៉ាស៊ីននេះប៉ុណ្ណោះ។ លំនាំដើមរបស់ហាង គឺតាមភាសាដែលកំណត់ក្នុង IMS។",
+        storeDefault: "លំនាំដើមរបស់ហាង",
       },
       standbySection: {
         header: 'អេក្រង់អតិថិជន',
@@ -579,6 +582,9 @@ export const translations = {
         header: "General",
         lowStockAlert: "Show low-stock alert on the register",
         lowStockAlertHelp: "A banner on the checkout screen listing products that are running low.",
+        language: "Display language",
+        languageHelp: "This register only. Store default follows the language set in IMS.",
+        storeDefault: "Store default",
       },
       standbySection: {
         header: 'Customer Display',

@@ -420,7 +420,8 @@ export default function App() {
     client.get('/api/settings')
       .then(data => {
         if (data.exchange_rate) setDynamicRate(Number(data.exchange_rate));
-        if (data.locale) setLocale(data.locale);
+        // This register's own choice (Settings > General) wins over the store's.
+        if (data.display_language || data.locale) setLocale(data.display_language || data.locale);
         if (data.main_currency) setMainCurrency(data.main_currency);
         if (data.store_name) setStoreName(data.store_name);
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
@@ -674,6 +675,7 @@ export default function App() {
         <SettingsManager
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
+          onLocaleChange={setLocale}
         />
         {shortcutHelp}
       </BackendContext.Provider>

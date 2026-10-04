@@ -38,11 +38,13 @@ function ToggleRow({ label, help, checked, onChange }) {
   );
 }
 
-export default function SettingsManager({ onBackToRegister, currentLocale }) {
+export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
     // General (per register). Stored as 'true'/'false'; on unless turned off.
     show_low_stock_alert: 'true',
+    // '' = follow the store's language from IMS; 'km' / 'en' = this register only.
+    display_language: '',
     store_name: '',
     store_address: '',
     store_phone: '',
@@ -70,6 +72,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [standbyError, setStandbyError] = useState('');
   const [shopIconError, setShopIconError] = useState('');
   const [leavePrompt, setLeavePrompt] = useState(false);
+  const [storeLocale, setStoreLocale] = useState('km');
   const notify = useToast();
   const notices = t[currentLocale]?.notices || t.en.notices;
 
@@ -92,6 +95,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const fetchSettings = async () => {
     try {
       const data = await client.get('/api/settings');
+      if (data.locale) setStoreLocale(data.locale); // the store's language, for 'Store default'
       for (const key of IMS_MANAGED_KEYS) delete data[key];
       if (!data.sync_backend_url && DEFAULT_SYNC_BACKEND_URL) data.sync_backend_url = DEFAULT_SYNC_BACKEND_URL;
       setSettings(prev => ({ ...prev, ...data }));
@@ -227,6 +231,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     try {
       await client.put('/api/settings', settings);
       setInitialSettings(settings);
+      onLocaleChange?.(settings.display_language || storeLocale);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -465,6 +470,23 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.generalSection?.header || 'General'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{s.generalSection?.language || 'Display language'}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-2">{s.generalSection?.languageHelp}</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { val: '', label: `${s.generalSection?.storeDefault || 'Store default'} (${storeLocale === 'en' ? 'English' : 'ខ្មែរ'})` },
+                            { val: 'km', label: '🇰🇭 ភាសាខ្មែរ' },
+                            { val: 'en', label: '🇺🇸 English' },
+                          ].map(({ val, label }) => (
+                            <button key={val || 'default'} type="button"
+                              onClick={() => setSettings((prev) => ({ ...prev, display_language: val }))}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${(settings.display_language || '') === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <ToggleRow
                         label={s.generalSection?.lowStockAlert || 'Show low-stock alert on the register'}
                         help={s.generalSection?.lowStockAlertHelp}
