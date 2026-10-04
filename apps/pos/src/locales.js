@@ -259,6 +259,11 @@ export const translations = {
       popupCancel: 'បោះបង់',
       popupConfirm: 'យល់ព្រម',
 
+      generalSection: {
+        header: "ទូទៅ",
+        lowStockAlert: "បង្ហាញការជូនដំណឹងស្តុកទាបនៅលើទំព័រលក់",
+        lowStockAlertHelp: "ផ្ទាំងនៅលើទំព័រគិតលុយ ដែលបង្ហាញទំនិញជិតអស់ពីស្តុក។",
+      },
       standbySection: {
         header: 'អេក្រង់អតិថិជន',
         title: 'រូបភាពពេលរង់ចាំ',
@@ -570,6 +575,11 @@ export const translations = {
       popupCancel: 'Cancel',
       popupConfirm: 'Yes, Save',
 
+      generalSection: {
+        header: "General",
+        lowStockAlert: "Show low-stock alert on the register",
+        lowStockAlertHelp: "A banner on the checkout screen listing products that are running low.",
+      },
       standbySection: {
         header: 'Customer Display',
         title: 'Standby Image',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard, SlidersHorizontal } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
@@ -17,9 +17,32 @@ import { useToast } from './Toast';
 const IMS_MANAGED_KEYS = ['exchange_rate', 'locale', 'main_currency'];
 const SHOP_ICON_MAX_PX = 256; // header 40px, customer display 112px; @2x
 
+// A labelled on/off switch for General settings.
+function ToggleRow({ label, help, checked, onChange }) {
+  return (
+    <label className="flex items-start justify-between gap-4 cursor-pointer">
+      <span>
+        <span className="block text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</span>
+        {help && <span className="block text-xs text-slate-400 dark:text-slate-500 mt-0.5">{help}</span>}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors cursor-pointer ${checked ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </button>
+    </label>
+  );
+}
+
 export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
+    // General (per register). Stored as 'true'/'false'; on unless turned off.
+    show_low_stock_alert: 'true',
     store_name: '',
     store_address: '',
     store_phone: '',
@@ -41,7 +64,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [updateCheck, setUpdateCheck] = useState('idle'); // idle | checking | available | uptodate | error
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [updateProgress, setUpdateProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState('store');
+  const [activeSection, setActiveSection] = useState('general');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
   const [standbyError, setStandbyError] = useState('');
@@ -72,7 +95,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       for (const key of IMS_MANAGED_KEYS) delete data[key];
       if (!data.sync_backend_url && DEFAULT_SYNC_BACKEND_URL) data.sync_backend_url = DEFAULT_SYNC_BACKEND_URL;
       setSettings(prev => ({ ...prev, ...data }));
-      setInitialSettings(data);
+      // Baseline includes the defaults, like the form does: a setting never
+      // saved on this register (e.g. show_low_stock_alert = 'true') mustn't
+      // count as an unsaved change.
+      setInitialSettings({ ...DEFAULT_SETTINGS, ...data });
       setCloudFolder(data.cloud_backup_folder || '');
     } catch (err) {
       console.error('Failed to load store settings:', err);
@@ -282,6 +308,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   });
 
   const navItems = [
+    { id: 'general',  icon: SlidersHorizontal, label: s.generalSection?.header || 'General' },
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
     { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
@@ -430,6 +457,22 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── GENERAL (per register) ── */}
+                {activeSection === 'general' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.generalSection?.header || 'General'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <ToggleRow
+                        label={s.generalSection?.lowStockAlert || 'Show low-stock alert on the register'}
+                        help={s.generalSection?.lowStockAlertHelp}
+                        checked={settings.show_low_stock_alert !== 'false'}
+                        onChange={(on) => setSettings((prev) => ({ ...prev, show_low_stock_alert: on ? 'true' : 'false' }))}
+                      />
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
+                    </div>
                   </div>
                 )}
 

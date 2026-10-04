@@ -76,6 +76,8 @@ export default function App() {
   const [txDiscountValue, setTxDiscountValue] = useState('');
   const [lowStockItems, setLowStockItems] = useState([]);
   const [lowStockDismissed, setLowStockDismissed] = useState(false);
+  // Settings > General; on unless this register turned it off.
+  const [showLowStockAlert, setShowLowStockAlert] = useState(true);
 
   const barcodeRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
@@ -423,6 +425,7 @@ export default function App() {
         if (data.store_name) setStoreName(data.store_name);
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
+        setShowLowStockAlert(data.show_low_stock_alert !== 'false');
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -808,7 +811,7 @@ export default function App() {
           </div>
 
           {/* Low stock alert banner */}
-          {lowStockItems.length > 0 && !lowStockDismissed && (
+          {showLowStockAlert && lowStockItems.length > 0 && !lowStockDismissed && (
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 flex items-start gap-3 flex-shrink-0">
               <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
