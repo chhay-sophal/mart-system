@@ -1,13 +1,23 @@
 const express = require('express');
 const { query } = require('../db');
+const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
 
 const router = express.Router();
 
-router.get('/api/summary/daily', (req, res) => {
-  const { date_from, date_to } = req.query;
-  if (!date_from || !date_to) return res.status(400).json({ error: 'date_from and date_to required' });
+// Paired and online: the whole store's day from the backend. Otherwise this
+// register's local sales, with `offline` set when the store-wide view was
+// expected but couldn't be fetched (see storeReports.js).
+router.get('/api/summary/daily', async (req, res) => {
+  const range = parseRange(req.query);
+  if (!range.from || !range.to) return res.status(400).json({ error: 'date_from and date_to required' });
 
-  const base = [date_from, date_to];
+  const { config, data: remote } = await fetchStoreReport('/api/terminal/daily-summary', {
+    date_from: range.from.toISOString(),
+    date_to: range.to.toISOString(),
+  });
+  if (remote) return res.json({ ...remote, source: 'store', offline: false });
+
+  const base = [toLocalSql(range.from), toLocalSql(range.to)];
 
   const rateRow = query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0];
   const rate = parseFloat(rateRow?.value || '4100');
@@ -57,6 +67,8 @@ router.get('/api/summary/daily', (req, res) => {
     gross_profit: profitRow.gross_profit,
     by_method: byMethod,
     top_products: topProducts,
+    source: 'local',
+    offline: Boolean(config),
   });
 });
 

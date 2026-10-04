@@ -181,4 +181,4 @@ function start() {
   setInterval(run, SYNC_INTERVAL_MS);
 }
 
-module.exports = { start, tick, pullCatalog };
+module.exports = { start, tick, pullCatalog, pushPending, authHeaders };

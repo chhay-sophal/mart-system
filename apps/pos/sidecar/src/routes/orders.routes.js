@@ -1,5 +1,6 @@
 const express = require('express');
 const { query, run, saveDb, localNow, begin, commit, rollback, generateUuid, enqueueOutboxEvent } = require('../db');
+const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
 
 const router = express.Router();
 
@@ -110,39 +111,82 @@ router.post('/api/orders/checkout', (req, res) => {
   }
 });
 
-router.get('/api/orders', (req, res) => {
-  const { date_from, date_to, payment_method } = req.query;
-  const conditions = [];
+const LOCAL_ORDER_LIMIT = 200;
+
+function receiptNoFor(localId) {
+  return String(localId).padStart(4, '0');
+}
+
+/** This register's own orders in the range, newest first, in the shape the screen renders. */
+function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
+  const conditions = ['is_deleted = 0'];
   const params = [];
-
-  conditions.push('is_deleted = 0');
-  if (date_from) {
+  if (from) {
     conditions.push('created_at >= ?');
-    params.push(date_from);
+    params.push(toLocalSql(from));
   }
-  if (date_to) {
+  if (to) {
     conditions.push('created_at < ?');
-    params.push(date_to);
+    params.push(toLocalSql(to));
   }
-  if (payment_method && payment_method !== 'ALL') {
-    conditions.push('payment_method = ?');
-    params.push(payment_method);
-  }
-
-  const where = `WHERE ${conditions.join(' AND ')}`;
-  const orders = query(`SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT 200`, params);
-
-  const withItems = orders.map((order) => {
-    const items = query(
+  const orders = query(`SELECT * FROM orders WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT ?`, [
+    ...params,
+    limit,
+  ]);
+  return orders.map((order) => ({
+    ...order,
+    receipt_no: receiptNoFor(order.id),
+    can_delete: true,
+    items: query(
       `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.currency
        FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
        WHERE oi.order_id = ?`,
       [order.id]
-    );
-    return { ...order, items };
+    ),
+  }));
+}
+
+// Paired and online: the whole store's orders from the backend. This
+// register's own sales keep their local number (and stay deletable, which
+// voids them through sync); other terminals' and imported sales are view-only.
+// Offline or unpaired: this register's local orders, with `offline` set when
+// the store-wide view was expected but couldn't be fetched.
+router.get('/api/orders', async (req, res) => {
+  const range = parseRange(req.query);
+  const { payment_method } = req.query;
+  const byPayment = (o) => !payment_method || payment_method === 'ALL' || o.payment_method === payment_method;
+
+  const { config, data: remote } = await fetchStoreReport('/api/terminal/orders', {
+    date_from: range.from?.toISOString(),
+    date_to: range.to?.toISOString(),
   });
 
-  res.json(withItems);
+  if (!Array.isArray(remote)) {
+    return res.json({ source: 'local', offline: Boolean(config), orders: localOrders(range).filter(byPayment) });
+  }
+
+  const local = localOrders(range, 1000);
+  const localByUuid = new Map(local.filter((o) => o.client_order_uuid).map((o) => [o.client_order_uuid, o]));
+  const merged = remote.map((order) => {
+    const own = localByUuid.get(order.client_order_uuid);
+    return own
+      ? { ...order, id: own.id, receipt_no: own.receipt_no, terminal_name: null, can_delete: true }
+      : { ...order, can_delete: false };
+  });
+
+  // Own sales the backend doesn't have yet (still in the outbox). If the
+  // backend's list was cut off by its limit, only add ones newer than the
+  // oldest order it returned, so the list doesn't gain a stray older tail.
+  const remoteUuids = new Set(remote.map((o) => o.client_order_uuid));
+  const oldestRemote = remote.length >= 1000 ? new Date(remote[remote.length - 1].created_at) : null;
+  for (const order of local) {
+    if (remoteUuids.has(order.client_order_uuid)) continue;
+    if (oldestRemote && new Date(order.created_at.replace(' ', 'T')) < oldestRemote) continue;
+    merged.push(order);
+  }
+  merged.sort((a, b) => new Date(String(b.created_at).replace(' ', 'T')) - new Date(String(a.created_at).replace(' ', 'T')));
+
+  res.json({ source: 'store', offline: false, orders: merged.filter(byPayment) });
 });
 
 router.delete('/api/orders/:id', (req, res) => {
