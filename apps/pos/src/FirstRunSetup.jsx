@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Cloud, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { ApiError } from '@mart-system/api-client';
+import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 
 const inputClass =
   'w-full px-3 py-2.5 border rounded-xl text-sm font-medium bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
@@ -12,7 +13,8 @@ const inputClass =
 // which itself requires a working PIN). This is the one place credentials
 // are entered without a PIN, and only while the sidecar reports unpaired.
 export default function FirstRunSetup({ client, onPaired }) {
-  const [backendUrl, setBackendUrl] = useState('');
+  const [backendUrl, setBackendUrl] = useState(DEFAULT_SYNC_BACKEND_URL);
+  const [editingUrl, setEditingUrl] = useState(!DEFAULT_SYNC_BACKEND_URL);
   const [terminalId, setTerminalId] = useState('');
   const [deviceSecret, setDeviceSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
@@ -60,17 +62,30 @@ export default function FirstRunSetup({ client, onPaired }) {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 space-y-4"
       >
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Backend URL</label>
-          <input
-            required
-            type="text"
-            value={backendUrl}
-            onChange={(e) => setBackendUrl(e.target.value)}
-            placeholder="https://api.example.com"
-            className={inputClass}
-          />
-        </div>
+        {editingUrl ? (
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Backend URL</label>
+            <input
+              required
+              type="text"
+              value={backendUrl}
+              onChange={(e) => setBackendUrl(e.target.value)}
+              placeholder="https://api.example.com"
+              className={inputClass}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span className="truncate">Server: {backendUrl}</span>
+            <button
+              type="button"
+              onClick={() => setEditingUrl(true)}
+              className="shrink-0 font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              Use a different server
+            </button>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Terminal ID</label>
           <input
