@@ -15,12 +15,11 @@ function CriticalBadge({ label }) {
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
-const IMS_MANAGED_KEYS = ['store_name', 'store_address', 'store_phone', 'exchange_rate', 'locale', 'main_currency'];
+const IMS_MANAGED_KEYS = ['store_name', 'store_address', 'store_phone', 'exchange_rate', 'locale', 'main_currency', 'store_icon'];
 
 export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
-    store_icon: '',
     bakong_account_id: '',
     bakong_merchant_name: '',
     bakong_merchant_city: '',
@@ -37,7 +36,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [updateCheck, setUpdateCheck] = useState('idle'); // idle | checking | available | uptodate | error
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [updateProgress, setUpdateProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState('store');
+  const [activeSection, setActiveSection] = useState('khqr');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
 
@@ -207,7 +206,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   };
 
   // General dirty form change tracker — use ?? '' so keys missing from the API
-  // response (e.g. store_icon before first save) don't cause a permanent dirty state.
+  // response (e.g. sync_terminal_id before pairing) don't cause a permanent dirty state.
   const hasChanges = Object.keys(settings).some(
     key => String(settings[key] ?? '') !== String(initialSettings[key] ?? '')
   );
@@ -267,7 +266,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   };
 
   const navItems = [
-    { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
     { id: 'khqr',     icon: Smartphone,label: s.bakongHeader || 'KHQR',       badge: hasKhqrChanges },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
@@ -322,44 +320,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-lg space-y-5">
-
-                {/* ── STORE ── */}
-                {activeSection === 'store' && (
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.storeProfileHeader || 'Store Profile'}</p>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-                      <div className="flex gap-4 items-center">
-                        <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                          <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
-                            {settings.store_icon
-                              ? <img src={settings.store_icon} alt="store icon" className="w-full h-full object-cover" />
-                              : <Store size={20} className="text-slate-300 dark:text-slate-600" />}
-                          </div>
-                          <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline">
-                            {s.uploadIcon || 'Upload'}
-                            <input type="file" accept="image/*" className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
-                                const reader = new FileReader();
-                                reader.onload = (ev) => setSettings({ ...settings, store_icon: ev.target.result });
-                                reader.readAsDataURL(file);
-                              }} />
-                          </label>
-                          {settings.store_icon && (
-                            <button type="button" onClick={() => setSettings({ ...settings, store_icon: '' })}
-                              className="text-[10px] text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
-                              {s.removeIcon || 'Remove'}
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">
-                          Shown next to the shop name on the register. Shop name, address, phone, currency, language and exchange rate are managed in IMS.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* ── KHQR ── */}
                 {activeSection === 'khqr' && (
