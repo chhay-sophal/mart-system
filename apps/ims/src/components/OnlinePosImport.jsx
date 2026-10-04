@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { openOnlinePosDb, readOrders, readProducts, readSettings, sourceIdFor } from '../lib/onlinePosFile';
 import { importProductsInBatches } from '../lib/productImport';
-import { STORE_ICON_KEY, resizeImageToDataUrl } from '../lib/storeIcon';
 
 // ~350 bytes per order with a couple of items, so 100 stays far under the
 // backend's 100KB body limit even for big baskets.
@@ -10,9 +9,6 @@ const ORDER_BATCH_SIZE = 100;
 const SHOWN_ERRORS = 10;
 
 const SETTING_LABELS = {
-  store_name: 'Shop name',
-  store_address: 'Address',
-  store_phone: 'Phone',
   main_currency: 'Main currency',
   locale: 'Language',
   exchange_rate: 'Exchange rate',
@@ -78,26 +74,12 @@ export default function OnlinePosImport({ storeId, onImported }) {
   async function importSettings() {
     const { settings } = file;
     setStep('settings', 'Importing…');
-    const profile = {};
-    if (settings.store_name) profile.name = settings.store_name.trim();
-    if (settings.store_address) profile.address = settings.store_address.trim();
-    if (settings.store_phone) profile.phone = settings.store_phone.trim();
-    if (Object.keys(profile).length) await apiClient.patch(`/api/stores/${storeId}`, profile);
-
     const values = {};
     for (const [key, isValid] of Object.entries(VALID_SETTINGS)) {
       if (settings[key] && isValid(settings[key])) values[key] = settings[key];
     }
-    let iconNote = '';
-    if (settings[STORE_ICON_KEY]) {
-      try {
-        values[STORE_ICON_KEY] = await resizeImageToDataUrl(settings[STORE_ICON_KEY]);
-      } catch {
-        iconNote = ' (logo could not be read, skipped)';
-      }
-    }
     if (Object.keys(values).length) await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
-    setStep('settings', `Done${iconNote}.`);
+    setStep('settings', 'Done.');
   }
 
   async function importProducts() {
@@ -214,7 +196,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
                     {VALID_SETTINGS[key] && !VALID_SETTINGS[key](file.settings[key]) && ' (invalid, will be skipped)'}
                   </span>
                 ))}
-                {file.settings[STORE_ICON_KEY] && <span className="block">Logo: included</span>}
+                <span className="block">Shop name, image, address and phone are set on each register (POS Settings).</span>
                 <span className="block text-amber-700">Replaces this store's current values.</span>
               </>
             )}

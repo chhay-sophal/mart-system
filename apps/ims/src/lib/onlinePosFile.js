@@ -5,8 +5,9 @@
 
 const PRODUCT_COLUMNS = ['name', 'barcode', 'price', 'cost_price', 'currency', 'stock'];
 
-// online-pos store_settings keys that still mean something in IMS.
-const SETTING_KEYS = ['store_name', 'store_address', 'store_phone', 'store_icon', 'main_currency', 'locale', 'exchange_rate'];
+// online-pos store_settings keys that IMS manages. Shop name, image, address,
+// phone and Bakong details are set on each register instead (issue #5).
+const SETTING_KEYS = ['main_currency', 'locale', 'exchange_rate'];
 
 export async function openOnlinePosDb(buffer) {
   // Loaded on demand so the wasm only downloads for SQLite imports.
