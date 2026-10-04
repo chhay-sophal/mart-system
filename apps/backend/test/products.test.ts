@@ -8,6 +8,7 @@ import {
   FIXTURE_PIN,
   FIXTURE_TERMINAL_SECRET,
   addCashier,
+  addProduct,
   resetDatabase,
   seedFixtures,
 } from "./helpers";
@@ -235,6 +236,20 @@ describe("bulk import", () => {
 
     expect(again.body).toMatchObject({ imported: 0, skipped: 1 });
     expect(await prisma.product.findUnique({ where: { barcode: "8850999327012" } })).not.toBeNull();
+  });
+
+  it("lists only products at or below their low-stock threshold, as a plain array", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    await addProduct(store.id, { name: "Plenty", price: 1, stock: 50 });
+    await addProduct(store.id, { name: "At Threshold", price: 1, stock: 5 });
+    await addProduct(store.id, { name: "Out", price: 1, stock: 0 });
+
+    const res = await request(app).get(`/api/stores/${store.id}/products/low-stock`).set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.map((p: { name: string }) => p.name).sort()).toEqual(["At Threshold", "Out"]);
   });
 
   it("keeps the first of two rows for the same product in one batch", async () => {
