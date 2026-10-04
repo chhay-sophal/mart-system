@@ -19,6 +19,7 @@ import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
+import { useToast } from './Toast';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
@@ -42,6 +43,15 @@ export default function App() {
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [clearCartPrompt, setClearCartPrompt] = useState(false);
+  const notify = useToast();
+  // In-app messages (window.alert isn't reliably shown in the Tauri window).
+  const notice = (key, vars = {}) =>
+    Object.entries(vars).reduce((text, [k, v]) => text.replace(`{${k}}`, v), t[locale]?.notices?.[key] ?? t.en.notices[key]);
+  // For the scanner listener's long-lived closure; kept current after each render.
+  const noticeRef = useRef(notice);
+  useEffect(() => {
+    noticeRef.current = notice;
+  });
   const manualInputRef = useRef(null);
   const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
@@ -214,16 +224,17 @@ export default function App() {
         setCheckoutResult(null);
       } catch (err) {
         if (err instanceof ApiError && !err.isNetworkError) {
-          alert(`Product with barcode "${scannedBarcode}" not registered yet!`);
+          notify(noticeRef.current('productNotRegistered', { barcode: scannedBarcode }));
         } else {
           console.error('Error handling direct global barcode query lookup:', err);
+          notify(noticeRef.current('localServerUnreachable'));
         }
       }
     };
 
     window.addEventListener('keydown', handleGlobalScanStream);
     return () => window.removeEventListener('keydown', handleGlobalScanStream);
-  }, [view, client]);
+  }, [view, client, notify]);
 
 
   // Formats a raw numeric string (no commas) for display as "1,000,000.12";
@@ -439,10 +450,11 @@ export default function App() {
       setCheckoutResult(null);
     } catch (err) {
       if (err instanceof ApiError && !err.isNetworkError) {
-        alert('Product not found or not registered!');
+        notify(notice('productNotFound'));
         setBarcodeInput('');
       } else {
         console.error('Error fetching product:', err);
+        notify(notice('localServerUnreachable'));
       }
     }
   };
@@ -536,9 +548,10 @@ export default function App() {
       setTxDiscountType('pct');
     } catch (err) {
       if (err instanceof ApiError && !err.isNetworkError) {
-        alert(`Checkout Failed: ${err.body?.error ?? 'Unknown error'}`);
+        notify(notice('checkoutFailed', { reason: err.body?.error ?? notice('unknownError') }));
       } else {
         console.error('Error checking out:', err);
+        notify(notice('localServerUnreachable'));
       }
     }
   };

@@ -8,6 +8,7 @@ import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 import ShortcutList from './ShortcutList';
 import { useShortcuts } from './hooks/useShortcuts';
 import ConfirmDialog from './ConfirmDialog';
+import { useToast } from './Toast';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -46,6 +47,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [standbyError, setStandbyError] = useState('');
   const [shopIconError, setShopIconError] = useState('');
   const [leavePrompt, setLeavePrompt] = useState(false);
+  const notify = useToast();
+  const notices = t[currentLocale]?.notices || t.en.notices;
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -152,11 +155,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       setExportedFile(filename);
       setTimeout(() => setExportedFile(null), 3000);
     } catch (err) {
-      if (err instanceof ApiError && !err.isNetworkError) {
-        alert(err.body?.error || 'Export failed');
-      } else {
-        alert('Export failed: ' + err.message);
-      }
+      const reason = err instanceof ApiError && !err.isNetworkError ? err.body?.error : err.message;
+      notify(notices.exportFailed.replace('{reason}', reason || notices.unknownError));
     }
     setExportingFile(null);
   };
@@ -205,9 +205,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       if (err instanceof ApiError && !err.isNetworkError) {
-        alert(t[currentLocale]?.settingsPage?.failSave || 'Failed to save settings.');
+        notify(t[currentLocale]?.settingsPage?.failSave || 'Failed to save settings.');
       } else {
         console.error('Error pushing updated options:', err);
+        notify(notices.localServerUnreachable);
       }
     }
   };

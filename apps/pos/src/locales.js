@@ -184,6 +184,14 @@ export const translations = {
     },
 
     // SETTINGS SPECIFIC LABELS
+    notices: {
+      productNotRegistered: "បាកូដ \"{barcode}\" មិនទាន់បានចុះបញ្ជីជាមួយផលិតផលណាមួយទេ។",
+      productNotFound: "រកមិនឃើញផលិតផល ឬមិនទាន់បានចុះបញ្ជី។",
+      checkoutFailed: "ការគិតលុយបរាជ័យ៖ {reason}",
+      localServerUnreachable: "មិនអាចភ្ជាប់ទៅម៉ាស៊ីនមេក្នុងម៉ាស៊ីននេះបានទេ។ សូមព្យាយាមម្តងទៀតបន្តិចទៀត។",
+      exportFailed: "ការនាំចេញបរាជ័យ៖ {reason}",
+      unknownError: "កំហុសមិនស្គាល់",
+    },
     shortcuts: {
       prevDay: "ថ្ងៃមុន",
       nextDay: "ថ្ងៃបន្ទាប់",
@@ -487,6 +495,14 @@ export const translations = {
     },
 
     // SETTINGS SPECIFIC LABELS
+    notices: {
+      productNotRegistered: "Barcode \"{barcode}\" isn't registered to a product yet.",
+      productNotFound: "Product not found or not registered.",
+      checkoutFailed: "Checkout failed: {reason}",
+      localServerUnreachable: "Can't reach this register's local server. Try again in a moment.",
+      exportFailed: "Export failed: {reason}",
+      unknownError: "Unknown error",
+    },
     shortcuts: {
       prevDay: "Previous day",
       nextDay: "Next day",
