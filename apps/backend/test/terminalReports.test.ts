@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
-import { receiptNo } from "../src/modules/terminalReports/terminalReports.service";
+import { receiptNo } from "../src/modules/orders/orders.service";
 import { FIXTURE_TERMINAL_SECRET, addProduct, resetDatabase, seedFixtures } from "./helpers";
 
 const app = buildApp();

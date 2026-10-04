@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma";
+import { voidOrderInTx } from "../orders/orders.service";
 import { fromMinorUnits, toMinorUnits } from "../../lib/money";
 import {
   saleCompletedPayloadSchema,
@@ -109,28 +110,8 @@ async function applySaleVoided(
     throw new Error("Order not found for void — the original sale may not be synced yet");
   }
 
-  if (order.status === "VOIDED") {
-    return order.id; // Already voided by an earlier attempt — idempotent no-op.
-  }
-
-  await tx.order.update({ where: { id: order.id }, data: { status: "VOIDED" } });
-
-  for (const item of order.items) {
-    await tx.stockMovement.create({
-      data: {
-        storeId: terminal.storeId,
-        productId: item.productId,
-        terminalId: terminal.id,
-        delta: item.quantity,
-        reason: "VOID",
-        sourceEventId: event.eventId,
-      },
-    });
-    await tx.storeProduct.update({
-      where: { storeId_productId: { storeId: terminal.storeId, productId: item.productId } },
-      data: { stock: { increment: item.quantity } },
-    });
-  }
+  // Idempotent: a sale already voided (by an earlier attempt, or in IMS) is left alone.
+  await voidOrderInTx(tx, order, { terminalId: terminal.id, sourceEventId: event.eventId });
 
   return order.id;
 }

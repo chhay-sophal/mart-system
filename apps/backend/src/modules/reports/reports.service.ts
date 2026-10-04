@@ -3,10 +3,10 @@ import { forbidden } from "../../lib/httpError";
 import { fromMinorUnits } from "../../lib/money";
 import { listStoresForUser } from "../stores/stores.service";
 
-type ReportUser = { id: string; isSuperAdmin: boolean };
+export type ReportUser = { id: string; isSuperAdmin: boolean };
 
 /** Every store the caller can see, narrowed to one if `storeId` was requested and is actually accessible to them. */
-async function resolveAccessibleStoreIds(user: ReportUser, storeId?: string): Promise<string[]> {
+export async function resolveAccessibleStoreIds(user: ReportUser, storeId?: string): Promise<string[]> {
   const stores = await listStoresForUser(user);
   const accessibleIds = stores.map((store) => store.id);
 
