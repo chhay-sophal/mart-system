@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, run, saveDb, normalizeBackendUrl } = require('../db');
+const { query, run, saveDb, normalizeBackendUrl, getSyncSetting, resetSyncStateForNewPairing } = require('../db');
 
 const router = express.Router();
 
@@ -17,6 +17,9 @@ router.get('/api/settings', (req, res) => {
 });
 
 router.put('/api/settings', (req, res) => {
+  const pairingKeys = ['sync_backend_url', 'sync_terminal_id'];
+  const pairingBefore = pairingKeys.map((key) => getSyncSetting(key) ?? '');
+
   for (let [key, value] of Object.entries(req.body)) {
     if (INTERNAL_ONLY_SETTINGS.includes(key)) continue;
     if (key === 'sync_backend_url') value = normalizeBackendUrl(value);
@@ -25,6 +28,11 @@ router.put('/api/settings', (req, res) => {
       String(value),
     ]);
   }
+
+  // Re-paired (different backend or terminal): start sync from scratch. The
+  // first-time pairing changes these too, which is harmless -- nothing to reset.
+  const pairingAfter = pairingKeys.map((key) => getSyncSetting(key) ?? '');
+  if (pairingAfter.some((value, i) => value !== pairingBefore[i])) resetSyncStateForNewPairing();
   saveDb();
   res.json({ message: 'Settings saved' });
 });

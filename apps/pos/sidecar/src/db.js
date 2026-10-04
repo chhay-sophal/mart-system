@@ -79,6 +79,18 @@ function normalizeBackendUrl(url) {
   return String(url ?? '').trim().replace(/\/+$/, '');
 }
 
+/**
+ * After pairing to a different backend or terminal, what was synced from the
+ * old one no longer applies: its pull cursor would make the new backend skip
+ * everything older, its icon version would never match, and its cached staff
+ * PINs belong to another store (they'd still unlock this register). Products
+ * stay -- the next pull re-links them by barcode.
+ */
+function resetSyncStateForNewPairing() {
+  run("DELETE FROM sync_state WHERE key IN ('pull_cursor', 'store_icon_version')");
+  run('DELETE FROM staff_pins');
+}
+
 function getSyncConfig() {
   const backendUrl = normalizeBackendUrl(getSyncSetting('sync_backend_url'));
   const terminalId = getSyncSetting('sync_terminal_id');
@@ -407,6 +419,7 @@ module.exports = {
   enqueueOutboxEvent,
   getSyncSetting,
   getSyncConfig,
+  resetSyncStateForNewPairing,
   normalizeBackendUrl,
   init,
   createBackup,
