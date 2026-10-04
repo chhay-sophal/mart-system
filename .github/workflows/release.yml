@@ -115,6 +115,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Default backend pre-filled on the POS pairing screen (repo Actions variable).
+          VITE_SYNC_BACKEND_URL: ${{ vars.SYNC_BACKEND_URL }}
         with:
           projectPath: apps/pos
           releaseId: ${{ needs.create-release.outputs.release_id }}
