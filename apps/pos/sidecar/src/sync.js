@@ -109,11 +109,6 @@ async function pullCatalog(config) {
   // Join like push does: new URL('/api/...', base) would drop any base subpath.
   const url = new URL(`${config.backendUrl}/api/sync/pull`);
   if (cursor) url.searchParams.set('since', cursor);
-  // Which store icon we have, so the backend re-sends it whenever it differs
-  // ("" = none yet). Keyed on version, not the cursor, so an icon missed by an
-  // older build that didn't apply icons still arrives.
-  const iconVersion = db.query("SELECT value FROM sync_state WHERE key = 'store_icon_version'")[0]?.value ?? '';
-  url.searchParams.set('icon_version', iconVersion);
 
   let response;
   try {
@@ -161,30 +156,19 @@ async function pullCatalog(config) {
     );
   }
 
-  // IMS owns these once paired (Settings shows them read-only). null means
-  // IMS never set it, so keep the terminal's local value.
+  // Only these come from IMS. Shop name, address, phone, image and Bakong
+  // details are per register, set in POS Settings (issue #5) -- ignored here
+  // even if an older backend still sends them. null = not set in IMS.
   const IMS_MANAGED_SETTINGS = {
-    store_name: storeSettings?.storeName,
-    store_address: storeSettings?.storeAddress,
-    store_phone: storeSettings?.storePhone,
     main_currency: storeSettings?.mainCurrency,
     locale: storeSettings?.locale,
     exchange_rate: storeSettings?.exchangeRate,
-    // Only present when it differs from our icon_version; "" means removed in IMS.
-    store_icon: storeSettings?.storeIcon,
   };
   for (const [key, value] of Object.entries(IMS_MANAGED_SETTINGS)) {
     if (value == null) continue;
     db.run(
       'INSERT INTO store_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [key, value]
-    );
-  }
-  // Record the version only alongside the icon it belongs to.
-  if (storeSettings?.storeIcon != null && storeSettings.storeIconVersion) {
-    db.run(
-      "INSERT INTO sync_state (key, value) VALUES ('store_icon_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      [storeSettings.storeIconVersion]
     );
   }
 
