@@ -242,62 +242,32 @@ export interface StaffRosterUpsert {
 }
 
 /**
- * Store-wide settings managed in IMS. The small fields are sent in full on
- * every pull, so no delta tracking. null = never set in IMS, and the terminal
- * keeps whatever it has locally. storeIcon is an image data URL, so it isn't
- * re-sent every pull ("" = removed in IMS): the terminal says which version it
- * has (storeIconVersion from an earlier pull) and gets the icon whenever that
- * differs. Comparing versions rather than "changed since the cursor" means a
- * terminal that missed the icon -- e.g. it synced with a build that didn't
- * apply icons yet -- still gets it.
+ * Store-wide settings managed in IMS, sent in full on every pull (a handful
+ * of fields). null = never set in IMS, and the terminal keeps its local value.
+ * Shop name, address, phone, image and Bakong merchant details aren't here:
+ * they are branch-specific and set on each register (issue #5).
  */
 export interface StoreSettingsSnapshot {
-  storeName: string;
-  storeAddress: string | null;
-  storePhone: string | null;
   mainCurrency: string | null;
   locale: string | null;
   exchangeRate: string | null;
-  storeIcon?: string;
-  storeIconVersion?: string;
 }
 
-async function getStoreSettingsSnapshot(
-  storeId: string,
-  sinceDate: Date | null,
-  iconVersion: string | undefined
-): Promise<StoreSettingsSnapshot> {
-  const [store, rows] = await Promise.all([
-    prisma.store.findUniqueOrThrow({ where: { id: storeId } }),
-    prisma.storeSetting.findMany({
-      where: { storeId, key: { in: ["main_currency", "locale", "exchange_rate", "store_icon"] } },
-    }),
-  ]);
+async function getStoreSettingsSnapshot(storeId: string): Promise<StoreSettingsSnapshot> {
+  const rows = await prisma.storeSetting.findMany({
+    where: { storeId, key: { in: ["main_currency", "locale", "exchange_rate"] } },
+  });
   const setting = (key: string) => rows.find((row) => row.key === key)?.value ?? null;
-  const icon = rows.find((row) => row.key === "store_icon");
-  const currentIconVersion = icon?.updatedAt.toISOString();
-  const sendIcon = icon
-    ? iconVersion !== undefined
-      ? iconVersion !== currentIconVersion
-      : // Terminals from before icon versions: fall back to "changed since the cursor".
-        !sinceDate || icon.updatedAt > sinceDate
-    : false;
   return {
-    storeName: store.name,
-    storeAddress: store.address,
-    storePhone: store.phone,
     mainCurrency: setting("main_currency"),
     locale: setting("locale"),
     exchangeRate: setting("exchange_rate"),
-    ...(sendIcon ? { storeIcon: icon!.value } : {}),
-    ...(currentIconVersion ? { storeIconVersion: currentIconVersion } : {}),
   };
 }
 
 export async function pullCatalog(
   storeId: string,
-  since?: string,
-  iconVersion?: string
+  since?: string
 ): Promise<{
   cursor: string;
   productUpserts: ProductUpsert[];
@@ -351,7 +321,7 @@ export async function pullCatalog(
     isActive: row.isActive,
   }));
 
-  const storeSettings = await getStoreSettingsSnapshot(storeId, sinceDate, iconVersion);
+  const storeSettings = await getStoreSettingsSnapshot(storeId);
 
   return { cursor, productUpserts, staffRoster, storeSettings };
 }

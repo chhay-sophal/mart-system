@@ -245,11 +245,13 @@ describe("GET /api/sync/pull", () => {
     const { store, terminal } = await seedFixtures();
 
     const before = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
-    expect(before.body.storeSettings).toMatchObject({ storeName: store.name, mainCurrency: null, locale: null, exchangeRate: null });
+    expect(before.body.storeSettings).toEqual({ mainCurrency: null, locale: null, exchangeRate: null });
 
+    // Shop details are set per register now (issue #5), so they never ride along.
     await prisma.store.update({ where: { id: store.id }, data: { name: "Renamed Mart", address: "Phnom Penh", phone: "012 345 678" } });
     await prisma.storeSetting.createMany({
       data: [
+        { storeId: store.id, key: "store_icon", value: "data:image/png;base64,iVBORw0KGgo=" },
         { storeId: store.id, key: "main_currency", value: "KHR" },
         { storeId: store.id, key: "locale", value: "en" },
         { storeId: store.id, key: "exchange_rate", value: "4050" },
@@ -258,9 +260,6 @@ describe("GET /api/sync/pull", () => {
 
     const after = await request(app).get("/api/sync/pull").query({ since: before.body.cursor }).set(terminalHeaders(terminal.id));
     expect(after.body.storeSettings).toEqual({
-      storeName: "Renamed Mart",
-      storeAddress: "Phnom Penh",
-      storePhone: "012 345 678",
       mainCurrency: "KHR",
       locale: "en",
       exchangeRate: "4050",
@@ -281,49 +280,6 @@ describe("GET /api/sync/pull", () => {
 
     expect(byBarcode.get("khr-1")).toMatchObject({ priceOverride: null, defaultPrice: 22000, currency: "KHR" });
     expect(byBarcode.get("usd-1")).toMatchObject({ priceOverride: 1.25, currency: "USD" });
-  });
-
-  it("sends the store icon whenever the terminal's icon_version differs, even past the cursor", async () => {
-    const { store, terminal } = await seedFixtures();
-    const icon = "data:image/png;base64,iVBORw0KGgo=";
-    await prisma.storeSetting.create({ data: { storeId: store.id, key: "store_icon", value: icon } });
-    const pull = (query: Record<string, string>) =>
-      request(app).get("/api/sync/pull").query(query).set(terminalHeaders(terminal.id));
-
-    // A terminal that synced past the icon without keeping it (an older build ignored icons).
-    const first = await pull({});
-    const missed = await pull({ since: first.body.cursor, icon_version: "" });
-    expect(missed.body.storeSettings.storeIcon).toBe(icon);
-    const version = missed.body.storeSettings.storeIconVersion;
-    expect(version).toEqual(expect.any(String));
-
-    const upToDate = await pull({ since: first.body.cursor, icon_version: version });
-    expect(upToDate.body.storeSettings).not.toHaveProperty("storeIcon");
-    expect(upToDate.body.storeSettings.storeIconVersion).toBe(version);
-
-    await prisma.storeSetting.update({
-      where: { storeId_key: { storeId: store.id, key: "store_icon" } },
-      data: { value: "data:image/png;base64,AAAA" },
-    });
-    const changed = await pull({ since: first.body.cursor, icon_version: version });
-    expect(changed.body.storeSettings.storeIcon).toBe("data:image/png;base64,AAAA");
-    expect(changed.body.storeSettings.storeIconVersion).not.toBe(version);
-  });
-
-  it("sends the store icon only on a first pull or when it changed since the cursor", async () => {
-    const { store, terminal } = await seedFixtures();
-    const icon = "data:image/png;base64,iVBORw0KGgo=";
-    await prisma.storeSetting.create({ data: { storeId: store.id, key: "store_icon", value: icon } });
-
-    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
-    expect(first.body.storeSettings.storeIcon).toBe(icon);
-
-    const unchanged = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
-    expect(unchanged.body.storeSettings).not.toHaveProperty("storeIcon");
-
-    await prisma.storeSetting.update({ where: { storeId_key: { storeId: store.id, key: "store_icon" } }, data: { value: "" } });
-    const removed = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
-    expect(removed.body.storeSettings.storeIcon).toBe("");
   });
 
   it("rejects a request without valid terminal credentials", async () => {

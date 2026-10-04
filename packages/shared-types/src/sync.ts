@@ -75,17 +75,10 @@ export interface SyncPullResponse {
     pinHash: string;
     isActive: boolean;
   }>;
-  /** Managed in IMS; sent in full every pull. null = not set, keep the local value. */
+  /** Managed in IMS; sent in full every pull. null = not set, keep the local value. Shop details are per register (issue #5). */
   storeSettings: {
-    storeName: string;
-    storeAddress: string | null;
-    storePhone: string | null;
     mainCurrency: string | null;
     locale: string | null;
     exchangeRate: string | null;
-    /** Image data URL, present when the terminal's icon_version differs; "" = removed. */
-    storeIcon?: string;
-    /** Current icon version; the terminal sends it back as icon_version. */
-    storeIconVersion?: string;
   };
 }
