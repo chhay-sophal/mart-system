@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2 } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
+import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -14,7 +15,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const DEFAULT_SETTINGS = {
     sync_backend_url: '',
     sync_terminal_id: '',
-    sync_device_secret: ''
+    sync_device_secret: '',
+    [STANDBY_IMAGE_KEY]: ''
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -28,6 +30,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [activeSection, setActiveSection] = useState('backup');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
+  const [standbyError, setStandbyError] = useState('');
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -247,6 +250,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   };
 
   const navItems = [
+    { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
     { id: 'about',    icon: Info,      label: 'About' },
@@ -380,6 +384,50 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── CUSTOMER DISPLAY ── */}
+                {activeSection === 'display' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.standbySection?.title || 'Standby Image'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {s.standbySection?.help || "Shown full screen on the customer display while no sale is in progress. Stored on this register only; it isn't synced."}
+                      </p>
+                      <div className="aspect-video rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center">
+                        {settings[STANDBY_IMAGE_KEY]
+                          ? <img src={settings[STANDBY_IMAGE_KEY]} alt="" className="w-full h-full object-contain" />
+                          : <span className="text-xs text-slate-500 px-4 text-center">{s.standbySection?.none || 'No image — the shop name is shown instead'}</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                          <ImagePlus size={12} />
+                          {s.standbySection?.choose || 'Choose Image'}
+                          <input type="file" accept="image/*" className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!file) return;
+                              setStandbyError('');
+                              try {
+                                const dataUrl = await imageFileToDataUrl(file);
+                                setSettings((prev) => ({ ...prev, [STANDBY_IMAGE_KEY]: dataUrl }));
+                              } catch (err) {
+                                setStandbyError(err.message);
+                              }
+                            }} />
+                        </label>
+                        {settings[STANDBY_IMAGE_KEY] && (
+                          <button type="button" onClick={() => setSettings((prev) => ({ ...prev, [STANDBY_IMAGE_KEY]: '' }))}
+                            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-red-400 hover:text-red-600 text-slate-500 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                            <Trash2 size={12} />
+                            {s.standbySection?.remove || 'Remove'}
+                          </button>
+                        )}
+                      </div>
+                      {standbyError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{standbyError}</p>}
+                    </div>
                   </div>
                 )}
 

@@ -219,6 +219,14 @@ export const translations = {
       popupCancel: 'បោះបង់',
       popupConfirm: 'យល់ព្រម',
 
+      standbySection: {
+        header: 'អេក្រង់អតិថិជន',
+        title: 'រូបភាពពេលរង់ចាំ',
+        help: 'បង្ហាញពេញអេក្រង់អតិថិជន នៅពេលមិនមានការលក់។ រក្សាទុកតែលើម៉ាស៊ីននេះប៉ុណ្ណោះ មិនធ្វើសមកាលកម្មទេ។',
+        choose: 'ជ្រើសរើសរូបភាព',
+        remove: 'លុបចេញ',
+        none: 'គ្មានរូបភាព — បង្ហាញឈ្មោះហាងជំនួសវិញ',
+      },
       backupSection: {
         header: 'ការបម្រុងទុកទិន្នន័យ',
         backupNow: 'បម្រុងទុកឥឡូវ',
@@ -482,6 +490,14 @@ export const translations = {
       popupCancel: 'Cancel',
       popupConfirm: 'Yes, Save',
 
+      standbySection: {
+        header: 'Customer Display',
+        title: 'Standby Image',
+        help: "Shown full screen on the customer display while no sale is in progress. Stored on this register only; it isn't synced.",
+        choose: 'Choose Image',
+        remove: 'Remove',
+        none: 'No image — the shop name is shown instead',
+      },
       backupSection: {
         header: 'Data Backup',
         backupNow: 'Backup Now',
