@@ -474,16 +474,17 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       <div>
                         <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{s.generalSection?.language || 'Display language'}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-2">{s.generalSection?.languageHelp}</p>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                           {[
-                            // Store default shows the flag of the language IMS has set.
+                            // Store default shows the flag of the language IMS has set; it spans
+                            // the row above the two explicit choices.
                             { val: '', flag: storeLocale, label: `${s.generalSection?.storeDefault || 'Store default'} (${storeLocale === 'en' ? 'English' : 'ខ្មែរ'})` },
                             { val: 'km', flag: 'km', label: 'ភាសាខ្មែរ' },
                             { val: 'en', flag: 'en', label: 'English' },
                           ].map(({ val, flag, label }) => (
                             <button key={val || 'default'} type="button"
                               onClick={() => setSettings((prev) => ({ ...prev, display_language: val }))}
-                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${(settings.display_language || '') === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
+                              className={`${val === '' ? 'col-span-2 ' : ''}py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${(settings.display_language || '') === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
                               <Flag locale={flag} />
                               <span className="truncate">{label}</span>
                             </button>
