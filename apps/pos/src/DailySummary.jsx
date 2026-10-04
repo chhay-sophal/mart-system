@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 import { usdToKhr } from './khr';
 import { useShortcuts } from './hooks/useShortcuts';
+import { queryKeys } from './queryClient';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -16,8 +18,6 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
   const client = useBackend();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   const s = (t[currentLocale] || {}).dailySummary || {};
 
@@ -51,23 +51,19 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
       && d.getDate() === now.getDate();
   };
 
-  const fetchSummary = useCallback(async () => {
-    setLoading(true);
-    setSummary(null);
-    try {
-      const date_from = toSqliteDate(selectedDate);
+  // Cached per day (queryClient.js): stepping back to a day already viewed,
+  // or re-opening the screen, is instant; refreshed in the background when stale.
+  const dayFrom = toSqliteDate(selectedDate);
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.dailySummary(dayFrom),
+    queryFn: () => {
       const next = new Date(selectedDate);
       next.setDate(next.getDate() + 1);
-      const date_to = toSqliteDate(next);
-      setSummary(await client.get('/api/summary/daily', { date_from, date_to }));
-    } catch { /* best effort */ }
-    setLoading(false);
-  }, [selectedDate, client]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchSummary();
-  }, [fetchSummary]);
+      return client.get('/api/summary/daily', { date_from: dayFrom, date_to: toSqliteDate(next) });
+    },
+  });
+  const summary = summaryQuery.data ?? null;
+  const loading = summaryQuery.isPending;
 
   const prevDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n; });
   const nextDay = () => setSelectedDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n; });

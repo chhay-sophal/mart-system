@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useBackend } from './BackendContext';
 import * as XLSX from 'xlsx';
 import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
 import { usdToKhr } from './khr';
+import { invalidateSales, queryKeys } from './queryClient';
 
 const PAGE_SIZE = 10;
 
@@ -31,9 +33,6 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const s = t[currentLocale].salesHistory;
   const ex = s.export;
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [offline, setOffline] = useState(false);
   const [period, setPeriod] = useState('today');
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
@@ -62,26 +61,22 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     setPage(1);
   }, [search, period, payFilter, sortCol, sortDir]);
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    const { from, to } = getPeriodRange(period);
-    try {
-      const data = await client.get('/api/orders', { date_from: from ?? undefined, date_to: to ?? undefined });
-      setOrders(unwrapOrders(data));
-      setOffline(Boolean(data?.offline));
-    } catch (err) {
-      console.error('Failed to fetch orders:', err);
-      setOrders([]);
-      setOffline(false);
-    } finally {
-      setLoading(false);
-    }
-  }, [period, client]);
-
+  // Cached per period (queryClient.js): re-opening History shows the last
+  // list at once and refreshes it in the background when stale. The
+  // period's start is worked out at fetch time, so "Today" is always today's.
+  const ordersQuery = useQuery({
+    queryKey: queryKeys.orders(period),
+    queryFn: () => {
+      const { from, to } = getPeriodRange(period);
+      return client.get('/api/orders', { date_from: from ?? undefined, date_to: to ?? undefined });
+    },
+  });
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchOrders();
-  }, [fetchOrders]);
+    if (ordersQuery.error) console.error('Failed to fetch orders:', ordersQuery.error);
+  }, [ordersQuery.error]);
+  const orders = unwrapOrders(ordersQuery.data);
+  const offline = Boolean(ordersQuery.data?.offline);
+  const loading = ordersQuery.isPending;
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -142,7 +137,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       await client.delete(`/api/orders/${id}`);
       setDeleteConfirmId(null);
       setExpandedId(null);
-      fetchOrders();
+      invalidateSales(); // this list and Daily Summary
     } catch (err) {
       console.error('Error voiding order:', err);
     }

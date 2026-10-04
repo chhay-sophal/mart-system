@@ -20,6 +20,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from './Toast';
+import { invalidateSales, queryClient } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
@@ -43,6 +44,11 @@ export default function App() {
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [clearCartPrompt, setClearCartPrompt] = useState(false);
+  // Locking the register (button or shortcut) drops cached sales data, so the
+  // next cashier starts fresh.
+  useEffect(() => {
+    if (!session) queryClient.clear();
+  }, [session]);
   const notify = useToast();
   // In-app messages (window.alert isn't reliably shown in the Tauri window).
   const notice = (key, vars = {}) =>
@@ -321,6 +327,7 @@ export default function App() {
     try {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
+      invalidateSales(); // History and Daily Summary show the new sale right away
       setInvoiceData({
         order_id: data.order_id,
         items: cartSnapshot,
@@ -527,6 +534,7 @@ export default function App() {
     try {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
+      invalidateSales(); // History and Daily Summary show the new sale right away
       setInvoiceData({
         order_id: data.order_id,
         items: cartSnapshot,

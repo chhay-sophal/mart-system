@@ -10,6 +10,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import ConfirmDialog from './ConfirmDialog';
 import Flag from './Flag';
 import { useToast } from './Toast';
+import { invalidateSales } from './queryClient';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -742,6 +743,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                               setResyncing(true);
                               try {
                                 const res = await client.post('/api/sync/resync');
+                                invalidateSales(); // prices/stock may have changed
                                 notify((s.syncSection?.resyncDone || '{count} products resynced.').replace('{count}', res.products), 'success');
                               } catch (err) {
                                 const reason = (err instanceof ApiError && err.body?.error) || err.message || notices.unknownError;
