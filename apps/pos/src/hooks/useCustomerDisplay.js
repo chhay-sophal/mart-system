@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { availableMonitors, getCurrentWindow, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window';
+import { availableMonitors, currentMonitor, getCurrentWindow, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window';
 
 const LABEL = 'customer-display';
 // No monitor-change event in Tauri, so poll. Cheap: a couple of IPC calls.
@@ -108,7 +108,8 @@ export function useCustomerDisplay(enabled, onError) {
       if (busyRef.current || cancelled) return;
       busyRef.current = true;
       try {
-        const [here, monitors] = await Promise.all([main.currentMonitor(), availableMonitors()]);
+        // currentMonitor is a module function in @tauri-apps/api v2, not a Window method.
+        const [here, monitors] = await Promise.all([currentMonitor(), availableMonitors()]);
         if (cancelled) return;
         setStatus((s) => (s.monitorCount === monitors.length ? s : { ...s, monitorCount: monitors.length }));
         // With the register's own monitor unknown, don't guess: the "other"
