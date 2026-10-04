@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, Wallet, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Store, Smartphone, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 
@@ -13,30 +13,17 @@ function CriticalBadge({ label }) {
   );
 }
 
-// Once paired, these settings sync down from IMS (sidecar sync.js overwrites
-// them on every pull), so local edits would just be reverted.
-function ManagedInImsNote() {
-  return (
-    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl px-3 py-2.5 mb-4">
-      <Cloud size={14} />
-      Managed in IMS — changes there sync to this terminal automatically.
-    </div>
-  );
-}
+// Managed in IMS and written by sidecar sync.js on every pull. Settings never
+// sends these back, so a save can't briefly revert a value IMS just pushed.
+const IMS_MANAGED_KEYS = ['store_name', 'store_address', 'store_phone', 'exchange_rate', 'locale', 'main_currency'];
 
-export default function SettingsManager({ onBackToRegister, currentLocale, onLocaleChange, onCurrencyChange }) {
+export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
-    store_name: '',
     store_icon: '',
-    store_address: '',
-    store_phone: '',
-    exchange_rate: '4100',
     bakong_account_id: '',
     bakong_merchant_name: '',
     bakong_merchant_city: '',
-    locale: 'km',
-    main_currency: 'USD',
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: ''
@@ -73,6 +60,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const fetchSettings = async () => {
     try {
       const data = await client.get('/api/settings');
+      for (const key of IMS_MANAGED_KEYS) delete data[key];
       if (!data.sync_backend_url && DEFAULT_SYNC_BACKEND_URL) data.sync_backend_url = DEFAULT_SYNC_BACKEND_URL;
       setSettings(prev => ({ ...prev, ...data }));
       setInitialSettings(data);
@@ -206,8 +194,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     setShowConfirmPopup(false);
     try {
       await client.put('/api/settings', settings);
-      onLocaleChange(settings.locale);
-      onCurrencyChange(settings.main_currency);
       setInitialSettings(settings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -221,14 +207,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   };
 
   // General dirty form change tracker — use ?? '' so keys missing from the API
-  // response (e.g. store_name before first save) don't cause a permanent dirty state.
+  // response (e.g. store_icon before first save) don't cause a permanent dirty state.
   const hasChanges = Object.keys(settings).some(
     key => String(settings[key] ?? '') !== String(initialSettings[key] ?? '')
   );
-
-  // Evaluation conditions for core financial changes
-  const isCurrencyChanged = initialSettings && String(settings.main_currency) !== String(initialSettings.main_currency);
-  const isExchangeRateChanged = initialSettings && String(settings.exchange_rate) !== String(initialSettings.exchange_rate);
 
   // Everything under KHQR is evaluated as a critical parameter
   const isBakongAccountIdChanged = initialSettings && String(settings.bakong_account_id) !== String(initialSettings.bakong_account_id);
@@ -236,7 +218,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const isBakongMerchantCityChanged = initialSettings && String(settings.bakong_merchant_city) !== String(initialSettings.bakong_merchant_city);
 
   const hasKhqrChanges = isBakongAccountIdChanged || isBakongMerchantNameChanged || isBakongMerchantCityChanged;
-  const hasCriticalChanges = isCurrencyChanged || isExchangeRateChanged || hasKhqrChanges;
+  const hasCriticalChanges = hasKhqrChanges;
 
   const currentTranslations = t[currentLocale] || {};
   const s = currentTranslations.settingsPage || {};
@@ -286,7 +268,6 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
 
   const navItems = [
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
-    { id: 'payments', icon: Wallet,    label: s.currencyHeader || 'Payments', badge: isCurrencyChanged || isExchangeRateChanged },
     { id: 'khqr',     icon: Smartphone,label: s.bakongHeader || 'KHQR',       badge: hasKhqrChanges },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
@@ -343,12 +324,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
               <div className="max-w-lg space-y-5">
 
                 {/* ── STORE ── */}
-                {activeSection === 'store' && <>
+                {activeSection === 'store' && (
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.storeProfileHeader || 'Store Profile'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-                      {isPaired && <ManagedInImsNote />}
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-4 items-center">
                         <div className="flex flex-col items-center gap-2 flex-shrink-0">
                           <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
                             {settings.store_icon
@@ -373,84 +353,13 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             </button>
                           )}
                         </div>
-                        <fieldset disabled={isPaired} className="flex-1 min-w-0 disabled:opacity-60">
-                          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeNameLabel || 'Store Name'}</label>
-                          <input type="text" value={settings.store_name}
-                            onChange={(e) => setSettings({ ...settings, store_name: e.target.value })}
-                            className={inputNormal} placeholder={s.storeNamePlaceholder || 'My Store'} />
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">{s.storeNameHelp || 'Shown in the top-left corner of the register.'}</p>
-                        </fieldset>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          Shown next to the shop name on the register. Shop name, address, phone, currency, language and exchange rate are managed in IMS.
+                        </p>
                       </div>
-                      <fieldset disabled={isPaired} className="disabled:opacity-60">
-                      <div className="mt-4">
-                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeAddressLabel || 'Store Address'}</label>
-                        <input type="text" value={settings.store_address}
-                          onChange={(e) => setSettings({ ...settings, store_address: e.target.value })}
-                          className={inputNormal} placeholder={s.storeAddressPlaceholder || 'Village, Commune, District, Province'} />
-                      </div>
-                      <div className="mt-4">
-                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storePhoneLabel || 'Phone Number'}</label>
-                        <input type="text" value={settings.store_phone}
-                          onChange={(e) => setSettings({ ...settings, store_phone: e.target.value })}
-                          className={inputNormal} placeholder={s.storePhonePlaceholder || '012 345 678'} />
-                      </div>
-                      </fieldset>
                     </div>
                   </div>
-
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.languageHeader || 'Language'}</p>
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-                      {isPaired && <ManagedInImsNote />}
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">{s.terminalLang || 'Terminal Display Language'}</label>
-                      <fieldset disabled={isPaired} className="grid grid-cols-2 gap-2 disabled:opacity-60">
-                        {[{ val: 'km', label: '🇰🇭 ភាសាខ្មែរ' }, { val: 'en', label: '🇺🇸 English' }].map(({ val, label }) => (
-                          <button key={val} type="button" onClick={() => setSettings({ ...settings, locale: val })}
-                            className={`py-2.5 px-4 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${settings.locale === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </fieldset>
-                    </div>
-                  </div>
-                </>}
-
-                {/* ── PAYMENTS ── */}
-                {activeSection === 'payments' && <>
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.currencyHeader || 'Currency'}</p>
-                      {isCurrencyChanged && <CriticalBadge label={s.criticalBadge} />}
-                    </div>
-                    <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isCurrencyChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                      {isPaired && <ManagedInImsNote />}
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">{s.selectPrimaryCurr || 'Primary Transactional Currency'}</label>
-                      <fieldset disabled={isPaired} className="grid grid-cols-2 gap-2 disabled:opacity-60">
-                        {[{ val: 'USD', label: currentTranslations.mainCurrencyUsd || 'US Dollar (USD)' }, { val: 'KHR', label: currentTranslations.mainCurrencyKhr || 'Khmer Riel (KHR)' }].map(({ val, label }) => (
-                          <button key={val} type="button" onClick={() => setSettings({ ...settings, main_currency: val })}
-                            className={`py-2.5 px-4 rounded-xl border text-sm font-semibold transition-all cursor-pointer ${settings.main_currency === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </fieldset>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">{s.financialsHeader || 'Exchange Rate'}</p>
-                      {isExchangeRateChanged && <CriticalBadge label={s.criticalBadge} />}
-                    </div>
-                    <div className={`bg-white dark:bg-slate-800 rounded-2xl border p-5 transition-all ${isExchangeRateChanged ? 'border-amber-300 dark:border-amber-700 ring-2 ring-amber-100 dark:ring-amber-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                      {isPaired && <ManagedInImsNote />}
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{currentTranslations.exchangeRate || 'Exchange Rate'} (1 USD = ? KHR)</label>
-                      <input type="number" value={settings.exchange_rate} disabled={isPaired}
-                        onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
-                        className={isExchangeRateChanged ? inputCritical : inputNormal} placeholder="4100" />
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">{s.exchangeRateHelp || 'Used to automatically calculate Riel checkout conversions.'}</p>
-                    </div>
-                  </div>
-                </>}
+                )}
 
                 {/* ── KHQR ── */}
                 {activeSection === 'khqr' && (

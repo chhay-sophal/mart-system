@@ -607,8 +607,6 @@ export default function App() {
         <SettingsManager
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
-          onLocaleChange={setLocale}
-          onCurrencyChange={setMainCurrency}
         />
       </BackendContext.Provider>
     );
