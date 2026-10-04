@@ -4,7 +4,14 @@ const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
 
 const router = express.Router();
 
-const EXCHANGE_RATE = 4100;
+// Same rule as the POS screens (src/khr.js): the smallest riel note is 100,
+// so change handed back in riel is rounded to the nearest 100.
+const KHR_STEP = 100;
+
+function storeExchangeRate() {
+  const rate = parseFloat(query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0]?.value);
+  return rate > 0 ? rate : 4100;
+}
 
 // Fixed in Phase 2: the old app ran these inserts/updates sequentially with no
 // BEGIN/COMMIT, so a mid-checkout failure could leave the in-memory db partially
@@ -22,9 +29,10 @@ router.post('/api/orders/checkout', (req, res) => {
     return res.status(400).json({ error: 'Cannot check out an empty cart' });
   }
 
-  const totalPaidInUsd = parseFloat(amount_paid_usd || 0) + parseFloat(amount_paid_khr || 0) / EXCHANGE_RATE;
+  const rate = storeExchangeRate();
+  const totalPaidInUsd = parseFloat(amount_paid_usd || 0) + parseFloat(amount_paid_khr || 0) / rate;
   const changeInUsd = totalPaidInUsd - parseFloat(total_amount);
-  const changeGivenKhr = changeInUsd > 0 ? Math.round(changeInUsd * EXCHANGE_RATE) : 0;
+  const changeGivenKhr = changeInUsd > 0 ? Math.round((changeInUsd * rate) / KHR_STEP) * KHR_STEP : 0;
   const clientOrderUuid = generateUuid();
 
   try {
