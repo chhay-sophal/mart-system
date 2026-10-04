@@ -96,7 +96,7 @@ async function pullCatalog(config) {
     throw new Error(`Backend rejected the request (status ${response.status}).`);
   }
 
-  const { cursor: newCursor, productUpserts, staffRoster } = await response.json();
+  const { cursor: newCursor, productUpserts, staffRoster, storeSettings } = await response.json();
 
   for (const item of productUpserts) {
     // Match by backend_product_id first (already linked from an earlier
@@ -133,6 +133,24 @@ async function pullCatalog(config) {
        ON CONFLICT(user_id) DO UPDATE SET name = excluded.name, role = excluded.role,
          pin_hash = excluded.pin_hash, is_active = excluded.is_active, updated_at = excluded.updated_at`,
       [staff.userId, staff.name, staff.role, staff.pinHash, staff.isActive ? 1 : 0, db.localNow()]
+    );
+  }
+
+  // IMS owns these once paired (Settings shows them read-only). null means
+  // IMS never set it, so keep the terminal's local value.
+  const IMS_MANAGED_SETTINGS = {
+    store_name: storeSettings?.storeName,
+    store_address: storeSettings?.storeAddress,
+    store_phone: storeSettings?.storePhone,
+    main_currency: storeSettings?.mainCurrency,
+    locale: storeSettings?.locale,
+    exchange_rate: storeSettings?.exchangeRate,
+  };
+  for (const [key, value] of Object.entries(IMS_MANAGED_SETTINGS)) {
+    if (value == null) continue;
+    db.run(
+      'INSERT INTO store_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value]
     );
   }
 
