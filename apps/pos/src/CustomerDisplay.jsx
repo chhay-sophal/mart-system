@@ -8,6 +8,8 @@ import { usdToKhr } from './khr';
 export default function CustomerDisplay() {
   const [payload, setPayload] = useState(null);
   const [displayState, setDisplayState] = useState('idle');
+  // Picked in POS Settings (issue #4); sent on its own event, see App.jsx.
+  const [standbyImage, setStandbyImage] = useState('');
   const doneTimerRef = useRef(null);
 
   useEffect(() => {
@@ -18,7 +20,9 @@ export default function CustomerDisplay() {
 
   useEffect(() => {
     let unlisten;
+    let unlistenStandby;
     (async () => {
+      unlistenStandby = await listen('customer-display-standby', ({ payload: p }) => setStandbyImage(p?.image || ''));
       unlisten = await listen('customer-display', ({ payload: p }) => {
         if (p.isDark) document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
@@ -36,6 +40,7 @@ export default function CustomerDisplay() {
     })();
     return () => {
       unlisten?.();
+      unlistenStandby?.();
       if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
     };
   }, []);
@@ -71,6 +76,14 @@ export default function CustomerDisplay() {
 
   /* ── IDLE ───────────────────────────────────────────────── */
   if (displayState === 'idle' || !payload) {
+    if (standbyImage) {
+      return (
+        <div className="h-screen w-screen bg-black flex items-center justify-center select-none overflow-hidden">
+          {/* contain, not cover: a promo poster's text must never be cropped */}
+          <img src={standbyImage} alt="" className="w-full h-full object-contain" />
+        </div>
+      );
+    }
     return (
       <div className="h-screen w-screen bg-slate-900 flex flex-col items-center justify-center gap-8 select-none overflow-hidden">
         <div className="flex flex-col items-center gap-5">

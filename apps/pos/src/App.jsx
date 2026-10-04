@@ -16,6 +16,7 @@ import BackendContext from './BackendContext';
 import { ApiClient, ApiError } from '@mart-system/api-client';
 import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
+import { STANDBY_IMAGE_KEY } from './standbyImage';
 
 export default function App() {
   const [cart, setCart] = useState([]);
@@ -39,6 +40,7 @@ export default function App() {
   const [mainCurrency, setMainCurrency] = useState('USD');
   const [storeName, setStoreName] = useState('');
   const [storeIcon, setStoreIcon] = useState('');
+  const [standbyImage, setStandbyImage] = useState('');
   const [storeAddress, setStoreAddress] = useState('');
   const [storePhone, setStorePhone] = useState('');
   // Non-Tauri (plain browser dev) never needs the port-discovery/health-check
@@ -62,15 +64,24 @@ export default function App() {
   // Opens itself on a second monitor when one is attached (issue #3).
   const customerDisplayOpen = useCustomerDisplay(IS_TAURI);
   const customerDisplayPayloadRef = useRef(null);
+  // The standby image (issue #4) travels on its own event: it can be a few
+  // hundred KB, so it's only sent when it changes or a display (re)opens, not
+  // with every cart update.
+  const standbyImageRef = useRef('');
   useEffect(() => {
     if (!IS_TAURI) return undefined;
     const unlistenPromise = listen('customer-display-ready', () => {
+      emit('customer-display-standby', { image: standbyImageRef.current });
       if (customerDisplayPayloadRef.current) emit('customer-display', customerDisplayPayloadRef.current);
     });
     return () => {
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, [IS_TAURI]);
+  useEffect(() => {
+    standbyImageRef.current = standbyImage;
+    if (IS_TAURI && customerDisplayOpen) emit('customer-display-standby', { image: standbyImage });
+  }, [IS_TAURI, customerDisplayOpen, standbyImage]);
   const backendPortRef = useRef(5050);
   const initialBackendUrl = IS_TAURI ? 'http://localhost:5050' : (import.meta.env.PROD ? '' : 'http://localhost:5050');
   // Created once (useState's lazy initializer, not a ref — reading a ref
@@ -392,6 +403,7 @@ export default function App() {
         if (data.main_currency) setMainCurrency(data.main_currency);
         if (data.store_name) setStoreName(data.store_name);
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
+        setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
