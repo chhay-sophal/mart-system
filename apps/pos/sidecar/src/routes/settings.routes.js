@@ -1,5 +1,5 @@
 const express = require('express');
-const { query, run, saveDb } = require('../db');
+const { query, run, saveDb, normalizeBackendUrl } = require('../db');
 
 const router = express.Router();
 
@@ -17,8 +17,9 @@ router.get('/api/settings', (req, res) => {
 });
 
 router.put('/api/settings', (req, res) => {
-  for (const [key, value] of Object.entries(req.body)) {
+  for (let [key, value] of Object.entries(req.body)) {
     if (INTERNAL_ONLY_SETTINGS.includes(key)) continue;
+    if (key === 'sync_backend_url') value = normalizeBackendUrl(value);
     run('INSERT INTO store_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [
       key,
       String(value),

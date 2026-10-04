@@ -73,8 +73,14 @@ function getSyncSetting(key) {
   return query('SELECT value FROM store_settings WHERE key = ?', [key])[0]?.value ?? null;
 }
 
+// Callers append paths like `${backendUrl}/api/sync/push`, so strip
+// whitespace and trailing slashes to avoid `//api` (and keep any subpath).
+function normalizeBackendUrl(url) {
+  return String(url ?? '').trim().replace(/\/+$/, '');
+}
+
 function getSyncConfig() {
-  const backendUrl = getSyncSetting('sync_backend_url');
+  const backendUrl = normalizeBackendUrl(getSyncSetting('sync_backend_url'));
   const terminalId = getSyncSetting('sync_terminal_id');
   const deviceSecret = getSyncSetting('sync_device_secret');
   if (!backendUrl || !terminalId || !deviceSecret) return null;
@@ -335,6 +341,7 @@ module.exports = {
   enqueueOutboxEvent,
   getSyncSetting,
   getSyncConfig,
+  normalizeBackendUrl,
   init,
   createBackup,
   listBackups,
