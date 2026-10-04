@@ -26,7 +26,7 @@ const isOwnOrder = (order) => order.can_delete !== false;
 // The sidecar returns { source, offline, orders }; older builds a bare array.
 const unwrapOrders = (data) => (Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []);
 
-export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
+export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shop = {} }) {
   const client = useBackend();
   const s = t[currentLocale].salesHistory;
   const ex = s.export;
@@ -158,8 +158,17 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         quantity: i.quantity,
         currency: i.currency,
       })),
+      // A reprint has no discount breakdown: the stored total is the subtotal.
+      subtotalBeforeDiscountUsd: parseFloat(order.total_amount),
+      transactionDiscountUsd: 0,
+      totalDiscountUsd: 0,
       totalUsd: parseFloat(order.total_amount),
       totalKhr: usdToKhr(order.total_amount, dynamicRate),
+      mainCurrency,
+      dynamicRate,
+      storeName: shop.storeName,
+      storeAddress: shop.storeAddress,
+      storePhone: shop.storePhone,
       paymentMethod: order.payment_method,
       bankName: order.bank_name || null,
       amountPaidUsd: parseFloat(order.amount_paid_usd) || 0,
@@ -406,10 +415,13 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       </div>
 
       {invoiceModal && (
+        // Printed directly, like the register's receipt: printing from the
+        // preview modal fails in the Tauri window and blanked the app (issue #9).
         <Invoice
           invoiceData={invoiceModal}
           locale={currentLocale}
           onClose={() => setInvoiceModal(null)}
+          autoPrint
         />
       )}
 

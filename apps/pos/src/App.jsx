@@ -649,6 +649,7 @@ export default function App() {
       <BackendContext.Provider value={client}>
         <SalesHistory
           onBackToRegister={() => setView('REGISTER')}
+          shop={{ storeName, storeAddress, storePhone }}
           currentLocale={locale}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
