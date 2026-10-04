@@ -8,6 +8,7 @@ import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 import ShortcutList from './ShortcutList';
 import { useShortcuts } from './hooks/useShortcuts';
 import ConfirmDialog from './ConfirmDialog';
+import Flag from './Flag';
 import { useToast } from './Toast';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
@@ -475,14 +476,16 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-2">{s.generalSection?.languageHelp}</p>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { val: '', label: `${s.generalSection?.storeDefault || 'Store default'} (${storeLocale === 'en' ? 'English' : 'ខ្មែរ'})` },
-                            { val: 'km', label: '🇰🇭 ភាសាខ្មែរ' },
-                            { val: 'en', label: '🇺🇸 English' },
-                          ].map(({ val, label }) => (
+                            // Store default shows the flag of the language IMS has set.
+                            { val: '', flag: storeLocale, label: `${s.generalSection?.storeDefault || 'Store default'} (${storeLocale === 'en' ? 'English' : 'ខ្មែរ'})` },
+                            { val: 'km', flag: 'km', label: 'ភាសាខ្មែរ' },
+                            { val: 'en', flag: 'en', label: 'English' },
+                          ].map(({ val, flag, label }) => (
                             <button key={val || 'default'} type="button"
                               onClick={() => setSettings((prev) => ({ ...prev, display_language: val }))}
-                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${(settings.display_language || '') === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
-                              {label}
+                              className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 ${(settings.display_language || '') === val ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700'}`}>
+                              <Flag locale={flag} />
+                              <span className="truncate">{label}</span>
                             </button>
                           ))}
                         </div>
