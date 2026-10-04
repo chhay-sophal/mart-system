@@ -71,6 +71,39 @@ async function pushPending(config) {
   db.saveDb();
 }
 
+/**
+ * Match by backend_product_id first (already linked from an earlier pull),
+ * then by barcode -- even if the row is linked to another backend id. That
+ * covers a product that pre-dates pairing and a register re-paired to a
+ * different backend/store, whose rows still carry the old ids; inserting a
+ * second row there fails on the unique barcode. Barcodes are unique on the
+ * backend too, so a barcode match is the same product.
+ */
+function upsertProduct(item) {
+  const existing =
+    db.query('SELECT id FROM products WHERE backend_product_id = ?', [item.productId])[0] ??
+    (item.barcode ? db.query('SELECT id FROM products WHERE barcode = ?', [item.barcode])[0] : undefined);
+
+  const price = item.priceOverride ?? item.defaultPrice;
+  // The price is in the product's own currency (a riel catalog sends
+  // 22000 = 22,000 ៛). Without it a new row would default to USD and sell
+  // at $22,000. Older backends don't send it; keep what the row has then.
+  const currency = item.currency === 'KHR' || item.currency === 'USD' ? item.currency : null;
+  const now = db.localNow();
+
+  if (existing) {
+    db.run(
+      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
+      [item.name, item.barcode, price, currency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
+    );
+  } else {
+    db.run(
+      'INSERT INTO products (name, barcode, price, currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [item.name, item.barcode, price, currency ?? 'USD', item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
+    );
+  }
+}
+
 async function pullCatalog(config) {
   const cursor = db.query("SELECT value FROM sync_state WHERE key = 'pull_cursor'")[0]?.value;
   // Join like push does: new URL('/api/...', base) would drop any base subpath.
@@ -103,32 +136,15 @@ async function pullCatalog(config) {
 
   const { cursor: newCursor, productUpserts, staffRoster, storeSettings } = await response.json();
 
+  // One product failing (it used to abort the whole pull) mustn't block the
+  // rest, staff, or store settings. Failures keep the cursor where it is so
+  // they're retried next pull; everything else is saved now.
+  const productErrors = [];
   for (const item of productUpserts) {
-    // Match by backend_product_id first (already linked from an earlier
-    // pull); fall back to barcode for a product that pre-dates pairing.
-    const existing =
-      db.query('SELECT id FROM products WHERE backend_product_id = ?', [item.productId])[0] ??
-      (item.barcode
-        ? db.query('SELECT id FROM products WHERE barcode = ? AND backend_product_id IS NULL', [item.barcode])[0]
-        : undefined);
-
-    const price = item.priceOverride ?? item.defaultPrice;
-    // The price is in the product's own currency (a riel catalog sends
-    // 22000 = 22,000 ៛). Without it a new row would default to USD and sell
-    // at $22,000. Older backends don't send it; keep what the row has then.
-    const currency = item.currency === 'KHR' || item.currency === 'USD' ? item.currency : null;
-    const now = db.localNow();
-
-    if (existing) {
-      db.run(
-        'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
-        [item.name, item.barcode, price, currency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
-      );
-    } else {
-      db.run(
-        'INSERT INTO products (name, barcode, price, currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [item.name, item.barcode, price, currency ?? 'USD', item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
-      );
+    try {
+      upsertProduct(item);
+    } catch (err) {
+      productErrors.push(`${item.barcode || item.name}: ${err.message}`);
     }
   }
 
@@ -172,11 +188,17 @@ async function pullCatalog(config) {
     );
   }
 
-  db.run(
-    "INSERT INTO sync_state (key, value) VALUES ('pull_cursor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-    [newCursor]
-  );
+  if (productErrors.length === 0) {
+    db.run(
+      "INSERT INTO sync_state (key, value) VALUES ('pull_cursor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      [newCursor]
+    );
+  }
   db.saveDb();
+
+  if (productErrors.length > 0) {
+    throw new Error(`${productErrors.length} product(s) couldn't be saved and will be retried: ${productErrors[0]}`);
+  }
 }
 
 async function tick() {
