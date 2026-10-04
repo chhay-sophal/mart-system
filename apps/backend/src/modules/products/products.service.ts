@@ -181,6 +181,8 @@ export async function adjustStock(storeId: string, productId: string, correctedS
 // --- Bulk import, ported from online-pos/backend-desktop/server.js:165-204 ---
 
 function toTrimmedStringOrNull(value: unknown): string | null {
+  // Spreadsheets hand over numeric-looking cells (most barcodes) as numbers.
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
