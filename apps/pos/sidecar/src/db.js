@@ -291,14 +291,19 @@ async function init() {
   // WebAssembly.instantiate needs a real OS path — extract it once.
   // (Validated in the Phase 0 spike: this is required regardless of package
   // manager/node_modules layout — see docs/plan.md's risk write-up.)
+  // Resolve through Node rather than a hardcoded sidecar/node_modules path:
+  // under pnpm, sql.js is a symlink into node_modules/.pnpm, and pkg stores
+  // assets at their real path, so the hardcoded path isn't in the snapshot.
+  // (Resolve the JS entry, not the .wasm directly — pkg would otherwise treat
+  // the .wasm as a script dependency and corrupt it.)
+  const wasmSrc = path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm');
   let wasmDir;
   if (process.pkg) {
-    const wasmSrc = path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
     const wasmDest = path.join(os.tmpdir(), 'sql-wasm.wasm');
     fs.writeFileSync(wasmDest, fs.readFileSync(wasmSrc));
     wasmDir = os.tmpdir();
   } else {
-    wasmDir = path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist');
+    wasmDir = path.dirname(wasmSrc);
   }
 
   SQL = await initSqlJs({ locateFile: (file) => path.join(wasmDir, file) });
