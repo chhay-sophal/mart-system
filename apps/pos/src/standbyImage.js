@@ -5,7 +5,8 @@
 export const STANDBY_IMAGE_KEY = 'customer_display_standby_image';
 const MAX_PX = 1920; // a 1080p customer screen; larger adds size, not sharpness
 
-export function imageFileToDataUrl(file) {
+// Also used for the shop image (issue #5), at a smaller maxPx.
+export function imageFileToDataUrl(file, maxPx = MAX_PX) {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
       reject(new Error('That file is not an image.'));
@@ -15,7 +16,7 @@ export function imageFileToDataUrl(file) {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);

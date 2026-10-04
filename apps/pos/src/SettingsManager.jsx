@@ -1,18 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
-const IMS_MANAGED_KEYS = ['store_name', 'store_address', 'store_phone', 'exchange_rate', 'locale', 'main_currency', 'store_icon'];
+// Shop details and Bakong fields are per register now (issue #5): edited
+// here and stored locally only.
+const IMS_MANAGED_KEYS = ['exchange_rate', 'locale', 'main_currency'];
+const SHOP_ICON_MAX_PX = 256; // header 40px, customer display 112px; @2x
 
 export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const client = useBackend();
   const DEFAULT_SETTINGS = {
+    store_name: '',
+    store_address: '',
+    store_phone: '',
+    store_icon: '',
+    bakong_account_id: '',
+    bakong_merchant_name: '',
+    bakong_merchant_city: '',
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: '',
@@ -27,10 +37,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   const [updateCheck, setUpdateCheck] = useState('idle'); // idle | checking | available | uptodate | error
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [updateProgress, setUpdateProgress] = useState(0);
-  const [activeSection, setActiveSection] = useState('backup');
+  const [activeSection, setActiveSection] = useState('store');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
   const [standbyError, setStandbyError] = useState('');
+  const [shopIconError, setShopIconError] = useState('');
 
   const [backups, setBackups] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -250,6 +261,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
   };
 
   const navItems = [
+    { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
+    { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
@@ -384,6 +397,98 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ── STORE (per register, issue #5) ── */}
+                {activeSection === 'store' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.storeProfileHeader || 'Store Profile'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
+                      <div className="flex gap-4 items-start">
+                        <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                          <div className="w-14 h-14 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
+                            {settings.store_icon
+                              ? <img src={settings.store_icon} alt="store icon" className="w-full h-full object-cover" />
+                              : <Store size={20} className="text-slate-300 dark:text-slate-600" />}
+                          </div>
+                          <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline">
+                            {s.uploadIcon || 'Upload'}
+                            <input type="file" accept="image/*" className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (!file) return;
+                                setShopIconError('');
+                                try {
+                                  const dataUrl = await imageFileToDataUrl(file, SHOP_ICON_MAX_PX);
+                                  setSettings((prev) => ({ ...prev, store_icon: dataUrl }));
+                                } catch (err) {
+                                  setShopIconError(err.message);
+                                }
+                              }} />
+                          </label>
+                          {settings.store_icon && (
+                            <button type="button" onClick={() => setSettings((prev) => ({ ...prev, store_icon: '' }))}
+                              className="text-[10px] text-slate-400 hover:text-red-500 transition-colors cursor-pointer">
+                              {s.removeIcon || 'Remove'}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeNameLabel || 'Store Name'}</label>
+                          <input type="text" value={settings.store_name}
+                            onChange={(e) => setSettings({ ...settings, store_name: e.target.value })}
+                            className={inputNormal} placeholder={s.storeNamePlaceholder || 'My Store'} />
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5">{s.storeNameHelp || 'Shown in the top-left corner of the register.'}</p>
+                        </div>
+                      </div>
+                      {shopIconError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{shopIconError}</p>}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeAddressLabel || 'Store Address'}</label>
+                        <input type="text" value={settings.store_address}
+                          onChange={(e) => setSettings({ ...settings, store_address: e.target.value })}
+                          className={inputNormal} placeholder={s.storeAddressPlaceholder || 'Village, Commune, District, Province'} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storePhoneLabel || 'Phone Number'}</label>
+                        <input type="text" value={settings.store_phone}
+                          onChange={(e) => setSettings({ ...settings, store_phone: e.target.value })}
+                          className={inputNormal} placeholder={s.storePhonePlaceholder || '012 345 678'} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── KHQR (per register, issue #5) ── */}
+                {activeSection === 'khqr' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.bakongHeader || 'KHQR Profile'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.bakongAccountId || 'Bakong Account ID'}</label>
+                        <input type="text" value={settings.bakong_account_id}
+                          onChange={(e) => setSettings({ ...settings, bakong_account_id: e.target.value })}
+                          className={`${inputNormal} font-mono text-indigo-600 dark:text-indigo-400`}
+                          placeholder="store_account@abaa" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.shopNameLabel || 'Merchant Name'}</label>
+                          <input type="text" value={settings.bakong_merchant_name}
+                            onChange={(e) => setSettings({ ...settings, bakong_merchant_name: e.target.value })}
+                            className={inputNormal} placeholder="Baby Mart" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{s.storeCityLabel || 'City'}</label>
+                          <input type="text" value={settings.bakong_merchant_city}
+                            onChange={(e) => setSettings({ ...settings, bakong_merchant_city: e.target.value })}
+                            className={inputNormal} placeholder="Phnom Penh" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
