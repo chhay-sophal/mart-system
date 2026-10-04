@@ -1,4 +1,5 @@
 import type { OrderItem, PaymentMethod } from "./order";
+import type { Currency } from "./product";
 
 export type SyncEventType = "SALE_COMPLETED" | "SALE_VOIDED";
 
@@ -61,6 +62,8 @@ export interface SyncPullResponse {
     barcode: string | null;
     priceOverride: number | null;
     defaultPrice: number;
+    /** Currency of the price the terminal sells at: priceOverride's if set, else defaultPrice's. */
+    currency: Currency;
     stock: number;
     isDeleted: boolean;
   }>;

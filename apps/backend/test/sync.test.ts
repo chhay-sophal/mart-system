@@ -267,6 +267,22 @@ describe("GET /api/sync/pull", () => {
     });
   });
 
+  it("sends the currency of the price the terminal should sell at", async () => {
+    const { store, terminal } = await seedFixtures();
+    const riel = await prisma.product.create({ data: { name: "Milk", barcode: "khr-1", defaultPriceMinor: 22000, currency: "KHR" } });
+    await prisma.storeProduct.create({ data: { storeId: store.id, productId: riel.id, stock: 5, currency: "KHR" } });
+    const overridden = await prisma.product.create({ data: { name: "Soda", barcode: "usd-1", defaultPriceMinor: 4000, currency: "KHR" } });
+    await prisma.storeProduct.create({
+      data: { storeId: store.id, productId: overridden.id, stock: 5, priceOverrideMinor: 125, currency: "USD" },
+    });
+
+    const res = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    const byBarcode = new Map(res.body.productUpserts.map((p: { barcode: string }) => [p.barcode, p]));
+
+    expect(byBarcode.get("khr-1")).toMatchObject({ priceOverride: null, defaultPrice: 22000, currency: "KHR" });
+    expect(byBarcode.get("usd-1")).toMatchObject({ priceOverride: 1.25, currency: "USD" });
+  });
+
   it("sends the store icon only on a first pull or when it changed since the cursor", async () => {
     const { store, terminal } = await seedFixtures();
     const icon = "data:image/png;base64,iVBORw0KGgo=";
