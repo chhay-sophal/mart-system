@@ -9,6 +9,12 @@
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
     "shell:allow-execute",
     "shell:allow-spawn",
     "updater:default",

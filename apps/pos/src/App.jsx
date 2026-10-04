@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, Monitor, BarChart3, Printer } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Printer } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -16,6 +15,7 @@ import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
 import { ApiClient, ApiError } from '@mart-system/api-client';
 import { usdToKhr } from './khr';
+import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 
 export default function App() {
   const [cart, setCart] = useState([]);
@@ -52,15 +52,25 @@ export default function App() {
   const [isPaired, setIsPaired] = useState(null);
   const [isDark, toggleDark] = useDarkMode();
 
-  const [customerDisplayOpen, setCustomerDisplayOpen] = useState(false);
   const [txDiscountType, setTxDiscountType] = useState('pct');
   const [txDiscountValue, setTxDiscountValue] = useState('');
   const [lowStockItems, setLowStockItems] = useState([]);
   const [lowStockDismissed, setLowStockDismissed] = useState(false);
 
   const barcodeRef = useRef(null);
-  const customerWindowRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
+  // Opens itself on a second monitor when one is attached (issue #3).
+  const customerDisplayOpen = useCustomerDisplay(IS_TAURI);
+  const customerDisplayPayloadRef = useRef(null);
+  useEffect(() => {
+    if (!IS_TAURI) return undefined;
+    const unlistenPromise = listen('customer-display-ready', () => {
+      if (customerDisplayPayloadRef.current) emit('customer-display', customerDisplayPayloadRef.current);
+    });
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [IS_TAURI]);
   const backendPortRef = useRef(5050);
   const initialBackendUrl = IS_TAURI ? 'http://localhost:5050' : (import.meta.env.PROD ? '' : 'http://localhost:5050');
   // Created once (useState's lazy initializer, not a ref — reading a ref
@@ -207,36 +217,6 @@ export default function App() {
   };
   const stripMoneyInput = (formatted) => formatted.replace(/,/g, '');
 
-  const toggleCustomerDisplay = async () => {
-    if (customerDisplayOpen) {
-      customerWindowRef.current?.close();
-      customerWindowRef.current = null;
-      setCustomerDisplayOpen(false);
-    } else {
-      const win = new WebviewWindow('customer-display', {
-        url: '/?window=customer',
-        title: 'Customer Display',
-        width: 960,
-        height: 680,
-        decorations: true,
-        resizable: true,
-      });
-      win.once('tauri://created', () => {
-        setCustomerDisplayOpen(true);
-      });
-      win.once('tauri://error', (e) => {
-        console.error('Customer display window error:', e);
-        alert('Could not open customer display: ' + (e.payload || e));
-        customerWindowRef.current = null;
-      });
-      win.once('tauri://destroyed', () => {
-        setCustomerDisplayOpen(false);
-        customerWindowRef.current = null;
-      });
-      customerWindowRef.current = win;
-    }
-  };
-
   const rawSubtotalUsd = cart.reduce((sum, item) => {
     const base = item.currency === 'KHR' ? item.price / dynamicRate : Number(item.price);
     return sum + base * item.quantity;
@@ -335,7 +315,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!IS_TAURI || !customerDisplayOpen) return;
+    if (!IS_TAURI) return;
 
     let displayState;
     if (checkoutResult) {
@@ -348,7 +328,9 @@ export default function App() {
       displayState = 'idle';
     }
 
-    emit('customer-display', {
+    // Kept even while no display is open, so a display that opens (or
+    // reloads) mid-sale gets the current state on 'customer-display-ready'.
+    customerDisplayPayloadRef.current = {
       state: displayState,
       cart,
       rawSubtotalUsd,
@@ -367,7 +349,8 @@ export default function App() {
       tenderedKhr: parseFloat(amountPaidKhr || 0),
       qrString: activeKhqr?.qr_string || null,
       isDark,
-    });
+    };
+    if (customerDisplayOpen) emit('customer-display', customerDisplayPayloadRef.current);
   }, [
     IS_TAURI, cart, rawSubtotalUsd, subtotalUsd, txDiscountAmt, checkoutResult, paymentMethod, activeKhqr,
     customerDisplayOpen, amountPaidUsd, amountPaidKhr, isDark, changeDueKhr, dynamicRate, locale, mainCurrency,
@@ -651,15 +634,6 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {IS_TAURI && (
-            <button
-              onClick={toggleCustomerDisplay}
-              className={`p-2 rounded-xl transition-colors ${customerDisplayOpen ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'}`}
-              title={customerDisplayOpen ? t[locale].customerDisplay.closeBtn : t[locale].customerDisplay.openBtn}
-            >
-              <Monitor size={16} />
-            </button>
-          )}
           <button
             onClick={toggleDark}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"

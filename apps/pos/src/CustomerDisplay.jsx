@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
 import { translations as t } from './locales';
 import { CheckCircle2, ShoppingCart } from 'lucide-react';
@@ -29,6 +29,10 @@ export default function CustomerDisplay() {
           doneTimerRef.current = setTimeout(() => setDisplayState('idle'), 5000);
         }
       });
+      // Now listening, ask the register for the current state: this window
+      // can open mid-sale (a monitor plugged in), and the register otherwise
+      // only sends updates when the cart changes.
+      emit('customer-display-ready');
     })();
     return () => {
       unlisten?.();
