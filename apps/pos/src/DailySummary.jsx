@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
+import { usdToKhr } from './khr';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
@@ -72,11 +73,11 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
 
   const isKhr = mainCurrency === 'KHR';
   const fmt = (n) => isKhr
-    ? `${Math.round((n || 0) * (dynamicRate || 4100)).toLocaleString()} ៛`
+    ? `${usdToKhr(n, dynamicRate).toLocaleString()} ៛`
     : `$${Number(n || 0).toFixed(2)}`;
   const fmtSub = (n) => isKhr
     ? `≈ $${Number(n || 0).toFixed(2)}`
-    : `≈ ${Math.round((n || 0) * (dynamicRate || 4100)).toLocaleString()} ៛`;
+    : `≈ ${usdToKhr(n, dynamicRate).toLocaleString()} ៛`;
 
   const methodLabel = (m) => ({ CASH: s.cash || 'Cash', KHQR: 'KHQR', STATIC_QR: s.staticQr || 'Bank QR' }[m] || m);
   const methodColor = (m) => ({ CASH: 'bg-emerald-500', KHQR: 'bg-indigo-500', STATIC_QR: 'bg-amber-500' }[m] || 'bg-slate-400');

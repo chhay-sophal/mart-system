@@ -15,6 +15,7 @@ import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
 import { ApiClient, ApiError } from '@mart-system/api-client';
+import { usdToKhr } from './khr';
 
 export default function App() {
   const [cart, setCart] = useState([]);
@@ -268,7 +269,7 @@ export default function App() {
   const totalDiscountAmt = itemDiscountAmt + txDiscountAmt;
 
   const totalUsd = Math.max(0, subtotalUsd - txDiscountAmt);
-  const totalKhr = totalUsd * dynamicRate;
+  const totalKhr = usdToKhr(totalUsd, dynamicRate);
 
   const tenderedUsd = parseFloat(amountPaidUsd || 0);
   const tenderedKhr = parseFloat(amountPaidKhr || 0);
@@ -278,7 +279,7 @@ export default function App() {
   const PAYMENT_TOLERANCE_USD = 0.005;
   const changeDueUsdRaw = totalTenderedInUsd - totalUsd;
   const changeDueUsd = Math.abs(changeDueUsdRaw) < PAYMENT_TOLERANCE_USD ? 0 : changeDueUsdRaw;
-  const changeDueKhr = changeDueUsd > 0 ? Math.round(changeDueUsd * dynamicRate) : 0;
+  const changeDueKhr = changeDueUsd > 0 ? usdToKhr(changeDueUsd, dynamicRate) : 0;
   const isCashPaymentSufficient = changeDueUsd >= 0;
 
   // Declared here (rather than lower down with the other checkout handlers) so
@@ -444,7 +445,7 @@ export default function App() {
   };
 
   const fetchKHQRString = async () => {
-    const amount = mainCurrency === 'KHR' ? Math.round(totalKhr) : totalUsd;
+    const amount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
     if (amount <= 0) return;
     setKhqrLoading(true);
     try {
@@ -918,7 +919,7 @@ export default function App() {
                     {t[locale].subtotalBeforeDiscount}
                   </span>
                   <span className="text-sm font-bold text-slate-200">
-                    {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${Math.round(rawSubtotalUsd * dynamicRate).toLocaleString()} ៛`}
+                    {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${usdToKhr(rawSubtotalUsd, dynamicRate).toLocaleString()} ៛`}
                   </span>
                 </div>
                 {totalDiscountAmt > 0 && (
@@ -927,7 +928,7 @@ export default function App() {
                       {t[locale].totalDiscountAmount}
                     </span>
                     <span className="text-sm font-bold text-amber-400">
-                      {mainCurrency === 'USD' ? `−$${totalDiscountAmt.toFixed(2)}` : `−${Math.round(totalDiscountAmt * dynamicRate).toLocaleString()} ៛`}
+                      {mainCurrency === 'USD' ? `−$${totalDiscountAmt.toFixed(2)}` : `−${usdToKhr(totalDiscountAmt, dynamicRate).toLocaleString()} ៛`}
                     </span>
                   </div>
                 )}
@@ -936,7 +937,7 @@ export default function App() {
                     {mainCurrency === 'USD' ? t[locale].totalUsd : t[locale].totalKhr}
                   </span>
                   <span className="text-3xl font-black tracking-tight">
-                    {mainCurrency === 'USD' ? `$${totalUsd.toFixed(2)}` : `${Math.round(totalKhr).toLocaleString()} ៛`}
+                    {mainCurrency === 'USD' ? `$${totalUsd.toFixed(2)}` : `${totalKhr.toLocaleString()} ៛`}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
@@ -944,7 +945,7 @@ export default function App() {
                     {mainCurrency === 'USD' ? t[locale].totalKhr : t[locale].totalUsd}
                   </span>
                   <span className="text-base font-bold text-emerald-400">
-                    {mainCurrency === 'USD' ? `${Math.round(totalKhr).toLocaleString()} ៛` : `$${totalUsd.toFixed(2)}`}
+                    {mainCurrency === 'USD' ? `${totalKhr.toLocaleString()} ៛` : `$${totalUsd.toFixed(2)}`}
                   </span>
                 </div>
               </div>
@@ -1020,13 +1021,13 @@ export default function App() {
                       <span className={`text-lg font-black ${changeDueUsd >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
                         {mainCurrency === 'USD'
                           ? changeDueUsd >= 0 ? `$${changeDueUsd.toFixed(2)}` : `$${Math.abs(changeDueUsd).toFixed(2)}`
-                          : changeDueUsd >= 0 ? `${Math.round(changeDueUsd * dynamicRate).toLocaleString()} ៛` : `${Math.round(Math.abs(changeDueUsd) * dynamicRate).toLocaleString()} ៛`
+                          : changeDueUsd >= 0 ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛` : `${usdToKhr(Math.abs(changeDueUsd), dynamicRate).toLocaleString()} ៛`
                         }
                       </span>
                     </div>
                     <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-500">
                       {mainCurrency === 'USD'
-                        ? `${Math.round(changeDueUsd * dynamicRate).toLocaleString()} ៛`
+                        ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛`
                         : `$${changeDueUsd.toFixed(2)} USD`
                       }
                     </p>

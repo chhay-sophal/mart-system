@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
 import { translations as t } from './locales';
 import { CheckCircle2, ShoppingCart } from 'lucide-react';
+import { usdToKhr } from './khr';
 
 export default function CustomerDisplay() {
   const [payload, setPayload] = useState(null);
@@ -185,7 +186,7 @@ export default function CustomerDisplay() {
             <div className="flex-0 flex flex-col items-center justify-center px-6 py-3 border-b border-slate-800">
               <p className="text-amber-400 text-sm font-bold uppercase tracking-widest mb-1">{locale === 'km' ? 'បញ្ចុះតម្លៃ' : 'Discount'}</p>
               <p className="text-white font-black text-4xl leading-none tracking-tight text-center">
-                −{mainCurrency === 'USD' ? `$${txDiscountAmt.toFixed(2)}` : `${Math.round(txDiscountAmt * dynamicRate).toLocaleString()} ៛`}
+                −{mainCurrency === 'USD' ? `$${txDiscountAmt.toFixed(2)}` : `${usdToKhr(txDiscountAmt, dynamicRate).toLocaleString()} ៛`}
               </p>
             </div>
           )}
@@ -194,7 +195,7 @@ export default function CustomerDisplay() {
             <p className="text-slate-500 text-lg font-bold uppercase tracking-widest mb-3">{cd.total}</p>
             {hasDiscount && (
               <p className="text-slate-600 text-2xl font-bold line-through mb-1">
-                {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${Math.round(rawSubtotalUsd * dynamicRate).toLocaleString()} ៛`}
+                {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${usdToKhr(rawSubtotalUsd, dynamicRate).toLocaleString()} ៛`}
               </p>
             )}
             <p className="text-white font-black text-6xl leading-none tracking-tight text-center">{primaryTotal}</p>

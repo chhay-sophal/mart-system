@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { translations as t } from './locales';
+import { usdToKhr } from './khr';
 
 export default function Invoice({ invoiceData, locale, onClose, autoPrint = false }) {
   const { order_id, items, subtotalBeforeDiscountUsd, transactionDiscountUsd, totalDiscountUsd, totalUsd, mainCurrency, dynamicRate, paymentMethod, bankName, amountPaidUsd, amountPaidKhr, changeDueKhr, timestamp, storeName, storeAddress, storePhone } = invoiceData;
@@ -105,11 +106,11 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
 
   // Summary amounts (subtotal/discount/total) follow the store's configured main currency.
   const fmtPrimary = (usd) => mainCurrency === 'KHR'
-    ? `${Math.round(usd * dynamicRate).toLocaleString()} ៛`
+    ? `${usdToKhr(usd, dynamicRate).toLocaleString()} ៛`
     : `$${usd.toFixed(2)}`;
   const fmtSecondary = (usd) => mainCurrency === 'KHR'
     ? `$${usd.toFixed(2)}`
-    : `${Math.round(usd * dynamicRate).toLocaleString()} ៛`;
+    : `${usdToKhr(usd, dynamicRate).toLocaleString()} ៛`;
 
   // Build a self-contained HTML invoice with only rgb() colors — no Tailwind, no oklch.
   const buildInvoiceHTML = () => {

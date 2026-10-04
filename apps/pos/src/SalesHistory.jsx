@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
+import { usdToKhr } from './khr';
 
 const PAGE_SIZE = 10;
 
@@ -158,7 +159,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         currency: i.currency,
       })),
       totalUsd: parseFloat(order.total_amount),
-      totalKhr: Math.round(parseFloat(order.total_amount) * dynamicRate),
+      totalKhr: usdToKhr(order.total_amount, dynamicRate),
       paymentMethod: order.payment_method,
       bankName: order.bank_name || null,
       amountPaidUsd: parseFloat(order.amount_paid_usd) || 0,
@@ -174,7 +175,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     { key: 'time',      header: 'Time',          labelKey: 'colTime',      wch: 10, val: (o) => new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
     { key: 'items',     header: 'Items',         labelKey: 'colItems',     wch: 8,  val: (o) => (o.items || []).filter(i => i.product_name).length },
     { key: 'totalUsd',  header: 'Total (USD)',   labelKey: 'colTotalUsd',  wch: 12, val: (o) => parseFloat(o.total_amount) },
-    { key: 'totalKhr',  header: 'Total (KHR)',   labelKey: 'colTotalKhr',  wch: 14, val: (o) => Math.round(parseFloat(o.total_amount) * dynamicRate) },
+    { key: 'totalKhr',  header: 'Total (KHR)',   labelKey: 'colTotalKhr',  wch: 14, val: (o) => usdToKhr(o.total_amount, dynamicRate) },
     { key: 'payment',   header: 'Payment',       labelKey: 'colPayment',   wch: 10, val: (o) => o.payment_method },
     { key: 'paidUsd',   header: 'Paid (USD)',    labelKey: 'colPaidUsd',   wch: 12, val: (o) => parseFloat(o.amount_paid_usd) || 0 },
     { key: 'paidKhr',   header: 'Paid (KHR)',    labelKey: 'colPaidKhr',   wch: 12, val: (o) => parseFloat(o.amount_paid_khr) || 0 },
@@ -325,11 +326,11 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">
             {mainCurrency === 'USD'
               ? `$${totalRevenue.toFixed(2)}`
-              : `${Math.round(totalRevenue * dynamicRate).toLocaleString()} ៛`}
+              : `${usdToKhr(totalRevenue, dynamicRate).toLocaleString()} ៛`}
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
             {mainCurrency === 'USD'
-              ? `${Math.round(totalRevenue * dynamicRate).toLocaleString()} ៛`
+              ? `${usdToKhr(totalRevenue, dynamicRate).toLocaleString()} ៛`
               : `$${totalRevenue.toFixed(2)}`}
           </p>
         </div>
@@ -584,7 +585,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
   const itemCount = (order.items || []).filter(i => i.product_name).length;
   const totalUsd = parseFloat(order.total_amount);
-  const totalKhr = Math.round(totalUsd * dynamicRate);
+  const totalKhr = usdToKhr(totalUsd, dynamicRate);
 
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-2xl border transition-all overflow-hidden ${expanded ? 'border-indigo-200 dark:border-indigo-800 shadow-sm' : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'}`}>
