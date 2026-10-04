@@ -145,6 +145,8 @@ async function pullCatalog(config) {
     main_currency: storeSettings?.mainCurrency,
     locale: storeSettings?.locale,
     exchange_rate: storeSettings?.exchangeRate,
+    // Only present when changed since our cursor; "" means removed in IMS.
+    store_icon: storeSettings?.storeIcon,
   };
   for (const [key, value] of Object.entries(IMS_MANAGED_SETTINGS)) {
     if (value == null) continue;
