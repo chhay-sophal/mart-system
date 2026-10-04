@@ -20,7 +20,7 @@ syncRouter.get(
   "/sync/pull",
   requireTerminal,
   asyncHandler(async (req, res) => {
-    const { since } = syncPullQuerySchema.parse(req.query);
-    res.json(await pullCatalog(req.terminal!.storeId, since));
+    const { since, icon_version } = syncPullQuerySchema.parse(req.query);
+    res.json(await pullCatalog(req.terminal!.storeId, since, icon_version));
   })
 );

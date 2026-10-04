@@ -283,6 +283,33 @@ describe("GET /api/sync/pull", () => {
     expect(byBarcode.get("usd-1")).toMatchObject({ priceOverride: 1.25, currency: "USD" });
   });
 
+  it("sends the store icon whenever the terminal's icon_version differs, even past the cursor", async () => {
+    const { store, terminal } = await seedFixtures();
+    const icon = "data:image/png;base64,iVBORw0KGgo=";
+    await prisma.storeSetting.create({ data: { storeId: store.id, key: "store_icon", value: icon } });
+    const pull = (query: Record<string, string>) =>
+      request(app).get("/api/sync/pull").query(query).set(terminalHeaders(terminal.id));
+
+    // A terminal that synced past the icon without keeping it (an older build ignored icons).
+    const first = await pull({});
+    const missed = await pull({ since: first.body.cursor, icon_version: "" });
+    expect(missed.body.storeSettings.storeIcon).toBe(icon);
+    const version = missed.body.storeSettings.storeIconVersion;
+    expect(version).toEqual(expect.any(String));
+
+    const upToDate = await pull({ since: first.body.cursor, icon_version: version });
+    expect(upToDate.body.storeSettings).not.toHaveProperty("storeIcon");
+    expect(upToDate.body.storeSettings.storeIconVersion).toBe(version);
+
+    await prisma.storeSetting.update({
+      where: { storeId_key: { storeId: store.id, key: "store_icon" } },
+      data: { value: "data:image/png;base64,AAAA" },
+    });
+    const changed = await pull({ since: first.body.cursor, icon_version: version });
+    expect(changed.body.storeSettings.storeIcon).toBe("data:image/png;base64,AAAA");
+    expect(changed.body.storeSettings.storeIconVersion).not.toBe(version);
+  });
+
   it("sends the store icon only on a first pull or when it changed since the cursor", async () => {
     const { store, terminal } = await seedFixtures();
     const icon = "data:image/png;base64,iVBORw0KGgo=";

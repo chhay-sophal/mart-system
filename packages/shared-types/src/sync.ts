@@ -83,7 +83,9 @@ export interface SyncPullResponse {
     mainCurrency: string | null;
     locale: string | null;
     exchangeRate: string | null;
-    /** Image data URL, only present when changed since the cursor; "" = removed. */
+    /** Image data URL, present when the terminal's icon_version differs; "" = removed. */
     storeIcon?: string;
+    /** Current icon version; the terminal sends it back as icon_version. */
+    storeIconVersion?: string;
   };
 }

@@ -244,8 +244,12 @@ export interface StaffRosterUpsert {
 /**
  * Store-wide settings managed in IMS. The small fields are sent in full on
  * every pull, so no delta tracking. null = never set in IMS, and the terminal
- * keeps whatever it has locally. storeIcon is an image data URL, so it's only
- * included when it changed since the cursor ("" = removed in IMS).
+ * keeps whatever it has locally. storeIcon is an image data URL, so it isn't
+ * re-sent every pull ("" = removed in IMS): the terminal says which version it
+ * has (storeIconVersion from an earlier pull) and gets the icon whenever that
+ * differs. Comparing versions rather than "changed since the cursor" means a
+ * terminal that missed the icon -- e.g. it synced with a build that didn't
+ * apply icons yet -- still gets it.
  */
 export interface StoreSettingsSnapshot {
   storeName: string;
@@ -255,9 +259,14 @@ export interface StoreSettingsSnapshot {
   locale: string | null;
   exchangeRate: string | null;
   storeIcon?: string;
+  storeIconVersion?: string;
 }
 
-async function getStoreSettingsSnapshot(storeId: string, sinceDate: Date | null): Promise<StoreSettingsSnapshot> {
+async function getStoreSettingsSnapshot(
+  storeId: string,
+  sinceDate: Date | null,
+  iconVersion: string | undefined
+): Promise<StoreSettingsSnapshot> {
   const [store, rows] = await Promise.all([
     prisma.store.findUniqueOrThrow({ where: { id: storeId } }),
     prisma.storeSetting.findMany({
@@ -266,6 +275,13 @@ async function getStoreSettingsSnapshot(storeId: string, sinceDate: Date | null)
   ]);
   const setting = (key: string) => rows.find((row) => row.key === key)?.value ?? null;
   const icon = rows.find((row) => row.key === "store_icon");
+  const currentIconVersion = icon?.updatedAt.toISOString();
+  const sendIcon = icon
+    ? iconVersion !== undefined
+      ? iconVersion !== currentIconVersion
+      : // Terminals from before icon versions: fall back to "changed since the cursor".
+        !sinceDate || icon.updatedAt > sinceDate
+    : false;
   return {
     storeName: store.name,
     storeAddress: store.address,
@@ -273,13 +289,15 @@ async function getStoreSettingsSnapshot(storeId: string, sinceDate: Date | null)
     mainCurrency: setting("main_currency"),
     locale: setting("locale"),
     exchangeRate: setting("exchange_rate"),
-    ...(icon && (!sinceDate || icon.updatedAt > sinceDate) ? { storeIcon: icon.value } : {}),
+    ...(sendIcon ? { storeIcon: icon!.value } : {}),
+    ...(currentIconVersion ? { storeIconVersion: currentIconVersion } : {}),
   };
 }
 
 export async function pullCatalog(
   storeId: string,
-  since?: string
+  since?: string,
+  iconVersion?: string
 ): Promise<{
   cursor: string;
   productUpserts: ProductUpsert[];
@@ -333,7 +351,7 @@ export async function pullCatalog(
     isActive: row.isActive,
   }));
 
-  const storeSettings = await getStoreSettingsSnapshot(storeId, sinceDate);
+  const storeSettings = await getStoreSettingsSnapshot(storeId, sinceDate, iconVersion);
 
   return { cursor, productUpserts, staffRoster, storeSettings };
 }

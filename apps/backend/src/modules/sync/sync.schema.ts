@@ -51,6 +51,8 @@ export const syncPushSchema = z.object({
 
 export const syncPullQuerySchema = z.object({
   since: z.string().optional(),
+  // storeIconVersion the terminal already has ("" = none); see getStoreSettingsSnapshot.
+  icon_version: z.string().optional(),
 });
 
 export type EventEnvelope = z.infer<typeof eventEnvelopeSchema>;
