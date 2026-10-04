@@ -1,39 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { STORE_ICON_KEY, resizeImageToDataUrl } from '../lib/storeIcon';
+import OnlinePosImport from '../components/OnlinePosImport.jsx';
 
 // Synced to every POS terminal in the store (read-only there once paired),
 // so they get proper inputs below instead of the free-form key/value list.
 const POS_SYNCED_KEYS = ['main_currency', 'locale', 'exchange_rate'];
 const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate: '4100' };
-
-// Stored as a StoreSetting data URL and synced to every terminal, so it's
-// shrunk here first. 256px stays sharp on the POS customer display (112px
-// @2x); the backend rejects anything over ~90KB.
-const STORE_ICON_KEY = 'store_icon';
-const STORE_ICON_MAX_PX = 256;
-
-function resizeImageToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, STORE_ICON_MAX_PX / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      // WebP where the browser can encode it (falls back to PNG otherwise).
-      resolve(canvas.toDataURL('image/webp', 0.85));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Could not read that image.'));
-    };
-    img.src = url;
-  });
-}
 
 const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm';
 const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60';
@@ -367,6 +341,16 @@ export default function SettingsPage() {
             </div>
           </>
         )}
+      </div>
+
+      <div className="mt-4">
+        <OnlinePosImport
+          storeId={storeId}
+          onImported={() => {
+            load();
+            loadProfile();
+          }}
+        />
       </div>
     </div>
   );
