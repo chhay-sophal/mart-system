@@ -170,6 +170,22 @@ describe("bulk import", () => {
     expect(list.body[0].name).toBe("Updated");
     expect(list.body[0].stock).toBe(9);
   });
+
+  it("skips (not errors) a row whose barcode already exists when updateExisting is false", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ products: [{ name: "Original", barcode: "123", price: "1.00" }] });
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ products: [{ name: "Again", barcode: "123", price: "2.00" }, { name: "New", barcode: "456", price: "3.00" }] });
+
+    expect(res.body).toEqual({ imported: 1, updated: 0, skipped: 1, errors: 0 });
+  });
 });
 
 describe("role gating", () => {

@@ -249,6 +249,12 @@ export async function bulkImportProducts(
           continue;
         }
 
+        // Barcode is unique, so creating would just fail; report it as skipped.
+        if (existing) {
+          result.skipped += 1;
+          continue;
+        }
+
         const product = await tx.product.create({
           data: { name, barcode, defaultPriceMinor: toMinorUnits(price, currency), currency },
         });
