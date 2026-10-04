@@ -1,32 +1,27 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
 
 export default function ReconciliationPage() {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [adjustTarget, setAdjustTarget] = useState(null); // row being corrected
   const [correctedStock, setCorrectedStock] = useState('');
 
   // Not scoped to the AppShell's single current store — this spans every
   // store the signed-in user can access, same list GET /api/stores returns.
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setRows(await apiClient.get('/api/reports/negative-stock'));
-    } catch {
-      setError('Failed to load the negative-stock report.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  // Cached (lib/queryClient.js); refreshed in the background when stale.
+  const queryClient = useQueryClient();
+  const rowsQuery = useQuery({ queryKey: queryKeys.negativeStock(), queryFn: () => apiClient.get('/api/reports/negative-stock') });
+  const rows = rowsQuery.data ?? [];
+  const loading = rowsQuery.isPending;
+  // After a correction: this report and that store's product lists change.
+  const load = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.negativeStock() }),
+      queryClient.invalidateQueries({ queryKey: ['products'] }),
+    ]);
 
   async function handleAdjust(e) {
     e.preventDefault();
@@ -55,7 +50,9 @@ export default function ReconciliationPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || rowsQuery.isError) && (
+        <p className="text-sm text-red-600 mb-3">{error || 'Failed to load the negative-stock report.'}</p>
+      )}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">

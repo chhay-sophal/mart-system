@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
 
 function formatDate(value) {
@@ -18,29 +20,23 @@ function isOnline(terminal) {
 
 export default function TerminalsPage() {
   const { storeId } = useOutletContext();
-  const [terminals, setTerminals] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showPair, setShowPair] = useState(false);
   const [pairName, setPairName] = useState('');
   const [revealedSecret, setRevealedSecret] = useState(null); // { id, name, deviceSecret }
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setTerminals(await apiClient.get(`/api/stores/${storeId}/terminals`));
-    } catch {
-      setError('Failed to load terminals.');
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  // Cached (lib/queryClient.js): re-opening the tab shows the last list at
+  // once and refreshes it in the background when stale.
+  const queryClient = useQueryClient();
+  const listQuery = useQuery({
+    queryKey: queryKeys.terminals(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/terminals`),
+    enabled: Boolean(storeId),
+  });
+  const terminals = listQuery.data ?? [];
+  const loading = listQuery.isPending;
+  // After a save: refresh the cached list.
+  const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.terminals(storeId) });
 
   async function handlePair(e) {
     e.preventDefault();
@@ -89,7 +85,7 @@ export default function TerminalsPage() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load terminals.'}</p>}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">

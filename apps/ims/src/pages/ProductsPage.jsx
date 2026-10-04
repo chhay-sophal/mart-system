@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 
@@ -46,35 +48,35 @@ function toRequestBody(form) {
 
 export default function ProductsPage() {
   const { storeId } = useOutletContext();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''); // save/delete errors
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const path = lowStockOnly
-        ? `/api/stores/${storeId}/products/low-stock`
-        : `/api/stores/${storeId}/products`;
-      const data = await apiClient.get(path);
+  // Cached (lib/queryClient.js): re-opening the tab shows the last list at
+  // once and refreshes it in the background when stale.
+  const queryClient = useQueryClient();
+  const productsQuery = useQuery({
+    queryKey: lowStockOnly ? queryKeys.lowStock(storeId) : queryKeys.products(storeId),
+    queryFn: async () => {
+      const data = await apiClient.get(
+        lowStockOnly ? `/api/stores/${storeId}/products/low-stock` : `/api/stores/${storeId}/products`
+      );
       // Both endpoints return a plain array of products.
-      setProducts(Array.isArray(data) ? data : []);
-    } catch {
-      setError('Failed to load products.');
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId, lowStockOnly]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: Boolean(storeId),
+  });
+  const products = productsQuery.data ?? [];
+  const loading = productsQuery.isPending;
+  // After a save: refresh this store's product lists (full and low-stock),
+  // and reports, whose negative-stock list depends on stock.
+  const load = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.products(storeId) }),
+      queryClient.invalidateQueries({ queryKey: ['reports'] }),
+    ]);
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -136,7 +138,9 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || productsQuery.isError) && (
+        <p className="text-sm text-red-600 mb-3">{error || 'Failed to load products.'}</p>
+      )}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">

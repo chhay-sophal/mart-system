@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { ApiError } from '@mart-system/api-client';
 import { useAuth } from '../auth/AuthContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
@@ -72,8 +74,6 @@ export default function SalesHistoryPage() {
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [voidTarget, setVoidTarget] = useState(null);
   const [voiding, setVoiding] = useState(false);
@@ -81,27 +81,25 @@ export default function SalesHistoryPage() {
 
   const allBranches = storeFilter === '';
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
+  // Cached per branch + period (lib/queryClient.js): re-opening the tab or
+  // flipping back to a filter already viewed is instant, refreshed in the
+  // background when stale. The period's start is worked out at fetch time,
+  // so "Today" is always today's.
+  const queryClient = useQueryClient();
+  const ordersKey = queryKeys.orders({ storeId: storeFilter, period });
+  const ordersQuery = useQuery({
+    queryKey: ordersKey,
+    queryFn: () => {
       const { from } = periodRange(period);
       const query = {};
       if (storeFilter) query.storeId = storeFilter;
       if (from) query.date_from = from.toISOString();
-      setOrders(await apiClient.get('/api/orders', query));
-    } catch {
-      setError('Failed to load sales.');
-      setOrders([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeFilter, period]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+      return apiClient.get('/api/orders', query);
+    },
+    placeholderData: (previous) => previous, // keep the last rows on screen while a new filter loads
+  });
+  const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
+  const loading = ordersQuery.isPending;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -149,7 +147,10 @@ export default function SalesHistoryPage() {
     setVoiding(true);
     try {
       const updated = await apiClient.post(`/api/stores/${voidTarget.store_id}/orders/${voidTarget.id}/void`);
-      setOrders((list) => list.map((o) => (o.id === updated.id ? updated : o)));
+      // Show it voided right away, then refresh everything a void changes:
+      // other cached sales lists, reports, and product stock (it's restocked).
+      queryClient.setQueryData(ordersKey, (list) => list?.map((o) => (o.id === updated.id ? updated : o)));
+      for (const queryKey of [['orders'], ['reports'], ['products']]) queryClient.invalidateQueries({ queryKey });
       setVoidTarget(null);
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
@@ -233,7 +234,7 @@ export default function SalesHistoryPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || ordersQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load sales.'}</p>}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-x-auto">
         <table className="w-full text-sm">

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
 
 function todayStr() {
@@ -17,35 +19,25 @@ export default function ReportsPage() {
   const [storeId, setStoreId] = useState('');
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
+  // Cached per store + date range (lib/queryClient.js): flipping back to a
+  // range already viewed is instant, refreshed in the background when stale.
+  const reportQuery = useQuery({
+    queryKey: queryKeys.dailySummary({ storeId, dateFrom, dateTo }),
+    queryFn: () => {
       // date_to is exclusive server-side (createdAt < date_to), so push it to
       // the start of the day AFTER the selected end date to include it whole.
       const inclusiveTo = new Date(dateTo);
       inclusiveTo.setDate(inclusiveTo.getDate() + 1);
-
       const query = { date_from: new Date(dateFrom).toISOString(), date_to: inclusiveTo.toISOString() };
       if (storeId) query.storeId = storeId;
-
-      setReport(await apiClient.get('/api/reports/daily-summary', query));
-    } catch {
-      setError('Failed to load the report.');
-      setReport(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId, dateFrom, dateTo]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+      return apiClient.get('/api/reports/daily-summary', query);
+    },
+    placeholderData: (previous) => previous, // keep the last report on screen while a new range loads
+  });
+  const report = reportQuery.data ?? null;
+  const loading = reportQuery.isPending;
+  const error = reportQuery.isError ? 'Failed to load the report.' : '';
 
   const singleStore = report?.byStore?.length === 1 ? report.byStore[0] : null;
 

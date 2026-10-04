@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
 import Modal from '../components/Modal.jsx';
 
@@ -9,8 +11,6 @@ export default function TransfersPage() {
   // Not scoped to the AppShell's single current store — a transfer inherently
   // spans two, so this uses the full store list from AuthContext directly.
   const { stores } = useAuth();
-  const [transfers, setTransfers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -18,22 +18,18 @@ export default function TransfersPage() {
   const [pendingProductId, setPendingProductId] = useState('');
   const [pendingQuantity, setPendingQuantity] = useState('1');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setTransfers(await apiClient.get('/api/stock-transfers'));
-    } catch {
-      setError('Failed to load transfers.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  // Cached (lib/queryClient.js): re-opening the tab shows the last list at
+  // once and refreshes it in the background when stale.
+  const queryClient = useQueryClient();
+  const transfersQuery = useQuery({ queryKey: queryKeys.transfers(), queryFn: () => apiClient.get('/api/stock-transfers') });
+  const transfers = transfersQuery.data ?? [];
+  const loading = transfersQuery.isPending;
+  // After a save: shipping/receiving moves stock between stores, so product
+  // lists and reports are out of date too.
+  const load = () =>
+    Promise.all(
+      [queryKeys.transfers(), ['products'], ['reports']].map((queryKey) => queryClient.invalidateQueries({ queryKey }))
+    );
 
   function openCreate() {
     setCreateForm(EMPTY_CREATE_FORM);
@@ -51,7 +47,13 @@ export default function TransfersPage() {
       return;
     }
     try {
-      setFromStoreProducts(await apiClient.get(`/api/stores/${fromStoreId}/products`));
+      // Shares the Products page's cache for that store.
+      setFromStoreProducts(
+        await queryClient.fetchQuery({
+          queryKey: queryKeys.products(fromStoreId),
+          queryFn: () => apiClient.get(`/api/stores/${fromStoreId}/products`),
+        })
+      );
     } catch {
       setFromStoreProducts([]);
     }
@@ -121,7 +123,7 @@ export default function TransfersPage() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || transfersQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load transfers.'}</p>}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
@@ -8,8 +10,6 @@ const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '
 
 export default function StaffPage() {
   const { storeId } = useOutletContext();
-  const [staff, setStaff] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(CREATE_FORM);
@@ -17,22 +17,18 @@ export default function StaffPage() {
   const [pinValue, setPinValue] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setStaff(await apiClient.get(`/api/stores/${storeId}/staff`));
-    } catch {
-      setError('Failed to load staff.');
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
+  // Cached (lib/queryClient.js): re-opening the tab shows the last list at
+  // once and refreshes it in the background when stale.
+  const queryClient = useQueryClient();
+  const listQuery = useQuery({
+    queryKey: queryKeys.staff(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/staff`),
+    enabled: Boolean(storeId),
+  });
+  const staff = listQuery.data ?? [];
+  const loading = listQuery.isPending;
+  // After a save: refresh the cached list.
+  const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.staff(storeId) });
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -95,7 +91,7 @@ export default function StaffPage() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load staff.'}</p>}
 
       <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
