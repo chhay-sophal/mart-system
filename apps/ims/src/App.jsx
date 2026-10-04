@@ -9,6 +9,7 @@ import SettingsPage from './pages/SettingsPage.jsx';
 import ReconciliationPage from './pages/ReconciliationPage.jsx';
 import TransfersPage from './pages/TransfersPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import SalesHistoryPage from './pages/SalesHistoryPage.jsx';
 
 export default function App() {
   const { status } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/terminals" element={<TerminalsPage />} />
         <Route path="/reconciliation" element={<ReconciliationPage />} />
         <Route path="/transfers" element={<TransfersPage />} />
+        <Route path="/sales" element={<SalesHistoryPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/products" replace />} />
