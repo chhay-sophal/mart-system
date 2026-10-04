@@ -181,7 +181,10 @@ router.get('/api/orders', async (req, res) => {
 
   const local = localOrders(range, 1000);
   const localByUuid = new Map(local.filter((o) => o.client_order_uuid).map((o) => [o.client_order_uuid, o]));
-  const merged = remote.map((order) => {
+  // Voided sales (on any register, or in IMS) come back with status VOIDED:
+  // hidden here, like this register's own voided sales are locally, but still
+  // counted in remoteUuids below so a local copy isn't re-added as "unsynced".
+  const merged = remote.filter((order) => order.status !== 'VOIDED').map((order) => {
     const own = localByUuid.get(order.client_order_uuid);
     return own
       ? { ...order, id: own.id, receipt_no: own.receipt_no, terminal_name: null, can_delete: true }
