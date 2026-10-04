@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Printer } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -16,6 +16,8 @@ import BackendContext from './BackendContext';
 import { ApiClient, ApiError } from '@mart-system/api-client';
 import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
+import { useShortcuts } from './hooks/useShortcuts';
+import ShortcutHelp from './ShortcutHelp';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
 export default function App() {
@@ -36,6 +38,9 @@ export default function App() {
   const [staticQrBank, setStaticQrBank] = useState('');
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const manualInputRef = useRef(null);
+  const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
   const [mainCurrency, setMainCurrency] = useState('USD');
   const [storeName, setStoreName] = useState('');
@@ -535,6 +540,51 @@ export default function App() {
     }
   };
 
+  // ── Keyboard shortcuts (issue #7); the list lives in ShortcutHelp.jsx ──
+  const sc = t[locale]?.shortcuts || {};
+  const onRegister = view === 'REGISTER';
+  // Mirrors the on-screen buttons: KHQR completes itself once paid.
+  const canCheckout =
+    cart.length > 0 &&
+    ((paymentMethod === 'CASH' && isCashPaymentSufficient) || (paymentMethod === 'STATIC_QR' && Boolean(staticQrBank)));
+  const goTo = (next) => {
+    setShowShortcuts(false);
+    setView(next);
+  };
+  const focusSoon = (ref) => setTimeout(() => ref.current?.focus(), 0);
+  const checkoutByKey = { when: () => onRegister && canCheckout, run: () => handleCheckout() };
+  useShortcuts(
+    [
+      { keys: 'F1', run: () => setShowShortcuts((open) => !open) },
+      { keys: 'Escape', when: () => showShortcuts, run: () => setShowShortcuts(false) },
+      { keys: 'Escape', when: () => view === 'HISTORY' || view === 'SUMMARY', run: () => goTo('REGISTER') },
+      { keys: 'F2', run: () => goTo('REGISTER') },
+      { keys: 'F3', run: () => goTo('HISTORY') },
+      { keys: 'F4', run: () => goTo('SUMMARY') },
+      { keys: 'F9', when: () => session?.role === 'ADMIN', run: () => goTo('SETTINGS') },
+      { keys: 'Ctrl+L', run: () => { setShowShortcuts(false); setSession(null); } },
+      // Always bound, so F5 never reloads the app; it jumps to the register first.
+      { keys: 'F5', run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
+      { keys: 'F6', when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
+      { keys: 'F7', when: () => onRegister, run: () => { setPaymentMethod('KHQR'); setCheckoutResult(null); } },
+      { keys: 'F8', when: () => onRegister, run: () => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); } },
+      { keys: 'F10', ...checkoutByKey },
+      { keys: 'Ctrl+Enter', ...checkoutByKey },
+      {
+        keys: 'Ctrl+Delete',
+        when: () => onRegister && cart.length > 0,
+        run: () => {
+          if (!window.confirm(sc.confirmClearCart || 'Remove every item from the cart?')) return;
+          setCart([]);
+          setCheckoutResult(null);
+          setActiveKhqr(null);
+        },
+      },
+    ],
+    Boolean(session)
+  );
+  const shortcutHelp = showShortcuts ? <ShortcutHelp locale={locale} onClose={() => setShowShortcuts(false)} /> : null;
+
   if (backendStatus === 'loading' || (backendStatus === 'ready' && isPaired === null)) {
     return (
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:'16px', fontFamily:'sans-serif' }}>
@@ -580,6 +630,7 @@ export default function App() {
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
         />
+        {shortcutHelp}
       </BackendContext.Provider>
     );
   }
@@ -593,6 +644,7 @@ export default function App() {
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
         />
+        {shortcutHelp}
       </BackendContext.Provider>
     );
   }
@@ -604,12 +656,14 @@ export default function App() {
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
         />
+        {shortcutHelp}
       </BackendContext.Provider>
     );
   }
 
   return (
     <>
+    {shortcutHelp}
     <div className="h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
       {/* Structural Header Grid */}
       <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-3.5 flex justify-between items-center shadow-xs flex-shrink-0">
@@ -626,12 +680,14 @@ export default function App() {
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-600 ml-2"></div>
           <button
             onClick={() => setView('HISTORY')}
+            title={`${t[locale].salesHistory.title} (F3)`}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <History size={14} /> {t[locale].salesHistory.title}
           </button>
           <button
             onClick={() => setView('SUMMARY')}
+            title={`${(t[locale].dailySummary || {}).navLabel || 'Daily Summary'} (F4)`}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <BarChart3 size={14} /> {(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}
@@ -639,6 +695,7 @@ export default function App() {
           {session.role === 'ADMIN' && (
             <button
               onClick={() => setView('SETTINGS')}
+              title={`${t[locale].settings} (F9)`}
               className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
             >
               <Settings size={14} /> {t[locale].settings}
@@ -646,6 +703,13 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowShortcuts(true)}
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+            title={sc.hint || 'Shortcuts (F1)'}
+          >
+            <KeyboardIcon size={16} />
+          </button>
           <button
             onClick={toggleDark}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
@@ -657,7 +721,7 @@ export default function App() {
           <button
             onClick={() => setSession(null)}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-            title={t[locale].lockTerminal}
+            title={`${t[locale].lockTerminal} (Ctrl+L)`}
           >
             <Lock size={16} />
           </button>
@@ -697,6 +761,7 @@ export default function App() {
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   placeholder={t[locale].placeholderManual}
+                  ref={manualInputRef}
                   className="flex-1 h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl text-sm focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30"
                   autoFocus
                 />
@@ -969,6 +1034,7 @@ export default function App() {
                     <input
                       type="text"
                       inputMode="decimal"
+                      ref={tenderKhrRef}
                       value={formatMoneyInput(amountPaidKhr)}
                       onChange={(e) => {
                         const raw = stripMoneyInput(e.target.value);
