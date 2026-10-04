@@ -7,7 +7,35 @@ import { apiClient } from '../lib/apiClient';
 const POS_SYNCED_KEYS = ['main_currency', 'locale', 'exchange_rate'];
 const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate: '4100' };
 
-const inputClass = 'flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm';
+// Stored as a StoreSetting data URL and synced to every terminal, so it's
+// shrunk here first. 256px stays sharp on the POS customer display (112px
+// @2x); the backend rejects anything over ~90KB.
+const STORE_ICON_KEY = 'store_icon';
+const STORE_ICON_MAX_PX = 256;
+
+function resizeImageToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, STORE_ICON_MAX_PX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      // WebP where the browser can encode it (falls back to PNG otherwise).
+      resolve(canvas.toDataURL('image/webp', 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read that image.'));
+    };
+    img.src = url;
+  });
+}
+
+const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm';
 const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60';
 
 export default function SettingsPage() {
@@ -24,6 +52,9 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ name: '', address: '', phone: '' });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
+  // undefined = untouched, so saving the profile doesn't rewrite the icon (and
+  // bump its updatedAt, which would re-send it to every terminal).
+  const [pendingIcon, setPendingIcon] = useState(undefined);
 
   const [posSyncedSaving, setPosSyncedSaving] = useState(false);
   const [posSyncedMessage, setPosSyncedMessage] = useState('');
@@ -83,6 +114,11 @@ export default function SettingsPage() {
         address: profile.address.trim() || null,
         phone: profile.phone.trim() || null,
       });
+      if (pendingIcon !== undefined) {
+        const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: { [STORE_ICON_KEY]: pendingIcon } });
+        setSettings(res.settings ?? settings);
+        setPendingIcon(undefined);
+      }
       setProfileMessage('Saved. POS terminals pick this up on their next sync.');
     } catch {
       setProfileMessage('Failed to save.');
@@ -90,6 +126,19 @@ export default function SettingsPage() {
       setProfileSaving(false);
     }
   }
+
+  async function handleIconFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // let the same file be picked again after a remove
+    if (!file) return;
+    try {
+      setPendingIcon(await resizeImageToDataUrl(file));
+    } catch (err) {
+      setProfileMessage(err.message);
+    }
+  }
+
+  const storeIcon = pendingIcon ?? settings[STORE_ICON_KEY] ?? '';
 
   const posSynced = { ...POS_SYNCED_DEFAULTS, ...settings };
 
@@ -126,7 +175,11 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage('');
     try {
-      await apiClient.put(`/api/stores/${storeId}/settings`, { settings });
+      // The icon saves with the profile card; rewriting it here would bump its
+      // updatedAt and re-send it to every terminal for nothing.
+      // eslint-disable-next-line no-unused-vars
+      const { [STORE_ICON_KEY]: _icon, ...rest } = settings;
+      await apiClient.put(`/api/stores/${storeId}/settings`, { settings: rest });
       setMessage('Saved.');
     } catch {
       setMessage('Failed to save settings.');
@@ -142,7 +195,9 @@ export default function SettingsPage() {
     setNewValue('');
   }
 
-  const keys = Object.keys(settings).filter((key) => !POS_SYNCED_KEYS.includes(key)).sort();
+  const keys = Object.keys(settings)
+    .filter((key) => !POS_SYNCED_KEYS.includes(key) && key !== STORE_ICON_KEY)
+    .sort();
 
   return (
     <div className="max-w-xl">
@@ -153,6 +208,25 @@ export default function SettingsPage() {
       <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Store profile</h2>
         <p className="text-xs text-slate-500">Shown on POS terminals and receipts.</p>
+        <div className="flex items-center gap-3">
+          <label className="w-32 text-sm text-slate-600 shrink-0">Shop image</label>
+          <div className="w-14 h-14 rounded-lg border border-[var(--border)] bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
+            {storeIcon ? (
+              <img src={storeIcon} alt="Shop" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs text-slate-400">None</span>
+            )}
+          </div>
+          <label className="text-sm font-medium text-[var(--accent)] cursor-pointer">
+            Upload
+            <input type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
+          </label>
+          {storeIcon && (
+            <button type="button" onClick={() => setPendingIcon('')} className="text-sm text-slate-500 hover:text-red-600">
+              Remove
+            </button>
+          )}
+        </div>
         {[
           { key: 'name', label: 'Shop name', placeholder: 'My Store' },
           { key: 'address', label: 'Address', placeholder: 'Village, Commune, District, Province' },
