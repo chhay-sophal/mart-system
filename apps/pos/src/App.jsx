@@ -18,7 +18,7 @@ import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
-import { DEFAULT_SHORTCUTS, SHORTCUTS_SETTING_KEY, combosFor, displayCombo, parseShortcuts } from './shortcuts';
+import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
 export default function App() {
@@ -40,7 +40,6 @@ export default function App() {
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [shortcuts, setShortcuts] = useState(DEFAULT_SHORTCUTS);
   const manualInputRef = useRef(null);
   const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
@@ -411,7 +410,6 @@ export default function App() {
         if (data.store_name) setStoreName(data.store_name);
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
-        setShortcuts(parseShortcuts(data[SHORTCUTS_SETTING_KEY]));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -543,9 +541,9 @@ export default function App() {
     }
   };
 
-  // ── Keyboard shortcuts (issue #7). Which keys trigger what is configured
-  // per register (Settings > Shortcuts, shortcuts.js); this is what each
-  // action does. Daily Summary's day actions live in DailySummary.jsx.
+  // ── Keyboard shortcuts (issue #7). The keys are fixed in shortcuts.js;
+  // this is what each action does. Daily Summary's day actions live in
+  // DailySummary.jsx.
   const sc = t[locale]?.shortcuts || {};
   const onRegister = view === 'REGISTER';
   // Mirrors the on-screen buttons: KHQR completes itself once paid.
@@ -558,11 +556,10 @@ export default function App() {
   };
   const focusSoon = (ref) => setTimeout(() => ref.current?.focus(), 0);
   const keyHint = (action) => {
-    const combos = combosFor(shortcuts, action);
+    const combos = combosFor(action);
     return combos.length ? ` (${combos.map(displayCombo).join(' / ')})` : '';
   };
   useShortcuts(
-    shortcuts,
     {
       help: { run: () => setShowShortcuts((open) => !open) },
       back: {
@@ -591,7 +588,7 @@ export default function App() {
     },
     Boolean(session)
   );
-  const shortcutHelp = showShortcuts ? <ShortcutHelp locale={locale} shortcuts={shortcuts} onClose={() => setShowShortcuts(false)} /> : null;
+  const shortcutHelp = showShortcuts ? <ShortcutHelp locale={locale} onClose={() => setShowShortcuts(false)} /> : null;
 
   if (backendStatus === 'loading' || (backendStatus === 'ready' && isPaired === null)) {
     return (
@@ -649,7 +646,6 @@ export default function App() {
         <DailySummary
           onBackToRegister={() => setView('REGISTER')}
           currentLocale={locale}
-          shortcuts={shortcuts}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
         />

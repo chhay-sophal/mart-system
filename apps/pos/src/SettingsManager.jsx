@@ -5,8 +5,7 @@ import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive,
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
-import { SHORTCUTS_SETTING_KEY } from './shortcuts';
-import ShortcutSettings from './ShortcutSettings';
+import ShortcutList from './ShortcutList';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -28,8 +27,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: '',
-    [STANDBY_IMAGE_KEY]: '',
-    [SHORTCUTS_SETTING_KEY]: ''
+    [STANDBY_IMAGE_KEY]: ''
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -321,13 +319,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-lg space-y-5">
 
-                {/* ── SHORTCUTS (per register, issue #7) ── */}
+                {/* ── SHORTCUTS (read-only; fixed in shortcuts.js, issue #7) ── */}
                 {activeSection === 'shortcuts' && (
-                  <ShortcutSettings
-                    value={settings[SHORTCUTS_SETTING_KEY] || ''}
-                    onChange={(next) => setSettings((prev) => ({ ...prev, [SHORTCUTS_SETTING_KEY]: next }))}
-                    locale={currentLocale}
-                  />
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{currentTranslations.shortcuts?.sectionHeader || 'Shortcuts'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{currentTranslations.shortcuts?.intro}</p>
+                      <ShortcutList locale={currentLocale} />
+                    </div>
+                  </div>
                 )}
 
                 {/* ── BACKUP ── */}
