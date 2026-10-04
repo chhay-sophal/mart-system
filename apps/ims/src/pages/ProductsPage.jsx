@@ -62,7 +62,8 @@ export default function ProductsPage() {
         ? `/api/stores/${storeId}/products/low-stock`
         : `/api/stores/${storeId}/products`;
       const data = await apiClient.get(path);
-      setProducts(lowStockOnly ? data.items ?? [] : data);
+      // Both endpoints return a plain array of products.
+      setProducts(Array.isArray(data) ? data : []);
     } catch {
       setError('Failed to load products.');
     } finally {
