@@ -6,6 +6,7 @@ import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
 import ShortcutList from './ShortcutList';
+import { useShortcuts } from './hooks/useShortcuts';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -260,6 +261,20 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
       setUpdateCheck('error');
     }
   };
+
+  // Esc (issue #7): close the save prompt if it's open, otherwise back to the
+  // register -- confirming first if there are unsaved changes, which leaving
+  // would discard. Handled here rather than in App, which can't see them.
+  useShortcuts({
+    back: {
+      run: () => {
+        if (showConfirmPopup) return setShowConfirmPopup(false);
+        const shortcutText = currentTranslations.shortcuts || {};
+        if (hasChanges && !window.confirm(shortcutText.confirmDiscard || 'Leave Settings without saving your changes?')) return;
+        onBackToRegister();
+      },
+    },
+  });
 
   const navItems = [
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },

@@ -207,6 +207,7 @@ export const translations = {
       checkout: "បញ្ចប់ការលក់",
       clearCart: "សម្អាតកន្ត្រក",
       confirmClearCart: "សម្អាតទំនិញទាំងអស់ក្នុងកន្ត្រក?",
+      confirmDiscard: "ចាកចេញពីការកំណត់ដោយមិនរក្សាទុកការផ្លាស់ប្តូរ?",
     },
     settingsPage: {
       failSave: 'ការរក្សាទុកការកំណត់បានបរាជ័យ',
@@ -503,6 +504,7 @@ export const translations = {
       checkout: "Complete sale",
       clearCart: "Clear cart",
       confirmClearCart: "Remove every item from the cart?",
+      confirmDiscard: "Leave Settings without saving your changes?",
     },
     settingsPage: {
       failSave: 'Failed to save settings configurations.',

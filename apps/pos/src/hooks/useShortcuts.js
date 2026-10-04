@@ -37,7 +37,9 @@ export function useShortcuts(actions, enabled = true) {
         .find((handler) => handler && (handler.when?.() ?? true));
       if (!match) return;
       e.preventDefault();
-      e.stopPropagation();
+      // Immediate: App and a screen (e.g. Settings) can both listen on window
+      // for the same key; the first to handle it must be the only one.
+      e.stopImmediatePropagation();
       match.run(e);
     };
     // Capture phase, so a shortcut wins over the register's scanner listener.
