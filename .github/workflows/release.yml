@@ -100,7 +100,7 @@ jobs:
           CI: false
         working-directory: apps/pos/sidecar
         run: |
-          npx @yao-pkg/pkg server.js \
+          npx @yao-pkg/pkg server.js --config package.json \
             --targets ${{ matrix.pkg-target }} \
             --output dist/sidecar \
             --no-bytecode --public-packages '*' --public
