@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
+import { SHORTCUTS_SETTING_KEY } from './shortcuts';
+import ShortcutSettings from './ShortcutSettings';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -26,7 +28,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: '',
-    [STANDBY_IMAGE_KEY]: ''
+    [STANDBY_IMAGE_KEY]: '',
+    [SHORTCUTS_SETTING_KEY]: ''
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -264,6 +267,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
     { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
+    { id: 'shortcuts', icon: Keyboard, label: currentTranslations.shortcuts?.sectionHeader || 'Shortcuts' },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
     { id: 'sync',     icon: Cloud,     label: 'Backend Sync' },
     { id: 'about',    icon: Info,      label: 'About' },
@@ -316,6 +320,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale }) {
           <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-lg space-y-5">
+
+                {/* ── SHORTCUTS (per register, issue #7) ── */}
+                {activeSection === 'shortcuts' && (
+                  <ShortcutSettings
+                    value={settings[SHORTCUTS_SETTING_KEY] || ''}
+                    onChange={(next) => setSettings((prev) => ({ ...prev, [SHORTCUTS_SETTING_KEY]: next }))}
+                    locale={currentLocale}
+                  />
+                )}
 
                 {/* ── BACKUP ── */}
                 {activeSection === 'backup' && (
