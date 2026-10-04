@@ -184,6 +184,59 @@ describe("bulk import", () => {
     expect(res.status).toBe(413);
   });
 
+  it("matches barcode-less rows by name within the store, so re-importing doesn't duplicate them", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const importRows = (products: unknown[], updateExisting = false) =>
+      request(app)
+        .post(`/api/stores/${store.id}/products/bulk-import`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ products, updateExisting });
+
+    await importRows([{ name: "Loose Rice (kg)", price: "1.00", stock: "5" }]);
+    const again = await importRows([{ name: " Loose Rice (kg) ", price: "1.00", stock: "5" }]);
+    expect(again.body).toEqual({ imported: 0, updated: 0, skipped: 1, errors: 0 });
+
+    const update = await importRows([{ name: "Loose Rice (kg)", price: "1.25", stock: "9" }], true);
+    expect(update.body).toEqual({ imported: 0, updated: 1, skipped: 0, errors: 0 });
+
+    const list = await request(app).get(`/api/stores/${store.id}/products`).set("Authorization", `Bearer ${token}`);
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0]).toMatchObject({ name: "Loose Rice (kg)", stock: 9 });
+  });
+
+  it("doesn't match a same-named barcode-less product that belongs to another store", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const other = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    const elsewhere = await prisma.product.create({ data: { name: "Water", defaultPriceMinor: 50, currency: "USD" } });
+    await prisma.storeProduct.create({ data: { storeId: other.id, productId: elsewhere.id } });
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ products: [{ name: "Water", price: "0.75" }] });
+
+    expect(res.body).toEqual({ imported: 1, updated: 0, skipped: 0, errors: 0 });
+    expect(await prisma.product.count({ where: { name: "Water" } })).toBe(2);
+  });
+
+  it("keeps numeric barcode cells from spreadsheets instead of dropping them", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const importRows = () =>
+      request(app)
+        .post(`/api/stores/${store.id}/products/bulk-import`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ products: [{ name: "Soda", barcode: 8850999327012, price: 0.5 }] });
+
+    await importRows();
+    const again = await importRows();
+
+    expect(again.body).toMatchObject({ imported: 0, skipped: 1 });
+    expect(await prisma.product.findUnique({ where: { barcode: "8850999327012" } })).not.toBeNull();
+  });
+
   it("skips (not errors) a row whose barcode already exists when updateExisting is false", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();

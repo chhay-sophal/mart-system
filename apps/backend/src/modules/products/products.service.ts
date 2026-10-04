@@ -233,9 +233,14 @@ export async function bulkImportProducts(
       const stock = toIntOrZero(row.stock);
 
       try {
+        // Without a barcode, fall back to an exact name match -- but only among
+        // this store's barcode-less products, since Product is shared across
+        // stores and a generic name ("Water") may be unrelated elsewhere.
         const existing = barcode
           ? await tx.product.findFirst({ where: { barcode, isDeleted: false } })
-          : null;
+          : await tx.product.findFirst({
+              where: { name, barcode: null, isDeleted: false, storeProducts: { some: { storeId } } },
+            });
 
         if (existing && updateExisting) {
           await tx.product.update({
@@ -251,7 +256,8 @@ export async function bulkImportProducts(
           continue;
         }
 
-        // Barcode is unique, so creating would just fail; report it as skipped.
+        // Already in the catalog and not updating: creating would duplicate it
+        // (or, with a barcode, fail on the unique constraint), so skip it.
         if (existing) {
           result.skipped += 1;
           continue;
