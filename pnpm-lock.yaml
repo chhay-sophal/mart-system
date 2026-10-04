@@ -111,6 +111,9 @@ importers:
       react-router-dom:
         specifier: ^7.9.6
         version: 7.18.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      sql.js:
+        specifier: ^1.14.2
+        version: 1.14.2
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
