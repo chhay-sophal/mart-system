@@ -11,7 +11,7 @@
     "sidecar": "node sidecar/server.js",
     "tauri": "tauri",
     "tauri:dev": "concurrently -k \"npm:sidecar\" \"tauri dev\"",
-    "tauri:build": "npm --prefix sidecar run build && tauri build"
+    "tauri:build": "npm --prefix sidecar run build && tauri build --config src-tauri/tauri.local.conf.json"
   },
   "dependencies": {
     "@mart-system/api-client": "workspace:*",
