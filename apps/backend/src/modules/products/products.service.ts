@@ -210,6 +210,22 @@ export interface BulkImportResult {
   errors: number;
 }
 
+interface ParsedImportRow {
+  name: string;
+  barcode: string | null;
+  priceMinor: number;
+  costPriceMinor: number;
+  currency: Currency;
+  stock: number;
+}
+
+/**
+ * In production every query is a network round trip to Turso (tens of ms),
+ * and Prisma cancels an interactive transaction after 5s. The old per-row
+ * loop ran ~3 queries per row inside one transaction, so a 300-row batch
+ * blew that limit and came back as a 500. Now a batch is: two lookups, two
+ * bulk inserts for new products, and one small transaction per updated row.
+ */
 export async function bulkImportProducts(
   storeId: string,
   rows: BulkImportRow[],
@@ -217,65 +233,125 @@ export async function bulkImportProducts(
 ): Promise<BulkImportResult> {
   const result: BulkImportResult = { imported: 0, updated: 0, skipped: 0, errors: 0 };
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const name = toTrimmedStringOrNull(row.name);
-      const price = toNumber(row.price);
-
-      if (!name || !Number.isFinite(price) || price < 0) {
-        result.skipped += 1;
-        continue;
-      }
-
-      const barcode = toTrimmedStringOrNull(row.barcode);
-      const costPrice = Number.isFinite(toNumber(row.cost_price)) ? toNumber(row.cost_price) : 0;
-      const currency = toCurrency(row.currency);
-      const stock = toIntOrZero(row.stock);
-
-      try {
-        // Without a barcode, fall back to an exact name match -- but only among
-        // this store's barcode-less products, since Product is shared across
-        // stores and a generic name ("Water") may be unrelated elsewhere.
-        const existing = barcode
-          ? await tx.product.findFirst({ where: { barcode, isDeleted: false } })
-          : await tx.product.findFirst({
-              where: { name, barcode: null, isDeleted: false, storeProducts: { some: { storeId } } },
-            });
-
-        if (existing && updateExisting) {
-          await tx.product.update({
-            where: { id: existing.id },
-            data: { name, defaultPriceMinor: toMinorUnits(price, currency), currency },
-          });
-          await tx.storeProduct.upsert({
-            where: { storeId_productId: { storeId, productId: existing.id } },
-            create: { storeId, productId: existing.id, stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
-            update: { stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
-          });
-          result.updated += 1;
-          continue;
-        }
-
-        // Already in the catalog and not updating: creating would duplicate it
-        // (or, with a barcode, fail on the unique constraint), so skip it.
-        if (existing) {
-          result.skipped += 1;
-          continue;
-        }
-
-        const product = await tx.product.create({
-          data: { name, barcode, defaultPriceMinor: toMinorUnits(price, currency), currency },
-        });
-        await tx.storeProduct.create({
-          data: { storeId, productId: product.id, stock, costPriceMinor: toMinorUnits(costPrice, currency), currency },
-        });
-        result.imported += 1;
-      } catch (err) {
-        logger.error({ err, storeId }, "bulkImportProducts row failed");
-        result.errors += 1;
-      }
+  // Validate, and keep only the first row for a product that appears twice in
+  // the batch (same barcode, or same name when there's no barcode).
+  const parsed: ParsedImportRow[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const name = toTrimmedStringOrNull(row.name);
+    const price = toNumber(row.price);
+    if (!name || !Number.isFinite(price) || price < 0) {
+      result.skipped += 1;
+      continue;
     }
-  });
+    const barcode = toTrimmedStringOrNull(row.barcode);
+    const key = productKey(name, barcode);
+    if (seen.has(key)) {
+      result.skipped += 1;
+      continue;
+    }
+    seen.add(key);
+    const currency = toCurrency(row.currency);
+    const costPrice = toNumber(row.cost_price);
+    parsed.push({
+      name,
+      barcode,
+      priceMinor: toMinorUnits(price, currency),
+      costPriceMinor: toMinorUnits(Number.isFinite(costPrice) ? costPrice : 0, currency),
+      currency,
+      stock: toIntOrZero(row.stock),
+    });
+  }
+
+  // Barcode is unique across every product, deleted ones included, so look
+  // those up unfiltered. Without a barcode, fall back to an exact name match
+  // -- but only among this store's barcode-less products, since Product is
+  // shared across stores and a generic name ("Water") may be unrelated elsewhere.
+  const barcodes = parsed.flatMap((r) => (r.barcode ? [r.barcode] : []));
+  const names = parsed.flatMap((r) => (r.barcode ? [] : [r.name]));
+  const [barcodeHolders, nameMatches] = await Promise.all([
+    barcodes.length ? prisma.product.findMany({ where: { barcode: { in: barcodes } } }) : [],
+    names.length
+      ? prisma.product.findMany({
+          where: { name: { in: names }, barcode: null, isDeleted: false, storeProducts: { some: { storeId } } },
+        })
+      : [],
+  ]);
+  const byBarcode = new Map(barcodeHolders.map((p) => [p.barcode!, p]));
+  const byName = new Map<string, (typeof nameMatches)[number]>();
+  for (const p of nameMatches) if (!byName.has(p.name)) byName.set(p.name, p);
+
+  const toCreate: ParsedImportRow[] = [];
+  const toUpdate: Array<{ row: ParsedImportRow; productId: string }> = [];
+  for (const row of parsed) {
+    const existing = row.barcode ? byBarcode.get(row.barcode) : byName.get(row.name);
+    if (!existing) {
+      toCreate.push(row);
+    } else if (existing.isDeleted) {
+      // A deleted product still holds this barcode, so it can't be created.
+      logger.warn({ storeId, barcode: row.barcode }, "bulkImportProducts barcode held by a deleted product");
+      result.errors += 1;
+    } else if (updateExisting) {
+      toUpdate.push({ row, productId: existing.id });
+    } else {
+      // Already in the catalog and not updating: creating would duplicate it.
+      result.skipped += 1;
+    }
+  }
+
+  if (toCreate.length) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const created = await tx.product.createManyAndReturn({
+          data: toCreate.map((r) => ({
+            name: r.name,
+            barcode: r.barcode,
+            defaultPriceMinor: r.priceMinor,
+            currency: r.currency,
+          })),
+          select: { id: true, name: true, barcode: true },
+        });
+        const idByKey = new Map(created.map((p) => [productKey(p.name, p.barcode), p.id]));
+        await tx.storeProduct.createMany({
+          data: toCreate.map((r) => ({
+            storeId,
+            productId: idByKey.get(productKey(r.name, r.barcode))!,
+            stock: r.stock,
+            costPriceMinor: r.costPriceMinor,
+            currency: r.currency,
+          })),
+        });
+      });
+      result.imported += toCreate.length;
+    } catch (err) {
+      logger.error({ err, storeId }, "bulkImportProducts create failed");
+      result.errors += toCreate.length;
+    }
+  }
+
+  for (const { row, productId } of toUpdate) {
+    try {
+      await prisma.$transaction([
+        prisma.product.update({
+          where: { id: productId },
+          data: { name: row.name, defaultPriceMinor: row.priceMinor, currency: row.currency },
+        }),
+        prisma.storeProduct.upsert({
+          where: { storeId_productId: { storeId, productId } },
+          create: { storeId, productId, stock: row.stock, costPriceMinor: row.costPriceMinor, currency: row.currency },
+          update: { stock: row.stock, costPriceMinor: row.costPriceMinor, currency: row.currency },
+        }),
+      ]);
+      result.updated += 1;
+    } catch (err) {
+      logger.error({ err, storeId, productId }, "bulkImportProducts update failed");
+      result.errors += 1;
+    }
+  }
 
   return result;
+}
+
+function productKey(name: string, barcode: string | null): string {
+  return barcode ? `barcode:${barcode}` : `name:${name}`;
 }

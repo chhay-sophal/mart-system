@@ -237,6 +237,41 @@ describe("bulk import", () => {
     expect(await prisma.product.findUnique({ where: { barcode: "8850999327012" } })).not.toBeNull();
   });
 
+  it("keeps the first of two rows for the same product in one batch", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        products: [
+          { name: "First", barcode: "123", price: "1.00" },
+          { name: "Second", barcode: "123", price: "2.00" },
+          { name: "Loose", price: "1.00" },
+          { name: "Loose", price: "3.00" },
+        ],
+      });
+
+    expect(res.body).toEqual({ imported: 2, updated: 0, skipped: 2, errors: 0 });
+    expect(await prisma.product.findUnique({ where: { barcode: "123" } })).toMatchObject({ name: "First" });
+  });
+
+  it("reports a barcode held by a deleted product as an error without failing the batch", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    await prisma.product.create({
+      data: { name: "Gone", barcode: "777", defaultPriceMinor: 100, currency: "USD", isDeleted: true },
+    });
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-import`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ products: [{ name: "Back", barcode: "777", price: "1.00" }, { name: "Fine", barcode: "888", price: "1.00" }] });
+
+    expect(res.body).toEqual({ imported: 1, updated: 0, skipped: 0, errors: 1 });
+  });
+
   it("skips (not errors) a row whose barcode already exists when updateExisting is false", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
