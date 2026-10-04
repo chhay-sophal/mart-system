@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
-import { STORE_ICON_KEY, resizeImageToDataUrl } from '../lib/storeIcon';
 import OnlinePosImport from '../components/OnlinePosImport.jsx';
 
 // Synced to every POS terminal in the store (read-only there once paired),
 // so they get proper inputs below instead of the free-form key/value list.
 const POS_SYNCED_KEYS = ['main_currency', 'locale', 'exchange_rate'];
 const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate: '4100' };
+// Left over from when the shop image synced from IMS; it's set per register now
+// (issue #5), so it's kept out of the free-form list.
+const LEGACY_HIDDEN_KEYS = ['store_icon'];
 
 const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm';
 const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60';
@@ -21,14 +23,11 @@ export default function SettingsPage() {
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
 
-  // Store profile lives on the Store row itself (name/address/phone), not in
-  // StoreSetting, so it has its own load/save against PATCH /api/stores/:id.
-  const [profile, setProfile] = useState({ name: '', address: '', phone: '' });
+  // The store's name in IMS (store picker, reports). What customers see -- shop
+  // name, image, address, phone -- is set on each register (issue #5).
+  const [storeName, setStoreName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
-  // undefined = untouched, so saving the profile doesn't rewrite the icon (and
-  // bump its updatedAt, which would re-send it to every terminal).
-  const [pendingIcon, setPendingIcon] = useState(undefined);
 
   const [posSyncedSaving, setPosSyncedSaving] = useState(false);
   const [posSyncedMessage, setPosSyncedMessage] = useState('');
@@ -66,7 +65,7 @@ export default function SettingsPage() {
   const loadProfile = useCallback(async () => {
     try {
       const store = await apiClient.get(`/api/stores/${storeId}`);
-      setProfile({ name: store.name ?? '', address: store.address ?? '', phone: store.phone ?? '' });
+      setStoreName(store.name ?? '');
     } catch {
       setProfileMessage('Failed to load store profile.');
     }
@@ -83,36 +82,14 @@ export default function SettingsPage() {
     setProfileSaving(true);
     setProfileMessage('');
     try {
-      await apiClient.patch(`/api/stores/${storeId}`, {
-        name: profile.name.trim(),
-        address: profile.address.trim() || null,
-        phone: profile.phone.trim() || null,
-      });
-      if (pendingIcon !== undefined) {
-        const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: { [STORE_ICON_KEY]: pendingIcon } });
-        setSettings(res.settings ?? settings);
-        setPendingIcon(undefined);
-      }
-      setProfileMessage('Saved. POS terminals pick this up on their next sync.');
+      await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
+      setProfileMessage('Saved.');
     } catch {
       setProfileMessage('Failed to save.');
     } finally {
       setProfileSaving(false);
     }
   }
-
-  async function handleIconFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // let the same file be picked again after a remove
-    if (!file) return;
-    try {
-      setPendingIcon(await resizeImageToDataUrl(file));
-    } catch (err) {
-      setProfileMessage(err.message);
-    }
-  }
-
-  const storeIcon = pendingIcon ?? settings[STORE_ICON_KEY] ?? '';
 
   const posSynced = { ...POS_SYNCED_DEFAULTS, ...settings };
 
@@ -149,11 +126,7 @@ export default function SettingsPage() {
     setSaving(true);
     setMessage('');
     try {
-      // The icon saves with the profile card; rewriting it here would bump its
-      // updatedAt and re-send it to every terminal for nothing.
-      // eslint-disable-next-line no-unused-vars
-      const { [STORE_ICON_KEY]: _icon, ...rest } = settings;
-      await apiClient.put(`/api/stores/${storeId}/settings`, { settings: rest });
+      await apiClient.put(`/api/stores/${storeId}/settings`, { settings });
       setMessage('Saved.');
     } catch {
       setMessage('Failed to save settings.');
@@ -170,7 +143,7 @@ export default function SettingsPage() {
   }
 
   const keys = Object.keys(settings)
-    .filter((key) => !POS_SYNCED_KEYS.includes(key) && key !== STORE_ICON_KEY)
+    .filter((key) => !POS_SYNCED_KEYS.includes(key) && !LEGACY_HIDDEN_KEYS.includes(key))
     .sort();
 
   return (
@@ -181,44 +154,17 @@ export default function SettingsPage() {
 
       <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Store profile</h2>
-        <p className="text-xs text-slate-500">Shown on POS terminals and receipts.</p>
+        <p className="text-xs text-slate-500">
+          How this store is named in IMS. The shop name, image, address and phone customers see are set on each
+          register, in POS Settings.
+        </p>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 shrink-0">Shop image</label>
-          <div className="w-14 h-14 rounded-lg border border-[var(--border)] bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
-            {storeIcon ? (
-              <img src={storeIcon} alt="Shop" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xs text-slate-400">None</span>
-            )}
-          </div>
-          <label className="text-sm font-medium text-[var(--accent)] cursor-pointer">
-            Upload
-            <input type="file" accept="image/*" className="hidden" onChange={handleIconFile} />
-          </label>
-          {storeIcon && (
-            <button type="button" onClick={() => setPendingIcon('')} className="text-sm text-slate-500 hover:text-red-600">
-              Remove
-            </button>
-          )}
+          <label className="w-32 text-sm text-slate-600 shrink-0">Store name</label>
+          <input value={storeName} placeholder="My Store" onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
         </div>
-        {[
-          { key: 'name', label: 'Shop name', placeholder: 'My Store' },
-          { key: 'address', label: 'Address', placeholder: 'Village, Commune, District, Province' },
-          { key: 'phone', label: 'Phone', placeholder: '012 345 678' },
-        ].map(({ key, label, placeholder }) => (
-          <div key={key} className="flex items-center gap-3">
-            <label className="w-32 text-sm text-slate-600 shrink-0">{label}</label>
-            <input
-              value={profile[key]}
-              placeholder={placeholder}
-              onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
-              className={inputClass}
-            />
-          </div>
-        ))}
         <div className="flex items-center justify-end gap-3">
           {profileMessage && <p className="text-xs text-slate-600">{profileMessage}</p>}
-          <button onClick={handleSaveProfile} disabled={profileSaving || !profile.name.trim()} className={saveButtonClass}>
+          <button onClick={handleSaveProfile} disabled={profileSaving || !storeName.trim()} className={saveButtonClass}>
             {profileSaving ? 'Saving…' : 'Save'}
           </button>
         </div>
