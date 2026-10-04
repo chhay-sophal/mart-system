@@ -79,6 +79,13 @@ pub fn run() {
       Ok(())
     })
     .on_window_event(|window, event| {
+      // Only the register's own window owns the app's lifetime. The customer
+      // display opens and closes on its own as a second monitor comes and
+      // goes; closing it must not kill the backend. Closing the register
+      // quits the app, so the kiosk display doesn't keep it running headless.
+      if window.label() != "main" {
+        return;
+      }
       if let tauri::WindowEvent::Destroyed = event {
         if let Some(state) = window.app_handle().try_state::<Mutex<Option<CommandChild>>>() {
           if let Ok(mut guard) = state.lock() {
@@ -87,6 +94,7 @@ pub fn run() {
             }
           }
         }
+        window.app_handle().exit(0);
       }
     })
     .invoke_handler(tauri::generate_handler![get_backend_port, read_file_bytes, kill_backend])
