@@ -108,17 +108,21 @@ async function pullCatalog(config) {
         : undefined);
 
     const price = item.priceOverride ?? item.defaultPrice;
+    // The price is in the product's own currency (a riel catalog sends
+    // 22000 = 22,000 ៛). Without it a new row would default to USD and sell
+    // at $22,000. Older backends don't send it; keep what the row has then.
+    const currency = item.currency === 'KHR' || item.currency === 'USD' ? item.currency : null;
     const now = db.localNow();
 
     if (existing) {
       db.run(
-        'UPDATE products SET name = ?, barcode = ?, price = ?, stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
-        [item.name, item.barcode, price, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
+        'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
+        [item.name, item.barcode, price, currency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
       );
     } else {
       db.run(
-        'INSERT INTO products (name, barcode, price, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [item.name, item.barcode, price, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
+        'INSERT INTO products (name, barcode, price, currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [item.name, item.barcode, price, currency ?? 'USD', item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
       );
     }
   }
