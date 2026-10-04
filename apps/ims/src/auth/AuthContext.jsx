@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { accessTokenRef, apiClient } from '../lib/apiClient';
+import { queryClient } from '../lib/queryClient';
 
 const REFRESH_TOKEN_KEY = 'ims:refreshToken';
 // Access tokens are 15m server-side; refresh a bit early so an in-flight
@@ -36,6 +37,8 @@ export function AuthProvider({ children }) {
 
   const clearAuth = useCallback(() => {
     accessTokenRef.current = null;
+    // Cached data belongs to the signed-in user; never show it to the next one.
+    queryClient.clear();
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     setUser(null);
