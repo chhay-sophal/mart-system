@@ -35,6 +35,19 @@ describe("store settings", () => {
     expect(get.body.settings.exchange_rate).toBe("4100");
   });
 
+  it("rejects invalid values for keys that sync to POS terminals", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    for (const settings of [{ main_currency: "EUR" }, { locale: "fr" }, { exchange_rate: "0" }, { exchange_rate: "abc" }]) {
+      const res = await request(app)
+        .put(`/api/stores/${store.id}/settings`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ settings });
+      expect(res.status, JSON.stringify(settings)).toBe(400);
+    }
+  });
+
   it("is admin-only for writes", async () => {
     const { store, terminal } = await seedFixtures();
     await addCashier(store.id, "5678");
