@@ -11,3 +11,13 @@ export function roundKhr(khr) {
 export function usdToKhr(usd, rate) {
   return roundKhr((Number(usd) || 0) * (rate || 4100));
 }
+
+/**
+ * An order's total in riel. Sales charged in riel keep their total in riel
+ * (`total` + `currency`), so that's shown exactly; others are converted from
+ * `total_amount`, which is always USD.
+ */
+export function orderTotalKhr(order, rate) {
+  if (order.currency === 'KHR' && order.total != null) return Math.round(Number(order.total));
+  return usdToKhr(order.total_amount, rate);
+}

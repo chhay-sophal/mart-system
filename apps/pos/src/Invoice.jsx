@@ -5,7 +5,7 @@ import { useReactToPrint } from 'react-to-print';
 import { translations as t } from './locales';
 import { useToast } from './Toast';
 import {
-  currencyFormatters, discountedUnitPrice, fmtDiscountedSubtotal, fmtItemDiscountLabel, fmtSubtotal, fmtUnit, receiptDateTime,
+  currencyFormatters, discountedUnitPrice, fmtTotal, fmtDiscountedSubtotal, fmtItemDiscountLabel, fmtSubtotal, fmtUnit, receiptDateTime,
 } from './receipt/receiptModel';
 import { printReceiptDirect } from './receipt/thermalPrinter';
 
@@ -196,7 +196,7 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
   ${transactionDiscountUsd > 0 ? `<div class="row"><span class="muted">${inv.txDiscount}</span><span>−${fmtPrimary(transactionDiscountUsd)}</span></div>` : ''}
   <div class="row"><span class="muted">${inv.subtotal}</span><span>${fmtPrimary(subtotalBeforeDiscountUsd)}</span></div>
   ${totalDiscountUsd > 0 ? `<div class="row"><span class="muted">${inv.discount}</span><span>−${fmtPrimary(totalDiscountUsd)}</span></div>` : ''}
-  <div class="row total"><span>${inv.total}</span><span>${fmtPrimary(totalUsd)}</span></div>
+  <div class="row total"><span>${inv.total}</span><span>${fmtTotal(invoiceData)}</span></div>
   <div class="row muted"><span></span><span>${fmtSecondary(totalUsd)}</span></div>
 
   <hr class="dash">
@@ -298,7 +298,7 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
     row(inv.subtotal, fmtPrimary(subtotalBeforeDiscountUsd));
     if (totalDiscountUsd > 0) row(inv.discount, `−${fmtPrimary(totalDiscountUsd)}`);
 
-    pdf.setFontSize(12); row(inv.total, fmtPrimary(totalUsd), true);
+    pdf.setFontSize(12); row(inv.total, fmtTotal(invoiceData), true);
     pdf.setFontSize(9);
     pdf.setTextColor(100);
     pdf.text(fmtSecondary(totalUsd), W - m, y, { align: 'right' });
@@ -443,7 +443,7 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
               )}
               <div className="flex justify-between gap-2 font-black text-[9px]">
                 <span>{inv.total}</span>
-                <span>{fmtPrimary(totalUsd)}</span>
+                <span>{fmtTotal(invoiceData)}</span>
               </div>
               <div className="flex justify-between gap-2 ">
                 <span />

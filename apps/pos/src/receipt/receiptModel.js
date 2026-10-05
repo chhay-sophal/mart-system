@@ -30,6 +30,12 @@ export const currencyFormatters = (mainCurrency, rate) => {
   return mainCurrency === 'KHR' ? { primary: khr, secondary: usd } : { primary: usd, secondary: khr };
 };
 
+/** The receipt total in the main currency; exact riel when the sale's riel total is known. */
+export function fmtTotal({ mainCurrency, dynamicRate, totalUsd, totalKhr }) {
+  if (mainCurrency === 'KHR' && totalKhr != null) return `${Number(totalKhr).toLocaleString()} ៛`;
+  return currencyFormatters(mainCurrency, dynamicRate).primary(totalUsd);
+}
+
 export const receiptNo = (orderId) => `#${String(orderId).padStart(5, '0')}`;
 
 export function receiptDateTime(timestamp, locale) {
@@ -89,7 +95,7 @@ export function buildReceipt(invoiceData, locale) {
   add({ type: 'pair', left: inv.subtotal, right: fmt.primary(subtotalBeforeDiscountUsd) });
   if (transactionDiscountUsd > 0) add({ type: 'pair', left: inv.txDiscount, right: `−${fmt.primary(transactionDiscountUsd)}` });
   if (totalDiscountUsd > 0) add({ type: 'pair', left: inv.discount, right: `−${fmt.primary(totalDiscountUsd)}` });
-  add({ type: 'pair', left: inv.total, right: fmt.primary(totalUsd), size: 'lg', bold: true });
+  add({ type: 'pair', left: inv.total, right: fmtTotal(invoiceData), size: 'lg', bold: true });
   add({ type: 'pair', left: '', right: fmt.secondary(totalUsd) });
   add({ type: 'rule' });
 

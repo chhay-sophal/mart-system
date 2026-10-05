@@ -312,7 +312,9 @@ export default function App() {
     const payload = {
       items: cart,
       payment_method: 'KHQR',
-      total_amount: totalUsd,
+      // Stored in the main currency, exactly as shown on screen.
+      total_amount: mainCurrency === 'KHR' ? totalKhr : totalUsd,
+      currency: mainCurrency,
       amount_paid_usd: totalUsd,
       amount_paid_khr: 0,
       cashier_user_id: session.userId,
@@ -342,6 +344,7 @@ export default function App() {
         transactionDiscountUsd: txDiscountAmt,
         totalDiscountUsd: totalDiscountAmt,
         totalUsd,
+        totalKhr,
         mainCurrency,
         dynamicRate,
         storeName,
@@ -533,7 +536,9 @@ export default function App() {
       items: cart,
       payment_method: paymentMethod,
       bank_name: paymentMethod === 'STATIC_QR' ? staticQrBank : null,
-      total_amount: totalUsd,
+      // Stored in the main currency, exactly as shown on screen.
+      total_amount: mainCurrency === 'KHR' ? totalKhr : totalUsd,
+      currency: mainCurrency,
       amount_paid_usd: paidUsd,
       amount_paid_khr: paidKhr,
       cashier_user_id: session.userId,
@@ -550,6 +555,7 @@ export default function App() {
         transactionDiscountUsd: txDiscountAmt,
         totalDiscountUsd: totalDiscountAmt,
         totalUsd,
+        totalKhr,
         mainCurrency,
         dynamicRate,
         storeName,

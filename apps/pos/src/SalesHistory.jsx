@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
-import { usdToKhr } from './khr';
+import { orderTotalKhr } from './khr';
 import { invalidateSales, queryKeys } from './queryClient';
 
 const PAGE_SIZE = 10;
@@ -122,6 +122,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const pagedOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const totalRevenue = filteredOrders.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+  const totalRevenueKhr = filteredOrders.reduce((sum, o) => sum + orderTotalKhr(o, dynamicRate), 0);
   // counts from unfiltered orders so payment filter buttons always show full period totals
   const cashCount = orders.filter(o => o.payment_method === 'CASH').length;
   const khqrCount = orders.filter(o => o.payment_method === 'KHQR').length;
@@ -158,7 +159,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       transactionDiscountUsd: 0,
       totalDiscountUsd: 0,
       totalUsd: parseFloat(order.total_amount),
-      totalKhr: usdToKhr(order.total_amount, dynamicRate),
+      totalKhr: orderTotalKhr(order, dynamicRate),
       mainCurrency,
       dynamicRate,
       storeName: shop.storeName,
@@ -179,7 +180,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     { key: 'time',      header: 'Time',          labelKey: 'colTime',      wch: 10, val: (o) => new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
     { key: 'items',     header: 'Items',         labelKey: 'colItems',     wch: 8,  val: (o) => (o.items || []).filter(i => i.product_name).length },
     { key: 'totalUsd',  header: 'Total (USD)',   labelKey: 'colTotalUsd',  wch: 12, val: (o) => parseFloat(o.total_amount) },
-    { key: 'totalKhr',  header: 'Total (KHR)',   labelKey: 'colTotalKhr',  wch: 14, val: (o) => usdToKhr(o.total_amount, dynamicRate) },
+    { key: 'totalKhr',  header: 'Total (KHR)',   labelKey: 'colTotalKhr',  wch: 14, val: (o) => orderTotalKhr(o, dynamicRate) },
     { key: 'payment',   header: 'Payment',       labelKey: 'colPayment',   wch: 10, val: (o) => o.payment_method },
     { key: 'paidUsd',   header: 'Paid (USD)',    labelKey: 'colPaidUsd',   wch: 12, val: (o) => parseFloat(o.amount_paid_usd) || 0 },
     { key: 'paidKhr',   header: 'Paid (KHR)',    labelKey: 'colPaidKhr',   wch: 12, val: (o) => parseFloat(o.amount_paid_khr) || 0 },
@@ -330,11 +331,11 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">
             {mainCurrency === 'USD'
               ? `$${totalRevenue.toFixed(2)}`
-              : `${usdToKhr(totalRevenue, dynamicRate).toLocaleString()} ៛`}
+              : `${totalRevenueKhr.toLocaleString()} ៛`}
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
             {mainCurrency === 'USD'
-              ? `${usdToKhr(totalRevenue, dynamicRate).toLocaleString()} ៛`
+              ? `${totalRevenueKhr.toLocaleString()} ៛`
               : `$${totalRevenue.toFixed(2)}`}
           </p>
         </div>
@@ -593,7 +594,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
   const itemCount = (order.items || []).filter(i => i.product_name).length;
   const totalUsd = parseFloat(order.total_amount);
-  const totalKhr = usdToKhr(totalUsd, dynamicRate);
+  const totalKhr = orderTotalKhr(order, dynamicRate);
 
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-2xl border transition-all overflow-hidden ${expanded ? 'border-indigo-200 dark:border-indigo-800 shadow-sm' : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'}`}>
