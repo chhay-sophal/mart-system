@@ -8,11 +8,11 @@ import Modal from '../components/Modal.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
+import { orderTotalKhr } from '../lib/orderTotals';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
 // export and receipt reprint, for one branch or all of them. Rows come from
-// GET /api/orders in the POS's snake_case shape; total_amount is USD and
-// exchange_rate is that order's store rate.
+// GET /api/orders in the POS's snake_case shape (totals: lib/orderTotals.js).
 
 const PAGE_SIZE = 20;
 const PAYMENT_METHODS = ['CASH', 'KHQR', 'STATIC_QR', 'CARD'];
@@ -25,7 +25,6 @@ const PERIODS = [
 ];
 
 // Riel is shown to the nearest 100 (the smallest note), like the POS.
-const usdToKhr = (usd, rate) => Math.round(((Number(usd) || 0) * (rate || 4100)) / 100) * 100;
 const fmtUsd = (n) => `$${(Number(n) || 0).toFixed(2)}`;
 const fmtKhr = (n) => `${Math.round(Number(n) || 0).toLocaleString()} ៛`;
 const fmtDateTime = (iso) =>
@@ -50,7 +49,7 @@ const EXPORT_COLUMNS = [
   { key: 'register', header: 'Register', wch: 18, val: (o) => o.terminal_name },
   { key: 'items', header: 'Items', wch: 8, val: (o) => itemCount(o) },
   { key: 'totalUsd', header: 'Total (USD)', wch: 12, val: (o) => Number(Number(o.total_amount).toFixed(2)) },
-  { key: 'totalKhr', header: 'Total (KHR)', wch: 14, val: (o) => usdToKhr(o.total_amount, o.exchange_rate) },
+  { key: 'totalKhr', header: 'Total (KHR)', wch: 14, val: (o) => orderTotalKhr(o) },
   { key: 'payment', header: 'Payment', wch: 10, val: (o) => PAYMENT_LABELS[o.payment_method] ?? o.payment_method },
   { key: 'bank', header: 'Bank', wch: 10, val: (o) => o.bank_name ?? '' },
   { key: 'paidUsd', header: 'Paid (USD)', wch: 12, val: (o) => o.amount_paid_usd },
@@ -136,7 +135,7 @@ export default function SalesHistoryPage() {
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const revenueKhr = counted.reduce((sum, o) => sum + usdToKhr(o.total_amount, o.exchange_rate), 0);
+  const revenueKhr = counted.reduce((sum, o) => sum + orderTotalKhr(o), 0);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -329,7 +328,7 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
         <td className="px-3 py-2 text-center">{itemCount(o)}</td>
         <td className={`px-3 py-2 text-right whitespace-nowrap ${voided ? 'line-through' : ''}`}>
           <span className="font-medium">{fmtUsd(o.total_amount)}</span>
-          <span className="block text-xs text-slate-500">{fmtKhr(usdToKhr(o.total_amount, o.exchange_rate))}</span>
+          <span className="block text-xs text-slate-500">{fmtKhr(orderTotalKhr(o))}</span>
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
           {PAYMENT_LABELS[o.payment_method] ?? o.payment_method}
