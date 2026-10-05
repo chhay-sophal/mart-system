@@ -5,8 +5,9 @@ import { ApiError } from '@mart-system/api-client';
 import { translations as t } from './locales';
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
-const MAX_PIN_LENGTH = 8;
-const MIN_PIN_LENGTH = 4;
+// Every PIN is exactly 4 digits (enforced by the backend); unlocking starts
+// as soon as the fourth one is entered.
+const PIN_LENGTH = 4;
 
 export default function LockScreen({ currentLocale, onUnlock }) {
   const client = useBackend();
@@ -16,7 +17,7 @@ export default function LockScreen({ currentLocale, onUnlock }) {
   const [submitting, setSubmitting] = useState(false);
 
   async function submit() {
-    if (pin.length < MIN_PIN_LENGTH || submitting) return;
+    if (pin.length < PIN_LENGTH || submitting) return;
     setSubmitting(true);
     try {
       const data = await client.post('/api/auth/pin-unlock', { pin });
@@ -31,24 +32,27 @@ export default function LockScreen({ currentLocale, onUnlock }) {
     setSubmitting(false);
   }
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (pin.length === PIN_LENGTH) submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin]);
+
   // Supports a physical keyboard (not just the on-screen keypad) — this is a
   // shared terminal, some setups have a keyboard attached at the register.
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key >= '0' && e.key <= '9') {
         setErrorMessage(null);
-        setPin((prev) => (prev.length >= MAX_PIN_LENGTH ? prev : prev + e.key));
+        setPin((prev) => (prev.length >= PIN_LENGTH ? prev : prev + e.key));
       } else if (e.key === 'Backspace') {
         setErrorMessage(null);
         setPin((prev) => prev.slice(0, -1));
-      } else if (e.key === 'Enter') {
-        submit();
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, submitting]);
+  }, []);
 
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 gap-6 font-sans antialiased">
@@ -60,11 +64,11 @@ export default function LockScreen({ currentLocale, onUnlock }) {
         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{s.subtitle}</p>
       </div>
 
-      <div className="flex gap-3">
-        {Array.from({ length: MAX_PIN_LENGTH }).map((_, i) => (
+      <div className={`flex gap-4 ${submitting ? 'animate-pulse' : ''}`}>
+        {Array.from({ length: PIN_LENGTH }).map((_, i) => (
           <span
             key={i}
-            className={`w-3 h-3 rounded-full border-2 transition-colors ${
+            className={`w-4 h-4 rounded-full border-2 transition-colors ${
               i < pin.length ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 dark:border-slate-700'
             }`}
           />
@@ -90,7 +94,8 @@ export default function LockScreen({ currentLocale, onUnlock }) {
           return (
             <button
               key={i}
-              onClick={() => { setErrorMessage(null); setPin((prev) => (prev.length >= MAX_PIN_LENGTH ? prev : prev + key)); }}
+              onClick={() => { setErrorMessage(null); setPin((prev) => (prev.length >= PIN_LENGTH ? prev : prev + key)); }}
+              disabled={submitting}
               className="h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
             >
               {key}
@@ -99,17 +104,6 @@ export default function LockScreen({ currentLocale, onUnlock }) {
         })}
       </div>
 
-      <button
-        onClick={submit}
-        disabled={pin.length < MIN_PIN_LENGTH || submitting}
-        className={`w-64 h-12 rounded-xl font-bold text-sm transition-all ${
-          pin.length < MIN_PIN_LENGTH || submitting
-            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed'
-            : 'bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer'
-        }`}
-      >
-        {submitting ? '...' : s.unlockBtn}
-      </button>
     </div>
   );
 }

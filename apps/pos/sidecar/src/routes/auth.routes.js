@@ -15,7 +15,8 @@ const LIMITER_KEY = 'terminal';
 // even with no network at all, the same way checkout already does.
 router.post('/api/auth/pin-unlock', async (req, res) => {
   const pin = String(req.body.pin ?? '');
-  if (!pin) return res.status(400).json({ error: 'PIN is required' });
+  // Every PIN is exactly 4 digits (the backend enforces it when one is set).
+  if (!/^[0-9]{4}$/.test(pin)) return res.status(400).json({ error: 'PIN must be 4 digits' });
 
   const check = pinUnlockLimiter.checkAllowed(LIMITER_KEY);
   if (!check.allowed) {
