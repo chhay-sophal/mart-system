@@ -10,6 +10,7 @@ import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
 import Invoice from './Invoice';
+import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
@@ -84,6 +85,7 @@ export default function App() {
   const [lowStockDismissed, setLowStockDismissed] = useState(false);
   // Settings > General; on unless this register turned it off.
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
+  const [printer, setPrinter] = useState(() => printerConfig());
 
   const barcodeRef = useRef(null);
   const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
@@ -328,6 +330,11 @@ export default function App() {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
       invalidateSales(); // History and Daily Summary show the new sale right away
+      if (paymentMethod === 'CASH' && printer.direct && printer.openDrawerOnCash) {
+        openCashDrawer(printer).catch((err) =>
+          notify((t[locale].settingsPage?.printerSection?.failed || 'Printer problem: {error}').replace('{error}', err?.message || String(err))),
+        );
+      }
       setInvoiceData({
         order_id: data.order_id,
         items: cartSnapshot,
@@ -437,6 +444,7 @@ export default function App() {
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
         setShowLowStockAlert(data.show_low_stock_alert !== 'false');
+        setPrinter(printerConfig(data));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -658,6 +666,7 @@ export default function App() {
         <SalesHistory
           onBackToRegister={() => setView('REGISTER')}
           shop={{ storeName, storeAddress, storePhone }}
+          printer={printer}
           currentLocale={locale}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
@@ -1228,6 +1237,7 @@ export default function App() {
           locale={locale}
           onClose={() => setShowInvoice(false)}
           autoPrint
+          printer={printer}
         />
       )}
     </>

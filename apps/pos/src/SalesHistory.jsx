@@ -28,7 +28,7 @@ const isOwnOrder = (order) => order.can_delete !== false;
 // The sidecar returns { source, offline, orders }; older builds a bare array.
 const unwrapOrders = (data) => (Array.isArray(data) ? data : Array.isArray(data?.orders) ? data.orders : []);
 
-export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shop = {} }) {
+export default function SalesHistory({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shop = {}, printer }) {
   const client = useBackend();
   const s = t[currentLocale].salesHistory;
   const ex = s.export;
@@ -417,6 +417,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           locale={currentLocale}
           onClose={() => setInvoiceModal(null)}
           autoPrint
+          printer={printer}
         />
       )}
 

@@ -3,12 +3,17 @@ import { jsPDF } from 'jspdf';
 import { Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { translations as t } from './locales';
-import { usdToKhr } from './khr';
 import { useToast } from './Toast';
+import {
+  currencyFormatters, discountedUnitPrice, fmtDiscountedSubtotal, fmtItemDiscountLabel, fmtSubtotal, fmtUnit, receiptDateTime,
+} from './receipt/receiptModel';
+import { printReceiptDirect } from './receipt/thermalPrinter';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 
-export default function Invoice({ invoiceData, locale, onClose, autoPrint = false }) {
+// `printer` (thermalPrinter.printerConfig): with direct printing set up, an
+// auto-print goes straight to the thermal printer instead of the print dialog.
+export default function Invoice({ invoiceData, locale, onClose, autoPrint = false, printer }) {
   const { order_id, items, subtotalBeforeDiscountUsd, transactionDiscountUsd, totalDiscountUsd, totalUsd, mainCurrency, dynamicRate, paymentMethod, bankName, amountPaidUsd, amountPaidKhr, changeDueKhr, timestamp, storeName, storeAddress, storePhone } = invoiceData;
 
   const inv = t[locale].invoice;
@@ -90,41 +95,19 @@ export default function Invoice({ invoiceData, locale, onClose, autoPrint = fals
   useEffect(() => {
     if (autoPrint && !hasAutoPrinted.current) {
       hasAutoPrinted.current = true;
-      handlePrint();
+      if (printer?.direct) {
+        printReceiptDirect(invoiceData, locale, printer)
+          .catch((err) => notify((inv.printFailedReason || "Couldn't print the receipt: {error}").replace('{error}', err?.message || String(err))))
+          .finally(onClose);
+      } else {
+        handlePrint();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const date = new Date(timestamp);
-  const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-  const timeStr = date.toLocaleTimeString(locale === 'km' ? 'km-KH' : 'en-US', {
-    hour: '2-digit', minute: '2-digit',
-  });
-  const dateTimeStr = `${dateStr} ${timeStr}`;
-
-  const fmtUnit = (price, currency) => {
-    const p = Number(price);
-    return currency === 'KHR' ? `${Math.round(p).toLocaleString()} ៛` : `$${p.toFixed(2)}`;
-  };
-  const fmtSubtotal = (price, qty, currency) => {
-    const p = Number(price);
-    return currency === 'KHR' ? `${Math.round(p * qty).toLocaleString()} ៛` : `$${(p * qty).toFixed(2)}`;
-  };
-  const discountedUnitPrice = (item) => {
-    const p = Number(item.price);
-    if (!item.discount) return p;
-    return item.discountType === 'fixed' ? Math.max(0, p - item.discount) : p * (1 - item.discount / 100);
-  };
-  const fmtDiscountedSubtotal = (item) => fmtUnit(discountedUnitPrice(item) * item.quantity, item.currency);
-  const fmtItemDiscountLabel = (item) => item.discountType === 'fixed' ? `−${fmtUnit(item.discount, item.currency)}` : `−${item.discount}%`;
-
-  // Summary amounts (subtotal/discount/total) follow the store's configured main currency.
-  const fmtPrimary = (usd) => mainCurrency === 'KHR'
-    ? `${usdToKhr(usd, dynamicRate).toLocaleString()} ៛`
-    : `$${usd.toFixed(2)}`;
-  const fmtSecondary = (usd) => mainCurrency === 'KHR'
-    ? `$${usd.toFixed(2)}`
-    : `${usdToKhr(usd, dynamicRate).toLocaleString()} ៛`;
+  const dateTimeStr = receiptDateTime(timestamp, locale);
+  const { primary: fmtPrimary, secondary: fmtSecondary } = currencyFormatters(mainCurrency, dynamicRate);
 
   // Build a self-contained HTML invoice with only rgb() colors — no Tailwind, no oklch.
   const buildInvoiceHTML = () => {
