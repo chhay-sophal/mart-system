@@ -332,11 +332,6 @@ export default function App() {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
       invalidateSales(); // History and Daily Summary show the new sale right away
-      if (paymentMethod === 'CASH' && printer.direct && printer.openDrawerOnCash) {
-        openCashDrawer(printer).catch((err) =>
-          notify((t[locale].settingsPage?.printerSection?.failed || 'Printer problem: {error}').replace('{error}', err?.message || String(err))),
-        );
-      }
       setInvoiceData({
         order_id: data.order_id,
         items: cartSnapshot,
@@ -551,6 +546,12 @@ export default function App() {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
       invalidateSales(); // History and Daily Summary show the new sale right away
+      // Settings > Printer: pop the drawer for the cashier to put the cash in.
+      if (paymentMethod === 'CASH' && printer.direct && printer.openDrawerOnCash) {
+        openCashDrawer(printer).catch((err) =>
+          notify((t[locale].settingsPage?.printerSection?.failed || 'Printer problem: {error}').replace('{error}', err?.message || String(err))),
+        );
+      }
       setInvoiceData({
         order_id: data.order_id,
         items: cartSnapshot,
