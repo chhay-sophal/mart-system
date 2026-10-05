@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useBackend } from './BackendContext';
 import * as XLSX from 'xlsx';
-import { ArrowLeft, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
 import { orderTotalKhr } from './khr';
@@ -10,13 +10,32 @@ import { invalidateSales, queryKeys } from './queryClient';
 
 const PAGE_SIZE = 10;
 
-function getPeriodRange(period) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === 'today') return { from: startOfToday.toISOString(), to: null };
-  if (period === 'week')  { const d = new Date(startOfToday); d.setDate(d.getDate() - 7);  return { from: d.toISOString(), to: null }; }
-  if (period === 'month') { const d = new Date(startOfToday); d.setDate(d.getDate() - 30); return { from: d.toISOString(), to: null }; }
-  return { from: null, to: null };
+// dateFrom/dateTo are plain 'YYYY-MM-DD' (<input type="date"> values, local
+// time, no timezone). Empty means unbounded on that side -- "All time" is
+// just both sides empty, not a distinct mode.
+function getDateRange(dateFrom, dateTo) {
+  const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+  let to = null;
+  if (dateTo) {
+    to = new Date(`${dateTo}T00:00:00`);
+    to.setDate(to.getDate() + 1); // exclusive upper bound -- through the end of the selected day
+  }
+  return { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null };
+}
+
+const DATE_PRESETS = ['today', '7d', '30d', 'all'];
+
+// The {from, to} the date inputs land on for each shortcut -- shared by
+// applyDatePreset (sets it) and the active-chip check (detects it), so
+// they can never silently drift apart.
+function presetRange(preset) {
+  const today = new Date();
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const todayStr = fmt(today);
+  if (preset === 'today') return { from: todayStr, to: todayStr };
+  if (preset === '7d')  { const d = new Date(today); d.setDate(d.getDate() - 7);  return { from: fmt(d), to: todayStr }; }
+  if (preset === '30d') { const d = new Date(today); d.setDate(d.getDate() - 30); return { from: fmt(d), to: todayStr }; }
+  return { from: '', to: '' }; // 'all'
 }
 
 // Store-wide lists (sidecar storeReports.js) carry a receipt_no: this
@@ -33,7 +52,9 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const s = t[currentLocale].salesHistory;
   const ex = s.export;
 
-  const [period, setPeriod] = useState('today');
+  // Free-form date range, not a fixed set of periods -- defaults to today.
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
   const [sortCol, setSortCol] = useState('id');
@@ -59,15 +80,30 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search, period, payFilter, sortCol, sortDir]);
+  }, [search, dateFrom, dateTo, payFilter, sortCol, sortDir]);
 
-  // Cached per period (queryClient.js): re-opening History shows the last
-  // list at once and refreshes it in the background when stale. The
-  // period's start is worked out at fetch time, so "Today" is always today's.
+  // Quick shortcuts onto the same free-form range the date inputs edit --
+  // "All time" is just both sides cleared, not a separate mode.
+  const applyDatePreset = (preset) => {
+    const { from, to } = presetRange(preset);
+    setDateFrom(from);
+    setDateTo(to);
+    setExpandedId(null);
+  };
+  // Highlights a preset chip only while the inputs still exactly match it --
+  // editing a date by hand deselects every chip, which is the correct "this
+  // is now a custom range" signal rather than a stale/misleading highlight.
+  const activePreset = DATE_PRESETS.find((p) => {
+    const r = presetRange(p);
+    return r.from === dateFrom && r.to === dateTo;
+  });
+
+  // Cached per range (queryClient.js): re-opening History shows the last
+  // list at once and refreshes it in the background when stale.
   const ordersQuery = useQuery({
-    queryKey: queryKeys.orders(period),
+    queryKey: queryKeys.orders(`${dateFrom}_${dateTo}`),
     queryFn: () => {
-      const { from, to } = getPeriodRange(period);
+      const { from, to } = getDateRange(dateFrom, dateTo);
       return client.get('/api/orders', { date_from: from ?? undefined, date_to: to ?? undefined });
     },
   });
@@ -234,8 +270,6 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
     }
   };
 
-  const PERIODS = ['today', 'week', 'month', 'all'];
-
   return (
     <div className="h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
 
@@ -279,26 +313,54 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         <button
           onClick={() => setShowExportModal(true)}
           disabled={orders.length === 0}
-          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 flex-shrink-0 mr-1"
+          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
         >
           <Upload size={14} /> {ex.btnLabel}
         </button>
+      </header>
 
-        {/* Period tabs */}
-        <div className="flex gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl flex-shrink-0">
-          {PERIODS.map(p => (
+      {/* Date range: free-form (any from/to), not a fixed set of periods --
+          the chips are shortcuts onto the same two inputs, highlighted only
+          while the inputs still exactly match one (see activePreset above). */}
+      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-2.5 flex items-center gap-3 flex-shrink-0">
+        <div className="flex gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
+          {DATE_PRESETS.map((preset) => (
             <button
-              key={p}
-              onClick={() => { setPeriod(p); setExpandedId(null); }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                period === p ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              key={preset}
+              onClick={() => applyDatePreset(preset)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activePreset === preset
+                  ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              {s[p]}
+              {{ today: ex.presetToday, '7d': ex.preset7d, '30d': ex.preset30d, all: ex.presetAll }[preset]}
             </button>
           ))}
         </div>
-      </header>
+
+        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+
+        <div className="flex items-center gap-2">
+          <DateField
+            value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setExpandedId(null); }}
+            max={dateTo || undefined}
+          />
+          <ArrowRight size={12} className="text-slate-300 dark:text-slate-600 flex-shrink-0" />
+          <DateField
+            value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setExpandedId(null); }}
+            min={dateFrom || undefined}
+          />
+        </div>
+
+        {!activePreset && (
+          <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/40 px-2 py-1 rounded-lg whitespace-nowrap">
+            {s.customRange || 'Custom range'}
+          </span>
+        )}
+      </div>
 
       {/* Summary bar */}
       <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center gap-8 flex-shrink-0">
@@ -591,6 +653,22 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DateField({ value, onChange, min, max }) {
+  return (
+    <div className="relative">
+      <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        min={min}
+        max={max}
+        className="w-[134px] pl-7 pr-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-300 dark:focus:border-indigo-600"
+      />
     </div>
   );
 }
