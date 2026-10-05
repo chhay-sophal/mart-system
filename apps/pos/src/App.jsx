@@ -375,7 +375,9 @@ export default function App() {
     let displayState;
     if (checkoutResult) {
       displayState = 'done';
-    } else if ((paymentMethod === 'KHQR' && activeKhqr) || paymentMethod === 'STATIC_QR') {
+    } else if (cart.length > 0 && ((paymentMethod === 'KHQR' && activeKhqr) || paymentMethod === 'STATIC_QR')) {
+      // Payment only with something to pay for: an empty cart is idle (standby
+      // image) whichever payment method is selected.
       displayState = 'payment';
     } else if (cart.length > 0) {
       displayState = 'active';
