@@ -162,7 +162,7 @@ export default function CustomerDisplay() {
                   </td>
                 </tr>
               ) : cart.map((item, idx) => (
-                <tr key={item.id} className="bg-slate-800 rounded-2xl border border-slate-700/40 overflow-hidden">
+                <tr key={item.lineId ?? item.id} className="bg-slate-800 rounded-2xl border border-slate-700/40 overflow-hidden">
                   <td className="px-6 py-4 text-right text-white font-bold">{idx + 1}</td>
                   <td className="px-0 py-4 text-white font-bold truncate">{item.name}</td>
                   <td className="px-6 py-4 text-right w-24 font-bold text-white">

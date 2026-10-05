@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -13,6 +13,7 @@ import ProductsView from './ProductsView';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
+import { addProduct, quantityOf, splitLine } from './cartLines';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
@@ -228,15 +229,7 @@ export default function App() {
       try {
         const product = await client.get(`/api/products/barcode/${scannedBarcode}`);
 
-        setCart((prevCart) => {
-          const existingItem = prevCart.find((item) => item.id === product.id);
-          if (existingItem) {
-            return prevCart.map((item) =>
-              item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-            );
-          }
-          return [...prevCart, { ...product, quantity: 1, discount: 0, discountType: 'pct' }];
-        });
+        setCart((prevCart) => addProduct(prevCart, product, { atEnd: true }));
 
         setCheckoutResult(null);
       } catch (err) {
@@ -474,15 +467,7 @@ export default function App() {
     try {
       const product = await client.get(`/api/products/barcode/${barcodeInput}`);
 
-      setCart((prevCart) => {
-        const existingItem = prevCart.find((item) => item.id === product.id);
-        if (existingItem) {
-          return prevCart.map((item) =>
-            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-          );
-        }
-        return [{ ...product, quantity: 1, discount: 0, discountType: 'pct' }, ...prevCart];
-      });
+      setCart((prevCart) => addProduct(prevCart, product));
 
       setBarcodeInput('');
       setCheckoutResult(null);
@@ -499,14 +484,8 @@ export default function App() {
 
   // Products tab (issue #13): the same as scanning the item's barcode.
   const addFromProducts = (product) => {
-    const quantity = (cart.find((item) => item.id === product.id)?.quantity ?? 0) + 1;
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === product.id);
-      if (existingItem) {
-        return prevCart.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
-      }
-      return [{ ...product, quantity: 1, discount: 0, discountType: 'pct' }, ...prevCart];
-    });
+    const quantity = quantityOf(cart, product.id) + 1;
+    setCart((prevCart) => addProduct(prevCart, product));
     setCheckoutResult(null);
     notify((t[locale].products.added || 'Added {name} ({qty} in cart)').replace('{name}', product.name).replace('{qty}', quantity), 'success');
   };
@@ -524,25 +503,33 @@ export default function App() {
     setKhqrLoading(false);
   };
 
-  const updateQuantity = (id, delta) => {
+  // Cart edits act on one line (lineId): a product can be on several lines.
+  const updateQuantity = (lineId, delta) => {
     setCart((prevCart) =>
       prevCart
-        .map((item) => (item.id === id ? { ...item, quantity: item.quantity + delta } : item))
+        .map((item) => (item.lineId === lineId ? { ...item, quantity: item.quantity + delta } : item))
         .filter((item) => item.quantity > 0)
     );
     setCheckoutResult(null);
     setActiveKhqr(null);
   };
 
-  const removeItem = (id) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  const removeItem = (lineId) => {
+    setCart((prevCart) => prevCart.filter((item) => item.lineId !== lineId));
     setCheckoutResult(null);
     setActiveKhqr(null);
   };
 
-  const setItemDiscount = (id, val, type) => {
+  // Splits one unit off a line so it can be discounted on its own (e.g. a defect).
+  const splitItem = (lineId) => {
+    setCart((prevCart) => splitLine(prevCart, lineId));
+    setCheckoutResult(null);
+    setActiveKhqr(null);
+  };
+
+  const setItemDiscount = (lineId, val, type) => {
     setCart(prev => prev.map(item => {
-      if (item.id !== id) return item;
+      if (item.lineId !== lineId) return item;
       const update = { ...item };
       if (type !== undefined) { update.discountType = type; update.discount = 0; }
       if (val !== undefined) update.discount = val;
@@ -939,7 +926,7 @@ export default function App() {
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
-                    <div key={item.id} className="p-3.5 bg-slate-50/60 dark:bg-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-700/70 rounded-xl border border-slate-100/80 dark:border-slate-700 transition-colors">
+                    <div key={item.lineId} className="p-3.5 bg-slate-50/60 dark:bg-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-700/70 rounded-xl border border-slate-100/80 dark:border-slate-700 transition-colors">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0 pr-4">
                           <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{item.name}</h3>
@@ -977,14 +964,14 @@ export default function App() {
                                 let v = parseFloat(e.target.value);
                                 if (isNaN(v) || v < 0) v = 0;
                                 if ((item.discountType || 'pct') === 'pct' && v > 100) v = 100;
-                                setItemDiscount(item.id, v === 0 && e.target.value === '' ? 0 : v);
+                                setItemDiscount(item.lineId, v === 0 && e.target.value === '' ? 0 : v);
                               }}
                               className="w-30 h-full text-center text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-1 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-900/30 focus:border-amber-400 dark:focus:border-amber-600"
                               placeholder="0"
                             />
                             <div className="flex w-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                               <button
-                                onClick={() => setItemDiscount(item.id, undefined, 'pct')}
+                                onClick={() => setItemDiscount(item.lineId, undefined, 'pct')}
                                 className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all ${
                                   (item.discountType || 'pct') === 'pct'
                                     ? 'bg-amber-500 text-white'
@@ -992,7 +979,7 @@ export default function App() {
                                 }`}
                               >%</button>
                               <button
-                                onClick={() => setItemDiscount(item.id, undefined, 'fixed')}
+                                onClick={() => setItemDiscount(item.lineId, undefined, 'fixed')}
                                 className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all ${
                                   item.discountType === 'fixed'
                                     ? 'bg-amber-500 text-white border-amber-500'
@@ -1004,10 +991,18 @@ export default function App() {
                           
                           {/* Qty stepper */}
                           <div className="flex items-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 rounded-xl p-0.5 shadow-2xs">
-                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">&minus;</button>
+                            <button onClick={() => updateQuantity(item.lineId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">&minus;</button>
                             <span className="w-9 text-center font-bold text-sm text-slate-800 dark:text-slate-100">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">+</button>
+                            <button onClick={() => updateQuantity(item.lineId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">+</button>
                           </div>
+
+                          {/* Split one unit onto its own line, to discount just that one. Kept
+                              in place (invisible) at quantity 1 so the columns stay aligned. */}
+                          <button onClick={() => splitItem(item.lineId)} disabled={item.quantity < 2}
+                            title={t[locale].splitLine} aria-label={t[locale].splitLine}
+                            className={`self-center w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all ${item.quantity < 2 ? 'invisible' : ''}`}>
+                            <Scissors size={14} />
+                          </button>
 
                           {/* Line total */}
                           <div className="text-right w-24 flex flex-col justify-center">
@@ -1034,7 +1029,7 @@ export default function App() {
                               </p>
                             )}
                           </div>
-                          <button onClick={() => removeItem(item.id)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center"><X size={14} /></button>
+                          <button onClick={() => removeItem(item.lineId)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center"><X size={14} /></button>
                         </div>
                       </div>
                     </div>

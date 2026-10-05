@@ -42,7 +42,12 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const matches = useMemo(() => products.filter((p) => matchesProduct(p, search)), [products, search]);
   const rows = matches.slice(0, MAX_ROWS);
-  const inCart = useMemo(() => new Map(cart.map((item) => [item.id, item.quantity])), [cart]);
+  // A product can be on several cart lines (one split off for a discount).
+  const inCart = useMemo(() => {
+    const totals = new Map();
+    for (const item of cart) totals.set(item.id, (totals.get(item.id) ?? 0) + item.quantity);
+    return totals;
+  }, [cart]);
   const activeIndex = Math.min(active, Math.max(rows.length - 1, 0));
 
   const changeSearch = (value) => {
