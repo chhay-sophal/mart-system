@@ -51,6 +51,7 @@ async function applySaleCompleted(
           productId: item.productId,
           quantity: item.quantity,
           priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
+          discountMinor: toMinorUnits(item.discount, item.currency),
           currency: item.currency,
         })),
       },

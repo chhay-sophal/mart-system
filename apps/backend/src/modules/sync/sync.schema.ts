@@ -5,6 +5,8 @@ const orderItemSchema = z.object({
   quantity: z.number().int().positive(),
   priceAtSale: z.number().nonnegative(),
   currency: z.enum(["USD", "KHR"]),
+  // Item discount for the whole line, in `currency`. Older registers never sent it.
+  discount: z.number().nonnegative().default(0),
 });
 
 export const saleCompletedPayloadSchema = z.object({

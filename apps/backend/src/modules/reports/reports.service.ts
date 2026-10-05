@@ -104,7 +104,9 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
 
   for (const item of items) {
     const priceUsd = toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency);
-    const lineRevenue = priceUsd * item.quantity;
+    // What the line actually charged: item discounts (e.g. a defective unit) come off.
+    const discountUsd = toUsd(fromMinorUnits(item.discountMinor, item.currency), item.currency);
+    const lineRevenue = priceUsd * item.quantity - discountUsd;
 
     const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0 };
     agg.qty += item.quantity;
@@ -113,7 +115,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
 
     const costInfo = costByProductId.get(item.productId);
     const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
-    grossProfit += (priceUsd - costUsd) * item.quantity;
+    grossProfit += lineRevenue - costUsd * item.quantity;
   }
 
   const topProducts = [...productAgg.entries()]

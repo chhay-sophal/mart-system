@@ -30,6 +30,8 @@ function saleEvent(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+const stock = (row: { stock: number } | null) => row?.stock;
+
 function terminalHeaders(terminalId: string) {
   return { "X-Terminal-Id": terminalId, "X-Terminal-Secret": FIXTURE_TERMINAL_SECRET };
 }
@@ -100,6 +102,38 @@ describe("POST /api/sync/push", () => {
     expect(res.body.results[0].status).toBe("applied");
     const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid } });
     expect(order).toMatchObject({ totalAmountMinor: 12300, currency: "KHR" });
+  });
+
+  it("keeps each line's item discount and takes it off product revenue", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 2, stock: 10 });
+    // 3 of one product, one of them half price for a defect: two lines.
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [
+          { productId: product.id, quantity: 2, priceAtSale: 2, currency: "USD" },
+          { productId: product.id, quantity: 1, priceAtSale: 2, currency: "USD", discount: 1 },
+        ],
+        totalAmount: 5,
+      },
+    });
+
+    const push = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(push.body.results[0].status).toBe("applied");
+
+    const items = await prisma.orderItem.findMany({ where: { productId: product.id }, orderBy: { quantity: "desc" } });
+    expect(items.map((i) => [i.quantity, i.priceAtSaleMinor, i.discountMinor])).toEqual([[2, 200, 0], [1, 200, 100]]);
+
+    const orders = await request(app).get("/api/terminal/orders").set(terminalHeaders(terminal.id));
+    expect(orders.body[0].items).toEqual(expect.arrayContaining([expect.objectContaining({ quantity: 1, price: 2, discount: 1 })]));
+
+    const summary = await request(app)
+      .get("/api/terminal/daily-summary")
+      .query({ date_from: new Date(Date.now() - 86_400_000).toISOString(), date_to: new Date(Date.now() + 86_400_000).toISOString() })
+      .set(terminalHeaders(terminal.id));
+    expect(summary.body.top_products).toEqual([expect.objectContaining({ name: "Widget", total_qty: 3, revenue: 5 })]);
+    expect(stock(await prisma.storeProduct.findUnique({ where: { storeId_productId: { storeId: store.id, productId: product.id } } }))).toBe(7);
   });
 
   it("reads a total without a currency (older registers) as USD", async () => {

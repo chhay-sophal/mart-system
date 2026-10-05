@@ -85,6 +85,8 @@ function toOrderView(order: OrderWithDetails, { rate, mainCurrency }: StoreMoney
       barcode: item.product.barcode,
       quantity: item.quantity,
       price: fromMinorUnits(item.priceAtSaleMinor, item.currency),
+      // Item discount for the whole line; the line charged price × quantity − discount.
+      discount: fromMinorUnits(item.discountMinor, item.currency),
       currency: item.currency,
     })),
   };

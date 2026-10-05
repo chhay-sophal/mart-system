@@ -8,6 +8,8 @@ export interface OrderItem {
   quantity: number;
   priceAtSale: number;
   currency: Currency;
+  /** Item discount for the whole line, in `currency`. */
+  discount?: number;
 }
 
 export interface Order {
