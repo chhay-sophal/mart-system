@@ -2,12 +2,10 @@
 // than a popup, so the browser's popup blocker never gets in the way. Marked
 // REPRINT (and VOIDED when it is) so it can't pass for the original receipt.
 
-import { orderTotalKhr } from './orderTotals';
+import { fmtKhr as khr, fmtUsd as usd, orderTotal } from './orderTotals';
 
 const esc = (value) =>
   String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const usd = (n) => `$${(Number(n) || 0).toFixed(2)}`;
-const khr = (n) => `${Math.round(Number(n) || 0).toLocaleString()} ៛`;
 
 function receiptHtml(o) {
   const lines = o.items
@@ -46,8 +44,8 @@ function receiptHtml(o) {
   </table>
   <hr><table>${lines}</table><hr>
   <table>
-    <tr class="total"><td>Total</td><td class="r">${usd(o.total_amount)}</td></tr>
-    <tr><td></td><td class="r">${khr(orderTotalKhr(o))}</td></tr>
+    <tr class="total"><td>Total</td><td class="r">${orderTotal(o).primary}</td></tr>
+    <tr><td></td><td class="r">${orderTotal(o).secondary}</td></tr>
     ${paid}
   </table>
   <hr><div class="c muted">Printed ${esc(new Date().toLocaleString('en-US'))}</div>

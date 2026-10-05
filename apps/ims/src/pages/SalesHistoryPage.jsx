@@ -8,7 +8,7 @@ import Modal from '../components/Modal.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
-import { orderTotalKhr } from '../lib/orderTotals';
+import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalKhr, roundKhr } from '../lib/orderTotals';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
 // export and receipt reprint, for one branch or all of them. Rows come from
@@ -25,8 +25,6 @@ const PERIODS = [
 ];
 
 // Riel is shown to the nearest 100 (the smallest note), like the POS.
-const fmtUsd = (n) => `$${(Number(n) || 0).toFixed(2)}`;
-const fmtKhr = (n) => `${Math.round(Number(n) || 0).toLocaleString()} ៛`;
 const fmtDateTime = (iso) =>
   new Date(iso).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const itemCount = (o) => (o.items || []).reduce((sum, i) => sum + i.quantity, 0);
@@ -136,6 +134,13 @@ export default function SalesHistoryPage() {
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
   const revenueKhr = counted.reduce((sum, o) => sum + orderTotalKhr(o), 0);
+  const leadCurrency = mainCurrencyOf(counted);
+  const revenue = inMainCurrency(leadCurrency, revenueUsd, revenueKhr);
+  const average = inMainCurrency(
+    leadCurrency,
+    counted.length ? revenueUsd / counted.length : 0,
+    counted.length ? roundKhr(revenueKhr / counted.length) : 0,
+  );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -220,8 +225,8 @@ export default function SalesHistoryPage() {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-white border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs text-slate-500">Revenue</p>
-          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{fmtUsd(revenueUsd)}</p>
-          <p className="text-xs text-slate-500">{fmtKhr(revenueKhr)}</p>
+          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{revenue.primary}</p>
+          <p className="text-xs text-slate-500">{revenue.secondary}</p>
         </div>
         <div className="bg-white border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs text-slate-500">Sales</p>
@@ -229,7 +234,8 @@ export default function SalesHistoryPage() {
         </div>
         <div className="bg-white border border-[var(--border)] rounded-xl p-4">
           <p className="text-xs text-slate-500">Average sale</p>
-          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{fmtUsd(counted.length ? revenueUsd / counted.length : 0)}</p>
+          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{average.primary}</p>
+          <p className="text-xs text-slate-500">{average.secondary}</p>
         </div>
       </div>
 
@@ -285,7 +291,7 @@ export default function SalesHistoryPage() {
       {voidTarget && (
         <Modal title="Void this sale?" onClose={() => !voiding && setVoidTarget(null)}>
           <p className="text-sm text-slate-600">
-            Receipt <span className="font-semibold">#{voidTarget.receipt_no}</span> ({fmtUsd(voidTarget.total_amount)}, {voidTarget.store_name}) will be
+            Receipt <span className="font-semibold">#{voidTarget.receipt_no}</span> ({orderTotal(voidTarget).primary}, {voidTarget.store_name}) will be
             marked voided and its items put back in stock. It no longer counts toward revenue.
           </p>
           <div className="flex justify-end gap-2 mt-4">
@@ -327,8 +333,8 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
         <td className="px-3 py-2">{o.terminal_name}</td>
         <td className="px-3 py-2 text-center">{itemCount(o)}</td>
         <td className={`px-3 py-2 text-right whitespace-nowrap ${voided ? 'line-through' : ''}`}>
-          <span className="font-medium">{fmtUsd(o.total_amount)}</span>
-          <span className="block text-xs text-slate-500">{fmtKhr(orderTotalKhr(o))}</span>
+          <span className="font-medium">{orderTotal(o).primary}</span>
+          <span className="block text-xs text-slate-500">{orderTotal(o).secondary}</span>
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
           {PAYMENT_LABELS[o.payment_method] ?? o.payment_method}

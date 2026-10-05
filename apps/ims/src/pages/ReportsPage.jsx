@@ -3,13 +3,22 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function fmtUsd(n) {
-  return `$${Number(n || 0).toFixed(2)}`;
+// Revenue comes summed in both currencies (riel exact for riel sales). Other
+// figures are USD; riel stores see them converted at the store's rate.
+const money = (store, usd, khr) => inMainCurrency(store.mainCurrency, usd, khr ?? usdToKhr(usd, store.rate));
+
+function Amount({ value }) {
+  return (
+    <>
+      {value.primary} <span className="text-slate-400 text-xs">{value.secondary}</span>
+    </>
+  );
 }
 
 export default function ReportsPage() {
@@ -93,14 +102,22 @@ export default function ReportsPage() {
         <>
           <div className="grid grid-cols-4 gap-3 mb-4">
             {[
-              { label: 'Revenue', value: fmtUsd(report.combined.totalRevenue) },
-              { label: 'Orders', value: report.combined.orderCount },
-              { label: 'Avg order', value: fmtUsd(report.combined.avgOrder) },
-              { label: 'Gross profit', value: fmtUsd(report.combined.grossProfit) },
+              { label: 'Revenue', value: inMainCurrency(report.combined.mainCurrency, report.combined.totalRevenue, report.combined.totalRevenueKhr) },
+              { label: 'Orders', value: { primary: report.combined.orderCount } },
+              { label: 'Avg order', value: inMainCurrency(report.combined.mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr) },
+              {
+                label: 'Gross profit',
+                value: inMainCurrency(
+                  report.combined.mainCurrency,
+                  report.combined.grossProfit,
+                  report.byStore.reduce((sum, st) => sum + usdToKhr(st.grossProfit, st.rate), 0),
+                ),
+              },
             ].map((card) => (
               <div key={card.label} className="bg-white border border-[var(--border)] rounded-xl p-4">
                 <p className="text-xs text-slate-500">{card.label}</p>
-                <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{card.value}</p>
+                <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{card.value.primary}</p>
+                {card.value.secondary && <p className="text-xs text-slate-500">{card.value.secondary}</p>}
               </div>
             ))}
           </div>
@@ -121,8 +138,8 @@ export default function ReportsPage() {
                     <tr key={s.storeId} className="border-t border-[var(--border)]">
                       <td className="px-4 py-2">{s.storeName}</td>
                       <td className="px-4 py-2">{s.orderCount}</td>
-                      <td className="px-4 py-2">{fmtUsd(s.totalRevenue)}</td>
-                      <td className="px-4 py-2">{fmtUsd(s.grossProfit)}</td>
+                      <td className="px-4 py-2"><Amount value={money(s, s.totalRevenue, s.totalRevenueKhr)} /></td>
+                      <td className="px-4 py-2"><Amount value={money(s, s.grossProfit)} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -142,7 +159,7 @@ export default function ReportsPage() {
                       <li key={m.paymentMethod} className="flex justify-between">
                         <span>{m.paymentMethod}</span>
                         <span>
-                          {fmtUsd(m.total)} <span className="text-slate-400">({m.count})</span>
+                          {money(singleStore, m.total, m.totalKhr).primary} <span className="text-slate-400">({m.count})</span>
                         </span>
                       </li>
                     ))}
@@ -159,7 +176,7 @@ export default function ReportsPage() {
                       <li key={p.productId} className="flex justify-between">
                         <span>{p.name}</span>
                         <span>
-                          {p.totalQty} <span className="text-slate-400">· {fmtUsd(p.revenue)}</span>
+                          {p.totalQty} <span className="text-slate-400">· {money(singleStore, p.revenue).primary}</span>
                         </span>
                       </li>
                     ))}
