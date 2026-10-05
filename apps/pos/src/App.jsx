@@ -947,7 +947,7 @@ export default function App() {
                         </div>
                         <div className="flex items-stretch gap-5">
                           {/* Price Per Unit */}
-                          <div className="text-right w-24">
+                          <div className="text-right w-24 flex flex-col justify-center">
                             {/* The original price is struck through only when the item is discounted. */}
                             {item.discount > 0 && (
                               <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
@@ -1010,7 +1010,7 @@ export default function App() {
                           </div>
 
                           {/* Line total */}
-                          <div className="text-right w-24">
+                          <div className="text-right w-24 flex flex-col justify-center">
                             {item.discount > 0 ? (() => {
                               const base = item.price * item.quantity;
                               const discounted = item.discountType === 'fixed'
