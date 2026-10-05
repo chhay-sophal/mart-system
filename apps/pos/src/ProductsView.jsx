@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Search, ShoppingCart, Plus, X, PackageSearch } from 'lucide-react';
+import { ArrowLeft, Search, Plus, X, PackageSearch } from 'lucide-react';
 import { useBackend } from './BackendContext';
 import { translations as t } from './locales';
 import { queryKeys } from './queryClient';
@@ -43,7 +43,6 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
   const matches = useMemo(() => products.filter((p) => matchesProduct(p, search)), [products, search]);
   const rows = matches.slice(0, MAX_ROWS);
   const inCart = useMemo(() => new Map(cart.map((item) => [item.id, item.quantity])), [cart]);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const activeIndex = Math.min(active, Math.max(rows.length - 1, 0));
 
   const changeSearch = (value) => {
@@ -78,12 +77,6 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
           <h1 className="text-base font-bold font-display">{s.title}</h1>
           <p className="text-xs text-slate-400 dark:text-slate-500">{s.subtitle}</p>
         </div>
-        <button onClick={onBackToRegister}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer">
-          <ShoppingCart size={14} />
-          {s.backToCart}
-          {cartCount > 0 && <span className="bg-white/25 rounded-full px-2 py-0.5 text-[11px]">{cartCount}</span>}
-        </button>
       </header>
 
       <div className="px-6 pt-4 pb-3 flex-shrink-0">
