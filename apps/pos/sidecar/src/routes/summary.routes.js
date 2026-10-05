@@ -43,7 +43,10 @@ router.get('/api/summary/daily', async (req, res) => {
     base
   );
 
-  const topProducts = query(
+  // Unlimited, ordered by quantity sold -- top_products (below) is just this
+  // sliced to 5 for the on-screen card; all_products (the full list) is for
+  // the print report, which needs every product sold, not just the top ones.
+  const allProducts = query(
     `SELECT p.name, SUM(oi.quantity) as total_qty,
             SUM(CASE WHEN oi.currency = 'KHR' THEN (oi.price_at_sale * oi.quantity - oi.discount) / ${rate} ELSE oi.price_at_sale * oi.quantity - oi.discount END) as revenue
      FROM order_items oi
@@ -51,9 +54,10 @@ router.get('/api/summary/daily', async (req, res) => {
      JOIN products p ON p.id = oi.product_id
      WHERE o.created_at >= ? AND o.created_at < ? AND o.is_deleted = 0
      GROUP BY oi.product_id, p.name
-     ORDER BY total_qty DESC LIMIT 5`,
+     ORDER BY total_qty DESC`,
     base
   );
+  const topProducts = allProducts.slice(0, 5);
 
   const profitRow = query(
     `SELECT COALESCE(SUM(
@@ -76,6 +80,7 @@ router.get('/api/summary/daily', async (req, res) => {
     gross_profit: profitRow.gross_profit,
     by_method: byMethod,
     top_products: topProducts,
+    all_products: allProducts,
     source: 'local',
     offline: Boolean(config),
   });

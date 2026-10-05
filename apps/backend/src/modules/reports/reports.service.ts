@@ -118,12 +118,28 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     grossProfit += lineRevenue - costUsd * item.quantity;
   }
 
-  const topProducts = [...productAgg.entries()]
+  // topProducts is this sliced to 5, for the on-screen card; allProducts (the
+  // full list) backs the print report, which needs every product sold, not
+  // just the top ones.
+  const allProducts = [...productAgg.entries()]
     .map(([productId, v]) => ({ productId, name: v.name, totalQty: v.qty, revenue: v.revenue }))
-    .sort((a, b) => b.totalQty - a.totalQty)
-    .slice(0, 5);
+    .sort((a, b) => b.totalQty - a.totalQty);
+  const topProducts = allProducts.slice(0, 5);
 
-  return { storeId, mainCurrency, rate, orderCount, totalRevenue, totalRevenueKhr, avgOrder, avgOrderKhr, grossProfit, byMethod, topProducts };
+  return {
+    storeId,
+    mainCurrency,
+    rate,
+    orderCount,
+    totalRevenue,
+    totalRevenueKhr,
+    avgOrder,
+    avgOrderKhr,
+    grossProfit,
+    byMethod,
+    topProducts,
+    allProducts,
+  };
 }
 
 export async function getDailySummary(

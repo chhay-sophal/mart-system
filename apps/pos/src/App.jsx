@@ -807,6 +807,8 @@ export default function App() {
       <BackendContext.Provider value={client}>
         <DailySummary
           onBackToRegister={() => setView('REGISTER')}
+          shop={{ storeName, storeAddress, storePhone, storeIcon }}
+          printer={printer}
           currentLocale={locale}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}

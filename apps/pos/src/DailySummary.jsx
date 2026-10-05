@@ -1,38 +1,42 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useReactToPrint } from 'react-to-print';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
 import { usdToKhr } from './khr';
 import { useShortcuts } from './hooks/useShortcuts';
 import { queryKeys } from './queryClient';
-
-const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
+import { PRINT_WIDTH_MM } from './receipt/raster';
+import { printerConfig } from './receipt/thermalPrinter';
 
 const pad = n => String(n).padStart(2, '0');
 
 const toSqliteDate = (d) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 00:00:00`;
 
-export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency }) {
+export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shop = {}, printer: printerProp }) {
   const client = useBackend();
+  // Same default-if-unset pattern as Invoice.jsx, and the same mechanism
+  // (react-to-print, not window.print()/webview.print()) -- that ad-hoc pair
+  // blanks the app inside the Tauri window (issue #9), which is exactly why
+  // receipts already print this way instead.
+  const [printer] = useState(() => printerProp ?? printerConfig());
+  const paperMm = PRINT_WIDTH_MM[printer.paper] ?? PRINT_WIDTH_MM[58];
+  const printRef = useRef(null);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const s = (t[currentLocale] || {}).dailySummary || {};
 
-  const handlePrint = async () => {
-    if (IS_TAURI) {
-      try {
-        const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-        await getCurrentWebviewWindow().print();
-      } catch {
-        window.print();
-      }
-    } else {
-      window.print();
-    }
-  };
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `daily-summary-${toSqliteDate(selectedDate).slice(0, 10)}`,
+    pageStyle: `
+      @page { size: ${printer.paper}mm auto; margin: 2mm; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+    `,
+  });
 
   const formatDisplayDate = (d) => {
     const months = s.months || ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -97,7 +101,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
 
       {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center gap-4 shadow-xs flex-shrink-0 print:hidden">
+      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center gap-4 shadow-xs flex-shrink-0">
         <button
           onClick={onBackToRegister}
           className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
@@ -114,17 +118,21 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
         </div>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors cursor-pointer print:hidden"
+          className="px-4 py-2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors cursor-pointer"
         >
           <Printer size={13} />{s.print || 'Print'}
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-2xl mx-auto w-full space-y-4">
+      {/* Scrolling lives on this full-width div, not the centered column below
+          it -- otherwise the scrollbar sits at the column's edge, floating in
+          the middle of the window instead of against its right edge. */}
+      <div className="flex-1 overflow-y-auto">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-4">
 
         {/* Date navigation */}
-        <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3 print:border-none print:px-0">
-          <button onClick={prevDay} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer print:hidden">
+        <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3">
+          <button onClick={prevDay} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">
             <ChevronLeft size={18} />
           </button>
           <div className="text-center">
@@ -136,7 +144,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
           <button
             onClick={nextDay}
             disabled={isToday(selectedDate)}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default print:hidden"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-default"
           >
             <ChevronRight size={18} />
           </button>
@@ -227,11 +235,13 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               </div>
             )}
 
-            {/* Top products */}
-            {summary.top_products?.length > 0 && (
+            {/* Products sold -- every product sold this day (all_products),
+                not just the top few; falls back to top_products against an
+                older paired backend that hasn't picked up all_products yet. */}
+            {(summary.all_products ?? summary.top_products ?? []).length > 0 && (
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5">
                 <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4 font-display">
-                  {s.topProducts || 'Top Products'}
+                  {s.productsSold || 'Products Sold'}
                 </h2>
                 <div className="flex items-center gap-3 px-0 mb-1">
                   <span className="w-4 shrink-0" />
@@ -240,7 +250,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-16 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
                 </div>
                 <div className="space-y-3">
-                  {summary.top_products.map((p, i) => (
+                  {(summary.all_products ?? summary.top_products ?? []).map((p, i) => (
                     <div key={i} className="flex items-center gap-3">
                       <span className="text-xs font-bold text-slate-300 dark:text-slate-600 w-4 text-right shrink-0">{i + 1}</span>
                       <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{p.name}</span>
@@ -252,6 +262,65 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               </div>
             )}
           </>
+        )}
+      </div>
+      </div>
+
+      {/* Off-screen: react-to-print copies only this ref, at the configured
+          paper width, into the print window -- the visible report above
+          (styled for screen, and capped to the top 5 products) never prints. */}
+      <div style={{ position: 'fixed', top: '-10000px', left: '-10000px', pointerEvents: 'none' }} aria-hidden="true">
+        {hasData && (
+          <div ref={printRef} style={{ width: `${paperMm}mm` }} className="bg-white text-black font-sans text-[10px] leading-snug px-1">
+            {shop.storeName && <p className="text-center font-bold text-xs">{shop.storeName}</p>}
+            {shop.storeAddress && <p className="text-center text-[9px]">{shop.storeAddress}</p>}
+            <p className="text-center font-bold text-xs mt-1">{s.title || 'Daily Sales Summary'}</p>
+            <p className="text-center mb-1.5">{formatDisplayDate(selectedDate)}</p>
+            <hr className="border-dashed border-black my-1" />
+
+            <div className="flex justify-between"><span>{s.revenue || 'Revenue'}</span><span className="font-bold">{fmt(summary.total_revenue, summary.total_revenue_khr)}</span></div>
+            <div className="flex justify-between"><span>{s.orders || 'Orders'}</span><span className="font-bold">{summary.order_count}</span></div>
+            <div className="flex justify-between"><span>{s.avg || 'Avg'}</span><span>{fmt(summary.avg_order, summary.avg_order_khr)}</span></div>
+            <div className="flex justify-between"><span>{s.grossProfit || 'Gross Profit'}</span><span className="font-bold">{fmt(summary.gross_profit)}</span></div>
+            <div className="flex justify-between">
+              <span>{s.margin || 'Margin'}</span>
+              <span>{summary.total_revenue > 0 ? `${((summary.gross_profit / summary.total_revenue) * 100).toFixed(1)}%` : '—'}</span>
+            </div>
+
+            {summary.by_method?.length > 0 && (
+              <>
+                <hr className="border-dashed border-black my-1" />
+                <p className="font-bold uppercase">{s.paymentBreakdown || 'Payment Breakdown'}</p>
+                {summary.by_method.map((m) => (
+                  <div key={m.payment_method} className="flex justify-between">
+                    <span>{methodLabel(m.payment_method)} ({m.count})</span>
+                    <span>{fmt(m.total, m.total_khr)}</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            <hr className="border-dashed border-black my-1" />
+            <p className="font-bold uppercase">{s.productsSold || 'Products Sold'}</p>
+            <div className="flex gap-1 font-bold border-b border-black pb-0.5 mb-0.5">
+              <span className="flex-1">{s.topProducts || 'Product'}</span>
+              <span className="w-6 text-right shrink-0">{s.colQty || 'Qty'}</span>
+              <span className="w-12 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
+            </div>
+            {/* all_products: every product sold that day, not just the top 5
+                shown on screen above -- falls back to top_products against an
+                older paired backend that hasn't picked up all_products yet. */}
+            {(summary.all_products ?? summary.top_products ?? []).map((p, i) => (
+              <div key={i} className="flex gap-1">
+                <span className="flex-1 truncate">{p.name}</span>
+                <span className="w-6 text-right shrink-0">{p.total_qty}</span>
+                <span className="w-12 text-right shrink-0">{fmt(p.revenue)}</span>
+              </div>
+            ))}
+
+            <hr className="border-dashed border-black my-1" />
+            <p className="text-center text-[9px]">{new Date().toLocaleString()}</p>
+          </div>
         )}
       </div>
     </div>

@@ -21,5 +21,6 @@ export async function storeDailySummary(storeId: string, dateFrom: Date, dateTo:
     gross_profit: s.grossProfit,
     by_method: s.byMethod.map((m) => ({ payment_method: m.paymentMethod, count: m.count, total: m.total, total_khr: m.totalKhr })),
     top_products: s.topProducts.map((p) => ({ name: p.name, total_qty: p.totalQty, revenue: p.revenue })),
+    all_products: s.allProducts.map((p) => ({ name: p.name, total_qty: p.totalQty, revenue: p.revenue })),
   };
 }
