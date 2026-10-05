@@ -63,6 +63,33 @@ describe("product CRUD", () => {
     expect(readAfterDelete.status).toBe(404);
   });
 
+  it("bulk-deletes only the products that actually belong to this store", async () => {
+    const { store } = await seedFixtures();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    const token = await loginAsAdmin();
+
+    const { product: a } = await addProduct(store.id, { name: "A", price: 1, stock: 1 });
+    const { product: b } = await addProduct(store.id, { name: "B", price: 1, stock: 1 });
+    const { product: elsewhere } = await addProduct(otherStore.id, { name: "Elsewhere", price: 1, stock: 1 });
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/products/bulk-delete`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productIds: [a.id, b.id, elsewhere.id] });
+    expect(res.status).toBe(200);
+    // Only a and b belong to this store -- elsewhere's product is silently skipped.
+    expect(res.body.deleted).toBe(2);
+
+    const [readA, readB, freshElsewhere] = await Promise.all([
+      request(app).get(`/api/stores/${store.id}/products/${a.id}`).set("Authorization", `Bearer ${token}`),
+      request(app).get(`/api/stores/${store.id}/products/${b.id}`).set("Authorization", `Bearer ${token}`),
+      prisma.product.findUniqueOrThrow({ where: { id: elsewhere.id } }),
+    ]);
+    expect(readA.status).toBe(404);
+    expect(readB.status).toBe(404);
+    expect(freshElsewhere.isDeleted).toBe(false);
+  });
+
   it("sets, reads, and clears a per-store price override independently of the chain default price", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();

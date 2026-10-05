@@ -155,6 +155,26 @@ export async function deleteProduct(storeId: string, productId: string) {
 }
 
 /**
+ * Same soft-delete as deleteProduct above, batched. Silently drops any id
+ * that isn't actually in this store's catalog (already deleted, or never
+ * belonged here) rather than failing the whole batch over it -- the caller
+ * only has a snapshot of what was on screen when they selected rows.
+ */
+export async function bulkDeleteProducts(storeId: string, productIds: string[]): Promise<{ deleted: number }> {
+  const rows = await prisma.storeProduct.findMany({
+    where: { storeId, productId: { in: productIds }, product: { isDeleted: false } },
+    select: { productId: true },
+  });
+  if (rows.length === 0) return { deleted: 0 };
+
+  await prisma.product.updateMany({
+    where: { id: { in: rows.map((r) => r.productId) } },
+    data: { isDeleted: true },
+  });
+  return { deleted: rows.length };
+}
+
+/**
  * Sets a store's stock to a manager-supplied corrected count, leaving an
  * audit-tracked ADJUSTMENT ledger row — unlike the plain PUT above, which
  * writes StoreProduct.stock directly with no ledger entry. Used by the

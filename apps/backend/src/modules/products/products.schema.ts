@@ -45,4 +45,8 @@ export const bulkImportSchema = z.object({
   updateExisting: z.boolean().default(false),
 });
 
+export const bulkDeleteSchema = z.object({
+  productIds: z.array(z.string().min(1)).min(1),
+});
+
 export type BulkImportRow = z.infer<typeof bulkImportRowSchema>;

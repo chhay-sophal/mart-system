@@ -69,6 +69,10 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
+  // Bulk delete: ids persist across filter/sort/page changes (so a multi-page
+  // selection isn't silently dropped), but reset when switching stores.
+  const [selected, setSelected] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -92,12 +96,20 @@ export default function ProductsPage() {
   );
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageIds = pageRows.map((p) => p.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const somePageSelected = !allPageSelected && pageIds.some((id) => selected.has(id));
   const filterCount = activeFilterCount(filters);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [filters, sort, storeId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelected(new Set());
+  }, [storeId]);
 
   // "/" jumps to the search box (unless already typing somewhere).
   useEffect(() => {
@@ -174,6 +186,40 @@ export default function ProductsPage() {
     }
   }
 
+  function toggleSelected(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Only affects the current page's rows -- a selection can span pages, but
+  // "select all" shouldn't silently reach into rows the user can't see.
+  function toggleSelectPage(ids, selectAll) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (selectAll ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!window.confirm(`Remove ${selected.size} selected product${selected.size === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    try {
+      await apiClient.post(`/api/stores/${storeId}/products/bulk-delete`, { productIds: Array.from(selected) });
+      setSelected(new Set());
+      await load();
+    } catch {
+      setError('Failed to remove the selected products.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -213,6 +259,22 @@ export default function ProductsPage() {
         )}
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <span className="text-sm font-medium text-indigo-700">{selected.size} selected</span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {bulkDeleting ? 'Removing…' : 'Delete selected'}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700 ml-auto">
+            Clear selection
+          </button>
+        </div>
+      )}
+
       {(error || productsQuery.isError) && (
         <p className="text-sm text-red-600 mb-3">{error || 'Failed to load products.'}</p>
       )}
@@ -221,6 +283,13 @@ export default function ProductsPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
             <tr>
+              <th className="px-4 py-2 w-8">
+                <SelectAllCheckbox
+                  checked={allPageSelected}
+                  indeterminate={somePageSelected}
+                  onChange={() => toggleSelectPage(pageIds, !allPageSelected)}
+                />
+              </th>
               <FilterableHeader
                 col="name" label="Name" sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
@@ -287,19 +356,27 @@ export default function ProductsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400" colSpan={6}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
             ) : (
               pageRows.map((p) => (
-                <tr key={p.id} className="border-t border-[var(--border)]">
+                <tr key={p.id} className={`border-t border-[var(--border)] ${selected.has(p.id) ? 'bg-indigo-50/50' : ''}`}>
+                  <td className="px-4 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p.id)}
+                      onChange={() => toggleSelected(p.id)}
+                      className="accent-indigo-600 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-4 py-2">{p.name}</td>
                   <td className="px-4 py-2 text-slate-500">{p.barcode ?? '—'}</td>
                   <td className="px-4 py-2">
@@ -469,6 +546,17 @@ export default function ProductsPage() {
 }
 
 const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 py-1.5 text-sm bg-white text-slate-700';
+
+// A plain `checked` prop can't express "some but not all rows on this page
+// are selected" -- that's the DOM-only `indeterminate` property, which has
+// no JSX attribute and must be set imperatively on the element itself.
+function SelectAllCheckbox({ checked, indeterminate, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return <input ref={ref} type="checkbox" checked={checked} onChange={onChange} className="accent-indigo-600 cursor-pointer" />;
+}
 
 function FilterIcon({ className }) {
   return (
