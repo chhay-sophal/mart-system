@@ -17,12 +17,6 @@ import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalK
 const PAGE_SIZE = 20;
 const PAYMENT_METHODS = ['CASH', 'KHQR', 'STATIC_QR', 'CARD'];
 const PAYMENT_LABELS = { CASH: 'Cash', KHQR: 'KHQR', STATIC_QR: 'Static QR', CARD: 'Card' };
-const PERIODS = [
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: '7 days' },
-  { key: 'month', label: '30 days' },
-  { key: 'all', label: 'All' },
-];
 
 // Riel is shown to the nearest 100 (the smallest note), like the POS.
 const fmtDateTime = (iso) =>
@@ -30,13 +24,41 @@ const fmtDateTime = (iso) =>
 const itemCount = (o) => (o.items || []).reduce((sum, i) => sum + i.quantity, 0);
 const isVoided = (o) => o.status === 'VOIDED';
 
-function periodRange(period) {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === 'today') return { from: start };
-  if (period === 'week') return { from: new Date(start.getTime() - 7 * 86400_000) };
-  if (period === 'month') return { from: new Date(start.getTime() - 30 * 86400_000) };
-  return {};
+// Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
+// UTC first, so anywhere east of UTC it can silently land on the wrong
+// calendar day for part of the local day.
+const toLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// dateFrom/dateTo are plain 'YYYY-MM-DD' (<input type="date"> values, local
+// time, no timezone). Empty means unbounded on that side -- "All time" is
+// just both sides empty, not a distinct mode. Shared by the main list filter
+// and the export modal below.
+function getDateRange(dateFrom, dateTo) {
+  const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+  let to = null;
+  if (dateTo) {
+    to = new Date(`${dateTo}T00:00:00`);
+    to.setDate(to.getDate() + 1); // exclusive upper bound -- through the end of the selected day
+  }
+  return { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null };
+}
+
+const DATE_PRESETS = ['today', 'yesterday', '7d', '30d', 'all'];
+const DATE_PRESET_LABELS = { today: 'Today', yesterday: 'Yesterday', '7d': '7 days', '30d': '30 days', all: 'All' };
+
+// The {from, to} the date inputs land on for each shortcut -- shared by
+// applyDatePreset (sets it) and the active-chip check (detects it), so they
+// can never silently drift apart. 'month' is export-only (see ExportModal).
+function presetRange(preset) {
+  const today = new Date();
+  const fmt = toLocalDateStr;
+  const todayStr = fmt(today);
+  if (preset === 'today') return { from: todayStr, to: todayStr };
+  if (preset === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); const y = fmt(d); return { from: y, to: y }; }
+  if (preset === '7d')  { const d = new Date(today); d.setDate(d.getDate() - 7);  return { from: fmt(d), to: todayStr }; }
+  if (preset === '30d') { const d = new Date(today); d.setDate(d.getDate() - 30); return { from: fmt(d), to: todayStr }; }
+  if (preset === 'month') return { from: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), to: todayStr };
+  return { from: '', to: '' }; // 'all'
 }
 
 const EXPORT_COLUMNS = [
@@ -63,7 +85,9 @@ export default function SalesHistoryPage() {
   const { stores } = useAuth();
 
   const [storeFilter, setStoreFilter] = useState(currentStoreId ?? '');
-  const [period, setPeriod] = useState('today');
+  // Free-form date range, not a fixed set of periods -- defaults to today.
+  const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
+  const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
   const [payFilter, setPayFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showVoided, setShowVoided] = useState(false);
@@ -78,19 +102,19 @@ export default function SalesHistoryPage() {
 
   const allBranches = storeFilter === '';
 
-  // Cached per branch + period (lib/queryClient.js): re-opening the tab or
+  // Cached per branch + range (lib/queryClient.js): re-opening the tab or
   // flipping back to a filter already viewed is instant, refreshed in the
-  // background when stale. The period's start is worked out at fetch time,
-  // so "Today" is always today's.
+  // background when stale.
   const queryClient = useQueryClient();
-  const ordersKey = queryKeys.orders({ storeId: storeFilter, period });
+  const ordersKey = queryKeys.orders({ storeId: storeFilter, dateFrom, dateTo });
   const ordersQuery = useQuery({
     queryKey: ordersKey,
     queryFn: () => {
-      const { from } = periodRange(period);
+      const { from, to } = getDateRange(dateFrom, dateTo);
       const query = {};
       if (storeFilter) query.storeId = storeFilter;
-      if (from) query.date_from = from.toISOString();
+      if (from) query.date_from = from;
+      if (to) query.date_to = to;
       return apiClient.get('/api/orders', query);
     },
     placeholderData: (previous) => previous, // keep the last rows on screen while a new filter loads
@@ -98,10 +122,25 @@ export default function SalesHistoryPage() {
   const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
   const loading = ordersQuery.isPending;
 
+  // Quick shortcuts onto the same free-form range the date inputs edit --
+  // "All" is just both sides cleared, not a separate mode.
+  const applyDatePreset = (preset) => {
+    const { from, to } = presetRange(preset);
+    setDateFrom(from);
+    setDateTo(to);
+  };
+  // Highlights a preset chip only while the inputs still exactly match it --
+  // editing a date by hand deselects every chip, which is the correct "this
+  // is now a custom range" signal rather than a stale/misleading highlight.
+  const activeDatePreset = DATE_PRESETS.find((p) => {
+    const r = presetRange(p);
+    return r.from === dateFrom && r.to === dateTo;
+  });
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [storeFilter, period, payFilter, search, showVoided, sort]);
+  }, [storeFilter, dateFrom, dateTo, payFilter, search, showVoided, sort]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -185,17 +224,34 @@ export default function SalesHistoryPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Period</label>
-          <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
-            {PERIODS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => setPeriod(p.key)}
-                className={`px-3 py-1.5 text-sm ${period === p.key ? 'bg-[var(--accent)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <label className="block text-xs font-medium text-slate-600 mb-1">Date range</label>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
+              {DATE_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => applyDatePreset(preset)}
+                  className={`px-3 py-1.5 text-sm whitespace-nowrap ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                >
+                  {DATE_PRESET_LABELS[preset]}
+                </button>
+              ))}
+            </div>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            />
+            <span className="text-slate-400">–</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            />
           </div>
         </div>
         <div>
@@ -398,11 +454,9 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
 }
 
 function ExportModal({ stores, defaultStoreId, onClose }) {
-  const today = new Date();
-  const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const [storeId, setStoreId] = useState(defaultStoreId);
-  const [dateFrom, setDateFrom] = useState(isoDay(today));
-  const [dateTo, setDateTo] = useState(isoDay(today));
+  const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
+  const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
   const [payment, setPayment] = useState('all');
   const [includeVoided, setIncludeVoided] = useState(false);
   const [columns, setColumns] = useState(() => new Set(DEFAULT_EXPORT_COLUMNS));
@@ -410,13 +464,9 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
   const [error, setError] = useState('');
 
   const preset = (key) => {
-    const end = isoDay(today);
-    const daysAgo = (n) => isoDay(new Date(today.getFullYear(), today.getMonth(), today.getDate() - n));
-    if (key === 'today') { setDateFrom(end); setDateTo(end); }
-    if (key === '7d') { setDateFrom(daysAgo(7)); setDateTo(end); }
-    if (key === '30d') { setDateFrom(daysAgo(30)); setDateTo(end); }
-    if (key === 'month') { setDateFrom(isoDay(new Date(today.getFullYear(), today.getMonth(), 1))); setDateTo(end); }
-    if (key === 'all') { setDateFrom(''); setDateTo(''); }
+    const { from, to } = presetRange(key);
+    setDateFrom(from);
+    setDateTo(to);
   };
 
   async function runExport() {
@@ -425,13 +475,9 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
     try {
       const query = { limit: 5000 };
       if (storeId) query.storeId = storeId;
-      // Local calendar days -> instants: from the start of dateFrom to the start of the day after dateTo.
-      if (dateFrom) query.date_from = new Date(`${dateFrom}T00:00:00`).toISOString();
-      if (dateTo) {
-        const end = new Date(`${dateTo}T00:00:00`);
-        end.setDate(end.getDate() + 1);
-        query.date_to = end.toISOString();
-      }
+      const { from, to } = getDateRange(dateFrom, dateTo);
+      if (from) query.date_from = from;
+      if (to) query.date_to = to;
       const rows = (await apiClient.get('/api/orders', query))
         .filter((o) => includeVoided || !isVoided(o))
         .filter((o) => payment === 'all' || o.payment_method === payment);
@@ -491,7 +537,7 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[['today', 'Today'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['all', 'All time']].map(([key, label]) => (
+          {[['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['all', 'All time']].map(([key, label]) => (
             <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50">
               {label}
             </button>
