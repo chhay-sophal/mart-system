@@ -13,6 +13,8 @@ import { useToast } from './Toast';
 import { invalidateSales } from './queryClient';
 import PrinterSettings from './receipt/PrinterSettings';
 import ReceiptSettings from './receipt/ReceiptSettings';
+import BankQrSettings from './BankQrSettings';
+import { STATIC_QR_KEY } from './staticQr';
 import { PRINTER_DEFAULTS } from './receipt/thermalPrinter';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
@@ -61,7 +63,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     sync_backend_url: '',
     sync_terminal_id: '',
     sync_device_secret: '',
-    [STANDBY_IMAGE_KEY]: ''
+    [STANDBY_IMAGE_KEY]: '',
+    [STATIC_QR_KEY]: '[]',
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -613,6 +616,10 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             className={inputNormal} placeholder="Phnom Penh" />
                         </div>
                       </div>
+                    </div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-6 mb-3">{s.bankQrSection?.header || 'Bank QR codes'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                      <BankQrSettings settings={settings} setSettings={setSettings} q={s.bankQrSection || {}} inputClass={inputNormal} />
                     </div>
                   </div>
                 )}
