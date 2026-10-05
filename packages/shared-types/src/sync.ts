@@ -8,6 +8,8 @@ export interface SaleCompletedPayload {
   items: OrderItem[];
   paymentMethod: PaymentMethod;
   totalAmount: number;
+  /** Currency of totalAmount: the store's main currency at the time of sale. Defaults to USD. */
+  currency?: Currency;
   amountPaidUsd: number;
   amountPaidKhr: number;
   changeGivenKhr: number;

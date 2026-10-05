@@ -12,6 +12,9 @@ export const saleCompletedPayloadSchema = z.object({
   items: z.array(orderItemSchema).min(1),
   paymentMethod: z.enum(["CASH", "KHQR", "CARD", "STATIC_QR"]),
   totalAmount: z.number().nonnegative(),
+  // Currency of totalAmount: the store's main currency at the time of sale.
+  // Registers from before this field always sent USD.
+  currency: z.enum(["USD", "KHR"]).default("USD"),
   amountPaidUsd: z.number().nonnegative(),
   amountPaidKhr: z.number().nonnegative(),
   changeGivenKhr: z.number().nonnegative(),

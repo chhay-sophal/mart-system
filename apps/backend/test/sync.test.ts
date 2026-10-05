@@ -83,6 +83,36 @@ describe("POST /api/sync/push", () => {
     expect(storeProduct?.stock).toBe(8);
   });
 
+  it("stores a riel store's total in riel", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }],
+        totalAmount: 12300,
+        currency: "KHR",
+      },
+    });
+
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+
+    expect(res.body.results[0].status).toBe("applied");
+    const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid } });
+    expect(order).toMatchObject({ totalAmountMinor: 12300, currency: "KHR" });
+  });
+
+  it("reads a total without a currency (older registers) as USD", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    const event = saleEvent({ payload: { ...saleEvent().payload, items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }] } });
+
+    await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+
+    const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid } });
+    expect(order).toMatchObject({ totalAmountMinor: 300, currency: "USD" });
+  });
+
   it("treats a replayed eventId as a duplicate and does not double-decrement stock", async () => {
     const { store, terminal } = await seedFixtures();
     const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });

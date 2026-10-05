@@ -6,8 +6,9 @@ import { resolveAccessibleStoreIds, type ReportUser } from "../reports/reports.s
 
 // Order lists for POS Order History (terminalReports) and IMS Sales History,
 // in the snake_case shape the POS screen was built around, so both render the
-// same rows. total_amount is USD (what the screens convert for display), and
-// exchange_rate is the order's store rate, for showing riel.
+// same rows. total + currency are the total as stored (the store's main
+// currency at the time of sale); total_amount is the same in USD, for sums and
+// sorting across currencies; exchange_rate is the store's rate.
 
 const LEGACY_PREFIX = "online-pos:";
 const DEFAULT_EXCHANGE_RATE = 4100;
@@ -56,6 +57,8 @@ function toOrderView(order: OrderWithDetails, rate: number) {
     terminal_id: order.terminalId,
     terminal_name: order.terminal.name,
     created_at: order.createdAt.toISOString(),
+    total: fromMinorUnits(order.totalAmountMinor, order.currency),
+    currency: order.currency,
     total_amount: toUsd(order.totalAmountMinor, order.currency),
     exchange_rate: rate,
     payment_method: order.paymentMethod,

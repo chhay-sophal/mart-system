@@ -64,6 +64,8 @@ describe("GET /api/terminal/orders", () => {
       receipt_no: "OP-0007",
       terminal_name: "Register 2",
       created_at: "2026-10-02T03:00:00.000Z",
+      total: 41000,
+      currency: "KHR",
       total_amount: 10, // 41000 KHR at the default 4100 rate, in USD
       payment_method: "CASH",
       items: [{ product_name: "Widget", quantity: 2, price: 1.5, currency: "USD" }],
