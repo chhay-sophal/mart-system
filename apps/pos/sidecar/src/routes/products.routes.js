@@ -20,6 +20,14 @@ router.get('/api/products/barcode/:barcode', (req, res) => {
   res.json(rows[0]);
 });
 
+// The whole branch catalog, for the register's Products tab (issue #13):
+// read-only, searched on screen so results update as the cashier types.
+router.get('/api/products', (req, res) => {
+  res.json(
+    query('SELECT id, name, barcode, price, currency, stock FROM products WHERE is_deleted = 0 ORDER BY name COLLATE NOCASE')
+  );
+});
+
 router.get('/api/products/low-stock', (req, res) => {
   const threshold = parseInt(req.query.threshold) || 5;
   const items = query(
