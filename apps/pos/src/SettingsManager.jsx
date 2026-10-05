@@ -507,7 +507,9 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                         <div>
                           <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{s.generalSection?.customerDisplay || 'Customer display'}</p>
                           <p className={`text-xs mt-0.5 ${customerDisplay.error && !customerDisplay.open ? 'text-rose-600 dark:text-rose-400' : customerDisplay.open ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                            {customerDisplay.open
+                            {customerDisplay.preview
+                              ? 'Showing in a preview window (dev build).'
+                              : customerDisplay.open
                               ? (s.generalSection?.displayShowing || 'Showing on the second monitor ({name}). {count} monitors detected.')
                                   .replace('{name}', customerDisplay.monitorName || '—')
                                   .replace('{count}', customerDisplay.monitorCount)
@@ -517,6 +519,15 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                                   ? s.generalSection?.displayChecking || 'Checking monitors…'
                                   : s.generalSection?.displayOneMonitor || 'Only one monitor detected.'}
                           </p>
+                          {/* Dev builds: see the customer display without a second monitor.
+                              Developer-only, so not translated. */}
+                          {customerDisplay.canPreview && (customerDisplay.preview || customerDisplay.monitorCount <= 1) && (
+                            <button type="button" onClick={() => customerDisplay.setPreview(!customerDisplay.preview)}
+                              className="mt-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                              <Monitor size={12} />
+                              {customerDisplay.preview ? 'Close preview window' : 'Open preview window'}
+                            </button>
+                          )}
                         </div>
                       )}
                       <ToggleRow
