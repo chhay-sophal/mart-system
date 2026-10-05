@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { translations as t } from '../locales';
 import { bitsToCanvas } from './raster';
 import { printerConfig, receiptImageUrl, receiptLocale, sampleInvoice, sampleShop, thermalImage } from './thermalPrinter';
-import { MAX_COPIES, MAX_FEED_LINES, TEXT_SIZES } from './receiptOptions';
+import { FONT_WEIGHTS, MAX_COPIES, MAX_FEED_LINES, TEXT_SIZES } from './receiptOptions';
 
 const PREVIEW_DELAY_MS = 250;
 
@@ -123,6 +123,12 @@ export default function ReceiptSettings({ settings, setSettings, p, locale, Togg
         {label(r.textSize || 'Text size')}
         <div className="mt-2">
           {choices('receipt_text_size', TEXT_SIZES, (v) => ({ small: r.sizeSmall || 'Small', normal: r.sizeNormal || 'Normal', large: r.sizeLarge || 'Large' })[v])}
+        </div>
+      </div>
+      <div>
+        {label(r.fontWeight || 'Font weight')}
+        <div className="mt-2">
+          {choices('receipt_font_weight', FONT_WEIGHTS, (v) => ({ light: r.weightLight || 'Light', normal: r.weightNormal || 'Normal', bold: r.weightBold || 'Bold' })[v])}
         </div>
       </div>
       {thermal && (

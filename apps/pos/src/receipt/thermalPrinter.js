@@ -49,6 +49,7 @@ export const thermalImage = (invoiceData, locale, config) =>
   renderReceipt(blocksFor(invoiceData, locale, config), {
     paper: config.paper,
     textSize: config.receipt.textSize,
+    fontWeight: config.receipt.fontWeight,
     darkness: config.receipt.darkness,
   });
 
@@ -63,6 +64,7 @@ export async function receiptImageUrl(invoiceData, locale, config) {
   const canvas = await drawReceipt(blocksFor(invoiceData, locale, config), {
     paper: config.paper,
     textSize: config.receipt.textSize,
+    fontWeight: config.receipt.fontWeight,
     mono: false,
     scale: 3,
   });

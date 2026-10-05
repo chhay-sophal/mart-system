@@ -18,15 +18,27 @@ const LOGO_MAX = { width: 0.5, height: 120 }; // share of the width, dots
 // Darker settings print greyer pixels too (0-255: darker than this prints).
 const INK_THRESHOLD = { 1: 120, 2: 140, 3: 160, 4: 185, 5: 210 };
 
-const fontFor = (px, bold) => `${bold ? 700 : 500} ${px}px ${FONT_FAMILY}`;
+// Font weights for regular and bold text. Kantumruy Pro is loaded at
+// 300..700 (index.html), so bold tops out at 700; heavier regular text is
+// what helps on a faint thermal printer.
+const FONT_WEIGHTS = {
+  light: { regular: 400, bold: 500 },
+  normal: { regular: 500, bold: 600 },
+  bold: { regular: 600, bold: 700 },
+};
+
+const fontFor = (px, bold, weight = 'normal') => {
+  const w = FONT_WEIGHTS[weight] || FONT_WEIGHTS.normal;
+  return `${bold ? w.bold : w.regular} ${px}px ${FONT_FAMILY}`;
+};
 
 /** Waits for the receipt font (Google Fonts, see index.html); system fonts if offline. */
-async function loadFonts(base) {
+async function loadFonts(base, weight) {
   if (!document.fonts?.load) return;
   const sample = 'Aក៛$1';
   await Promise.allSettled([
-    document.fonts.load(fontFor(base, false), sample),
-    document.fonts.load(fontFor(base, true), sample),
+    document.fonts.load(fontFor(base, false, weight), sample),
+    document.fonts.load(fontFor(base, true, weight), sample),
   ]);
 }
 
@@ -106,13 +118,14 @@ function ditherInto(ctx, img, x, y, w, h) {
   ctx.putImageData(data, x, y);
 }
 
-function layout(ctx, blocks, { width, base, draw, images, mono }) {
+function layout(ctx, blocks, { width, base, weight, draw, images, mono }) {
+  const font = (px, bold) => fontFor(px, bold, weight);
   const margin = 4;
   const inner = width - margin * 2;
   let y = margin;
 
   const text = (str, x, size, bold, align = 'left') => {
-    ctx.font = fontFor(base * SIZE_SCALE[size], bold);
+    ctx.font = font(base * SIZE_SCALE[size], bold);
     ctx.textAlign = align;
     if (draw) ctx.fillText(str, x, y);
   };
@@ -121,7 +134,7 @@ function layout(ctx, blocks, { width, base, draw, images, mono }) {
   // Label on the left, value on the right; a label that doesn't fit beside
   // the value wraps above it.
   const pair = (left, right, size = 'md', bold = false, indent = 0) => {
-    ctx.font = fontFor(base * SIZE_SCALE[size], bold);
+    ctx.font = font(base * SIZE_SCALE[size], bold);
     const rightWidth = right ? ctx.measureText(right).width : 0;
     const room = inner - indent;
     if (left && right && ctx.measureText(left).width + GAP + rightWidth > room && rightWidth > room / 2) {
@@ -154,7 +167,7 @@ function layout(ctx, blocks, { width, base, draw, images, mono }) {
       }
       case 'text': {
         const size = block.size || 'md';
-        ctx.font = fontFor(base * SIZE_SCALE[size], block.bold);
+        ctx.font = font(base * SIZE_SCALE[size], block.bold);
         const x = block.align === 'center' ? width / 2 : margin;
         for (const l of wrap(ctx, block.text, inner)) {
           text(l, x, size, block.bold, block.align === 'center' ? 'center' : 'left');
@@ -166,11 +179,11 @@ function layout(ctx, blocks, { width, base, draw, images, mono }) {
         pair(block.left, block.right, block.size, block.bold);
         break;
       case 'item': {
-        ctx.font = fontFor(base, true);
+        ctx.font = font(base, true);
         const indent = block.no ? Math.ceil(ctx.measureText('00. ').width) : 0;
         if (block.no) text(block.no, margin, 'md', true);
         if (block.detail) {
-          ctx.font = fontFor(base, true);
+          ctx.font = font(base, true);
           for (const l of wrap(ctx, block.name, inner - indent)) {
             text(l, margin + indent, 'md', true);
             y += lineHeight('md');
@@ -201,11 +214,12 @@ function layout(ctx, blocks, { width, base, draw, images, mono }) {
  * `scale`, for a sharper image in the print dialog).
  *   mono: draw the logo dithered, as the thermal printer will print it
  *   textSize: 'small' | 'normal' | 'large'
+ *   fontWeight: 'light' | 'normal' | 'bold'
  */
-export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', mono = true, scale = 1 } = {}) {
+export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', fontWeight = 'normal', mono = true, scale = 1 } = {}) {
   const width = PAPER_DOTS[paper] || PAPER_DOTS[58];
   const base = Math.round((BASE_SIZE[paper] || BASE_SIZE[58]) * (TEXT_SIZE_SCALE[textSize] || 1));
-  await loadFonts(base);
+  await loadFonts(base, fontWeight);
   const sources = [...new Set(blocks.filter((b) => b.type === 'image').map((b) => b.src))];
   const images = new Map(await Promise.all(sources.map(async (src) => [src, await loadImage(src)])));
 
@@ -214,7 +228,7 @@ export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', mon
   canvas.height = 1;
   const measure = canvas.getContext('2d');
   measure.textBaseline = 'top';
-  const height = layout(measure, blocks, { width, base, draw: false, images });
+  const height = layout(measure, blocks, { width, base, weight: fontWeight, draw: false, images });
 
   canvas.width = Math.round(width * scale); // resets the context
   canvas.height = Math.round(height * scale);
@@ -224,7 +238,7 @@ export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', mon
   ctx.scale(scale, scale);
   ctx.fillStyle = '#000';
   ctx.textBaseline = 'top';
-  layout(ctx, blocks, { width, base, draw: true, images, mono: mono && scale === 1 });
+  layout(ctx, blocks, { width, base, weight: fontWeight, draw: true, images, mono: mono && scale === 1 });
   return canvas;
 }
 
@@ -232,8 +246,8 @@ export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', mon
  * The receipt as 1-bit rows for the thermal printer: `bytes` holds `height`
  * rows of `width / 8` bytes, most significant bit = leftmost dot, 1 = black.
  */
-export async function renderReceipt(blocks, { paper = 58, textSize = 'normal', darkness = 3 } = {}) {
-  const canvas = await drawReceipt(blocks, { paper, textSize, mono: true });
+export async function renderReceipt(blocks, { paper = 58, textSize = 'normal', fontWeight = 'normal', darkness = 3 } = {}) {
+  const canvas = await drawReceipt(blocks, { paper, textSize, fontWeight, mono: true });
   const { width, height } = canvas;
   const rgba = canvas.getContext('2d').getImageData(0, 0, width, height).data;
   return { width, height, bytes: toBits(rgba, width, height, INK_THRESHOLD[darkness] || INK_THRESHOLD[3]), canvas };

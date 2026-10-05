@@ -18,6 +18,7 @@ export const RECEIPT_DEFAULTS = {
   receipt_show_payment: 'true',
   receipt_footer_text: '', // '' = the standard thank-you line
   receipt_text_size: 'normal', // small | normal | large
+  receipt_font_weight: 'normal', // light | normal | bold
   receipt_darkness: '3', // 1 (lightest) .. 5 (darkest), thermal printers only
   receipt_feed_lines: '3', // blank lines after the receipt (more for printers without a cutter)
   receipt_copies: '1',
@@ -30,6 +31,7 @@ export const MAX_FOOTER_LINES = 5;
 export const MAX_COPIES = 3;
 export const MAX_FEED_LINES = 10;
 export const TEXT_SIZES = ['small', 'normal', 'large'];
+export const FONT_WEIGHTS = ['light', 'normal', 'bold'];
 
 const on = (value) => value === 'true';
 const clamp = (value, min, max, fallback) => {
@@ -62,6 +64,7 @@ export function receiptOptions(settings = {}) {
     showPayment: on(s.receipt_show_payment),
     footerLines: lines(s.receipt_footer_text, MAX_FOOTER_LINES),
     textSize: TEXT_SIZES.includes(s.receipt_text_size) ? s.receipt_text_size : 'normal',
+    fontWeight: FONT_WEIGHTS.includes(s.receipt_font_weight) ? s.receipt_font_weight : 'normal',
     darkness: clamp(s.receipt_darkness, 1, 5, 3),
     feedLines: clamp(s.receipt_feed_lines, 0, MAX_FEED_LINES, 3),
     copies: clamp(s.receipt_copies, 1, MAX_COPIES, 1),
