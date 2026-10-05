@@ -21,15 +21,17 @@ router.get('/api/summary/daily', async (req, res) => {
 
   const rateRow = query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0];
   const rate = parseFloat(rateRow?.value || '4100');
+  // Totals are stored in the store's main currency at the time; report in USD.
+  const TOTAL_USD = `CASE WHEN currency = 'KHR' THEN total_amount / ${rate} ELSE total_amount END`;
 
   const stats = query(
-    `SELECT COUNT(*) as order_count, COALESCE(SUM(total_amount), 0) as total_revenue
+    `SELECT COUNT(*) as order_count, COALESCE(SUM(${TOTAL_USD}), 0) as total_revenue
      FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0`,
     base
   )[0] || { order_count: 0, total_revenue: 0 };
 
   const byMethod = query(
-    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(total_amount), 0) as total
+    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(${TOTAL_USD}), 0) as total
      FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0
      GROUP BY payment_method ORDER BY total DESC`,
     base

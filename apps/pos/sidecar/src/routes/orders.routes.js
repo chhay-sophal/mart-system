@@ -16,7 +16,7 @@ function storeExchangeRate() {
 // it does NOT add a stock-availability check: negative stock is still allowed
 // (confirmed decision — never block a sale over stock, reconcile later).
 router.post('/api/orders/checkout', (req, res) => {
-  const { customer_id, items, payment_method, bank_name, total_amount, amount_paid_usd, amount_paid_khr, khqr_data, cashier_user_id } = req.body;
+  const { customer_id, items, payment_method, bank_name, total_amount, currency, amount_paid_usd, amount_paid_khr, khqr_data, cashier_user_id } = req.body;
 
   // The UI's own checkout button is already disabled for an empty cart, but
   // guard here too: an empty-items sale would still create an order locally,
@@ -26,9 +26,14 @@ router.post('/api/orders/checkout', (req, res) => {
     return res.status(400).json({ error: 'Cannot check out an empty cart' });
   }
 
-  // Stored at payment precision (money.js): USD to the cent, riel whole.
-  // Change is worked out from the stored total so the two always agree.
-  const totalUsd = roundUsd(total_amount);
+  // The total is stored in the currency the register charged in -- the
+  // store's main currency -- at payment precision (money.js): USD to the cent,
+  // riel to the note, exactly as the cashier saw it. Change is worked out from
+  // the stored total so the two always agree.
+  const rate = storeExchangeRate();
+  const totalCurrency = currency === 'KHR' ? 'KHR' : 'USD';
+  const total = totalCurrency === 'KHR' ? roundKhrToNote(total_amount) : roundUsd(total_amount);
+  const totalUsd = totalCurrency === 'KHR' ? roundUsd(total / rate) : total;
   const paidUsd = roundUsd(amount_paid_usd);
   const paidKhr = roundAmount(amount_paid_khr, 'KHR');
   const lines = items.map((item) => {
@@ -36,9 +41,8 @@ router.post('/api/orders/checkout', (req, res) => {
     return { id: item.id, quantity: item.quantity, currency, price: roundAmount(item.price, currency) };
   });
 
-  const rate = storeExchangeRate();
-  const changeInUsd = paidUsd + paidKhr / rate - totalUsd;
-  const changeGivenKhr = changeInUsd > 0 ? roundKhrToNote(changeInUsd * rate) : 0;
+  const changeKhr = paidUsd * rate + paidKhr - (totalCurrency === 'KHR' ? total : total * rate);
+  const changeGivenKhr = changeKhr > 0 ? roundKhrToNote(changeKhr) : 0;
   const clientOrderUuid = generateUuid();
 
   try {
@@ -47,11 +51,12 @@ router.post('/api/orders/checkout', (req, res) => {
     const orderId = run(
       `INSERT INTO orders
         (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, created_at)
-       VALUES (?, ?, ?, 'USD', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)`,
       [
         customer_id || null,
         cashier_user_id || null,
-        totalUsd,
+        total,
+        totalCurrency,
         payment_method,
         bank_name || null,
         paidUsd,
@@ -87,7 +92,8 @@ router.post('/api/orders/checkout', (req, res) => {
           currency: i.currency,
         })),
         paymentMethod: payment_method,
-        totalAmount: totalUsd,
+        totalAmount: total,
+        currency: totalCurrency,
         amountPaidUsd: paidUsd,
         amountPaidKhr: paidKhr,
         changeGivenKhr,
@@ -107,7 +113,7 @@ router.post('/api/orders/checkout', (req, res) => {
       run(
         `INSERT INTO khqr_transactions (order_id, md5_hash, qr_string, bank_name, transaction_currency, amount, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS', ?, ?)`,
-        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, totalUsd, localNow(), localNow()]
+        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, khqr_data.currency === totalCurrency ? total : totalUsd, localNow(), localNow()]
       );
     }
 
@@ -147,8 +153,13 @@ function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
     ...params,
     limit,
   ]);
+  const rate = storeExchangeRate();
+  // Same shape as the backend's orders: total + currency as stored,
+  // total_amount in USD for sums and sorting.
   return orders.map((order) => ({
     ...order,
+    total: order.total_amount,
+    total_amount: order.currency === 'KHR' ? order.total_amount / rate : order.total_amount,
     receipt_no: receiptNoFor(order.id),
     can_delete: true,
     items: query(

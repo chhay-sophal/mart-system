@@ -235,7 +235,7 @@ function runMigrations() {
  */
 function roundStoredUsdAmounts() {
   const usdColumns = [
-    ['orders', 'total_amount', ''],
+    ['orders', 'total_amount', "COALESCE(currency, 'USD') = 'USD' AND"], // riel totals are whole
     ['orders', 'amount_paid_usd', ''],
     ['order_items', 'price_at_sale', "currency = 'USD' AND"],
     ['products', 'price', "currency = 'USD' AND"],
