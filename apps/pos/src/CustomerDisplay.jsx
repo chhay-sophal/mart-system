@@ -81,8 +81,9 @@ export default function CustomerDisplay() {
     if (standbyImage) {
       return (
         <div className="h-screen w-screen bg-black flex items-center justify-center select-none overflow-hidden">
-          {/* contain, not cover: a promo poster's text must never be cropped */}
-          <img src={standbyImage} alt="" className="w-full h-full object-contain" />
+          {/* Fills the screen edge to edge (no black bars); an image of a different
+              shape is cropped at the edges, so 16:9 (e.g. 1920x1080) fits exactly. */}
+          <img src={standbyImage} alt="" className="w-full h-full object-cover" />
         </div>
       );
     }

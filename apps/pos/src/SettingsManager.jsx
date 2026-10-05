@@ -661,11 +661,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.standbySection?.title || 'Standby Image'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {s.standbySection?.help || "Shown full screen on the customer display while no sale is in progress. Stored on this register only; it isn't synced."}
+                        {s.standbySection?.help || "Fills the customer display while no sale is in progress. Use a 16:9 image (e.g. 1920×1080) so no edges are cropped. Stored on this register only; it isn't synced."}
                       </p>
                       <div className="aspect-video rounded-xl bg-slate-900 overflow-hidden flex items-center justify-center">
                         {settings[STANDBY_IMAGE_KEY]
-                          ? <img src={settings[STANDBY_IMAGE_KEY]} alt="" className="w-full h-full object-contain" />
+                          ? <img src={settings[STANDBY_IMAGE_KEY]} alt="" className="w-full h-full object-cover" />
                           : <span className="text-xs text-slate-500 px-4 text-center">{s.standbySection?.none || 'No image — the shop name is shown instead'}</span>}
                       </div>
                       <div className="flex items-center gap-2">
