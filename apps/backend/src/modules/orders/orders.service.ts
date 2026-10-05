@@ -25,14 +25,25 @@ export function receiptNo(clientOrderUuid: string): string {
   return clientOrderUuid.replace(/-/g, "").slice(0, 6).toUpperCase();
 }
 
-async function exchangeRates(storeIds: string[]): Promise<Map<string, number>> {
-  const rows = await prisma.storeSetting.findMany({ where: { storeId: { in: storeIds }, key: "exchange_rate" } });
-  const rates = new Map<string, number>();
+interface StoreMoney {
+  rate: number;
+  mainCurrency: "USD" | "KHR";
+}
+
+/** Each store's exchange rate and main currency (Settings in IMS). */
+async function storeMoney(storeIds: string[]): Promise<(storeId: string) => StoreMoney> {
+  const rows = await prisma.storeSetting.findMany({
+    where: { storeId: { in: storeIds }, key: { in: ["exchange_rate", "main_currency"] } },
+  });
+  const byStore = new Map<string, StoreMoney>();
+  const get = (storeId: string) => byStore.get(storeId) ?? { rate: DEFAULT_EXCHANGE_RATE, mainCurrency: "USD" as const };
   for (const row of rows) {
-    const rate = Number(row.value);
-    if (rate > 0) rates.set(row.storeId, rate);
+    const money = { ...get(row.storeId) };
+    if (row.key === "exchange_rate" && Number(row.value) > 0) money.rate = Number(row.value);
+    if (row.key === "main_currency" && row.value === "KHR") money.mainCurrency = "KHR";
+    byStore.set(row.storeId, money);
   }
-  return rates;
+  return get;
 }
 
 const orderInclude = {
@@ -43,7 +54,7 @@ const orderInclude = {
 
 type OrderWithDetails = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
 
-function toOrderView(order: OrderWithDetails, rate: number) {
+function toOrderView(order: OrderWithDetails, { rate, mainCurrency }: StoreMoney) {
   const toUsd = (minor: number, currency: "USD" | "KHR") => {
     const amount = fromMinorUnits(minor, currency);
     return currency === "KHR" ? amount / rate : amount;
@@ -61,6 +72,8 @@ function toOrderView(order: OrderWithDetails, rate: number) {
     currency: order.currency,
     total_amount: toUsd(order.totalAmountMinor, order.currency),
     exchange_rate: rate,
+    // Which currency the store's screens lead with.
+    main_currency: mainCurrency,
     payment_method: order.paymentMethod,
     bank_name: order.bankName,
     amount_paid_usd: fromMinorUnits(order.amountPaidUsdMinor, "USD"),
@@ -86,7 +99,7 @@ export type OrderView = ReturnType<typeof toOrderView>;
  */
 export async function listOrders(opts: { storeIds: string[]; dateFrom?: Date; dateTo?: Date; limit: number }): Promise<OrderView[]> {
   if (opts.storeIds.length === 0) return [];
-  const [orders, rates] = await Promise.all([
+  const [orders, money] = await Promise.all([
     prisma.order.findMany({
       where: {
         storeId: { in: opts.storeIds },
@@ -97,9 +110,9 @@ export async function listOrders(opts: { storeIds: string[]; dateFrom?: Date; da
       take: opts.limit,
       include: orderInclude,
     }),
-    exchangeRates(opts.storeIds),
+    storeMoney(opts.storeIds),
   ]);
-  return orders.map((order) => toOrderView(order, rates.get(order.storeId) ?? DEFAULT_EXCHANGE_RATE));
+  return orders.map((order) => toOrderView(order, money(order.storeId)));
 }
 
 /** IMS: one store or every store the user can see. */
@@ -152,9 +165,9 @@ export async function voidOrder(storeId: string, orderId: string): Promise<Order
     if (order.status === "VOIDED") throw badRequest("This sale is already voided");
     await voidOrderInTx(tx, order, { refType: "IMS_VOID" });
   });
-  const [order, rates] = await Promise.all([
+  const [order, money] = await Promise.all([
     prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: orderInclude }),
-    exchangeRates([storeId]),
+    storeMoney([storeId]),
   ]);
-  return toOrderView(order, rates.get(storeId) ?? DEFAULT_EXCHANGE_RATE);
+  return toOrderView(order, money(storeId));
 }

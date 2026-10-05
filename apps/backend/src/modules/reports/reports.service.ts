@@ -50,10 +50,12 @@ export async function listNegativeStock(user: ReportUser, storeId?: string) {
 
 /** Ported from online-pos/backend-desktop/server.js:495-550, one store at a time, using Prisma instead of raw SQL. */
 export async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
-  const exchangeRateSetting = await prisma.storeSetting.findUnique({
-    where: { storeId_key: { storeId, key: "exchange_rate" } },
-  });
+  const [exchangeRateSetting, mainCurrencySetting] = await Promise.all([
+    prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "exchange_rate" } } }),
+    prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "main_currency" } } }),
+  ]);
   const rate = exchangeRateSetting ? Number(exchangeRateSetting.value) : 4100;
+  const mainCurrency = mainCurrencySetting?.value === "KHR" ? "KHR" : "USD";
   const toUsd = (amount: number, currency: string) => (currency === "KHR" ? amount / rate : amount);
 
   const orders = await prisma.order.findMany({
@@ -119,7 +121,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     .sort((a, b) => b.totalQty - a.totalQty)
     .slice(0, 5);
 
-  return { storeId, orderCount, totalRevenue, totalRevenueKhr, avgOrder, avgOrderKhr, grossProfit, byMethod, topProducts };
+  return { storeId, mainCurrency, rate, orderCount, totalRevenue, totalRevenueKhr, avgOrder, avgOrderKhr, grossProfit, byMethod, topProducts };
 }
 
 export async function getDailySummary(
@@ -136,6 +138,7 @@ export async function getDailySummary(
 
   const combinedOrderCount = byStore.reduce((sum, s) => sum + s.orderCount, 0);
   const combinedRevenue = byStore.reduce((sum, s) => sum + s.totalRevenue, 0);
+  const combinedRevenueKhr = byStore.reduce((sum, s) => sum + s.totalRevenueKhr, 0);
   const combinedGrossProfit = byStore.reduce((sum, s) => sum + s.grossProfit, 0);
 
   return {
@@ -143,7 +146,11 @@ export async function getDailySummary(
     combined: {
       orderCount: combinedOrderCount,
       totalRevenue: combinedRevenue,
+      totalRevenueKhr: combinedRevenueKhr,
       avgOrder: combinedOrderCount > 0 ? combinedRevenue / combinedOrderCount : 0,
+      avgOrderKhr: combinedOrderCount > 0 ? roundKhrToNote(combinedRevenueKhr / combinedOrderCount) : 0,
+      // Lead with riel only when every store in the report is a riel store.
+      mainCurrency: byStore.length > 0 && byStore.every((s) => s.mainCurrency === "KHR") ? "KHR" : "USD",
       grossProfit: combinedGrossProfit,
     },
   };

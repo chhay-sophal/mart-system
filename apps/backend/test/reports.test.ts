@@ -102,7 +102,14 @@ describe("GET /api/reports/daily-summary", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.combined).toMatchObject({ orderCount: 2, totalRevenue: 10, grossProfit: 4 });
+    expect(res.body.combined).toMatchObject({
+      orderCount: 2,
+      totalRevenue: 10,
+      totalRevenueKhr: 41000,
+      avgOrderKhr: 20500,
+      grossProfit: 4,
+      mainCurrency: "USD",
+    });
     expect(res.body.byStore).toHaveLength(1);
     expect(res.body.byStore[0]).toMatchObject({ storeId: store.id, storeName: store.name, orderCount: 2, totalRevenue: 10 });
     expect(res.body.byStore[0].byMethod.sort((a: { paymentMethod: string }, b: { paymentMethod: string }) =>
