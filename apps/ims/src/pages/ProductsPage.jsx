@@ -428,7 +428,7 @@ export default function ProductsPage() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -437,7 +437,7 @@ export default function ProductsPage() {
                 <input
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
               <div>
@@ -445,7 +445,7 @@ export default function ProductsPage() {
                 <input
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
             </div>
@@ -459,7 +459,7 @@ export default function ProductsPage() {
                   min="0"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
               <div>
@@ -467,7 +467,7 @@ export default function ProductsPage() {
                 <select
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 >
                   <option value="USD">USD</option>
                   <option value="KHR">KHR</option>
@@ -481,7 +481,7 @@ export default function ProductsPage() {
                   min="0"
                   value={form.costPrice}
                   onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
             </div>
@@ -496,7 +496,7 @@ export default function ProductsPage() {
                 placeholder="Same as price"
                 value={form.priceOverride}
                 onChange={(e) => setForm({ ...form, priceOverride: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -507,7 +507,7 @@ export default function ProductsPage() {
                   step="1"
                   value={form.stock}
                   onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
               <div>
@@ -517,7 +517,7 @@ export default function ProductsPage() {
                   step="1"
                   value={form.lowStockThreshold}
                   onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
             </div>
@@ -545,7 +545,7 @@ export default function ProductsPage() {
   );
 }
 
-const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 py-1.5 text-sm bg-white text-slate-700';
+const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white text-slate-700';
 
 // A plain `checked` prop can't express "some but not all rows on this page
 // are selected" -- that's the DOM-only `indeterminate` property, which has

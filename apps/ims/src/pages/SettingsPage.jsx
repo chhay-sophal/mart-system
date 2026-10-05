@@ -11,8 +11,8 @@ const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate:
 // (issue #5), so it's kept out of the free-form list.
 const LEGACY_HIDDEN_KEYS = ['store_icon'];
 
-const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm';
-const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60';
+const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm';
+const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60';
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
@@ -226,12 +226,12 @@ export default function SettingsPage() {
             placeholder="owner@yourstore.com"
             value={bakongEmail}
             onChange={(e) => setBakongEmail(e.target.value)}
-            className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
           <button
             onClick={handleSaveBakongEmail}
             disabled={bakongSaving || !bakongEmail}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60"
           >
             {bakongSaving ? 'Saving…' : 'Save'}
           </button>
@@ -253,7 +253,7 @@ export default function SettingsPage() {
                 <input
                   value={settings[key]}
                   onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                  className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
             ))}
@@ -263,13 +263,13 @@ export default function SettingsPage() {
                 placeholder="new_setting_key"
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
-                className="w-40 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm shrink-0"
+                className="w-40 border border-[var(--border)] rounded-lg px-3 h-9 text-sm shrink-0"
               />
               <input
                 placeholder="value"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               />
               <button onClick={addSetting} className="text-sm font-medium text-[var(--accent)]">
                 Add
@@ -280,7 +280,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60"
+                className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60"
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>

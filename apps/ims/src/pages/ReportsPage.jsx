@@ -62,7 +62,7 @@ export default function ReportsPage() {
           <select
             value={storeId}
             onChange={(e) => setStoreId(e.target.value)}
-            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           >
             <option value="">All stores</option>
             {stores.map((s) => (
@@ -79,7 +79,7 @@ export default function ReportsPage() {
             value={dateFrom}
             max={dateTo}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
         </div>
         <div>
@@ -89,7 +89,7 @@ export default function ReportsPage() {
             value={dateTo}
             min={dateFrom}
             onChange={(e) => setDateTo(e.target.value)}
-            className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
         </div>
       </div>

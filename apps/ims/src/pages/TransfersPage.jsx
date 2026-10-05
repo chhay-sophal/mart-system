@@ -236,7 +236,7 @@ export default function TransfersPage() {
                   <select
                     value={pendingProductId}
                     onChange={(e) => setPendingProductId(e.target.value)}
-                    className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                    className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                   >
                     <option value="">Select a product…</option>
                     {fromStoreProducts.map((p) => (
@@ -251,9 +251,9 @@ export default function TransfersPage() {
                     step="1"
                     value={pendingQuantity}
                     onChange={(e) => setPendingQuantity(e.target.value)}
-                    className="w-20 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                    className="w-20 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                   />
-                  <button type="button" onClick={addLineItem} className="text-sm px-3 py-1.5 border border-[var(--border)] rounded-lg">
+                  <button type="button" onClick={addLineItem} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-[var(--border)] rounded-lg">
                     Add
                   </button>
                 </div>
