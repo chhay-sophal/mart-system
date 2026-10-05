@@ -1,6 +1,6 @@
 const express = require('express');
-const { query, getSyncConfig } = require('../db');
-const { pullCatalog } = require('../sync');
+const { query, run, saveDb, getSyncConfig } = require('../db');
+const { pullCatalog, pushPending } = require('../sync');
 
 const router = express.Router();
 
@@ -49,14 +49,23 @@ router.post('/api/sync/now', async (req, res) => {
 
 // Settings > Backend Sync > Resync everything: pulls the whole catalog again
 // (ignoring the cursor), so every local product -- price, currency, stock --
-// matches the backend, not just the ones changed since the last pull.
+// matches the backend, not just the ones changed since the last pull. It also
+// gives sales that sync gave up on (DEAD) another go: the backend may have
+// been fixed since (e.g. a missing database migration), and nothing else
+// would ever send them again.
 router.post('/api/sync/resync', async (req, res) => {
   const config = getSyncConfig();
   if (!config) return res.status(400).json({ error: 'Not paired yet' });
 
   try {
+    const requeued = query("SELECT COUNT(*) as n FROM outbox_events WHERE status = 'DEAD'")[0]?.n ?? 0;
+    if (requeued) {
+      run("UPDATE outbox_events SET status = 'PENDING', retry_count = 0, last_error = NULL WHERE status = 'DEAD'");
+      saveDb();
+      await pushPending(config);
+    }
     const products = await pullCatalog(config, { full: true });
-    res.json({ success: true, products });
+    res.json({ success: true, products, requeued });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
