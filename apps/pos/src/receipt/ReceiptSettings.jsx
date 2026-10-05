@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { translations as t } from '../locales';
-import { bitsToCanvas } from './raster';
+import { PAPER_DOTS, bitsToCanvas } from './raster';
 import { printerConfig, receiptImageUrl, receiptLocale, sampleInvoice, sampleShop, thermalImage } from './thermalPrinter';
 import { FONT_WEIGHTS, MAX_COPIES, MAX_FEED_LINES, TEXT_SIZES } from './receiptOptions';
 
@@ -19,6 +19,7 @@ export default function ReceiptSettings({ settings, setSettings, p, locale, Togg
   const thermal = settings.receipt_printer_mode === 'escpos';
   const config = printerConfig(settings);
   const inv = t[receiptLocale(config, locale)].invoice;
+  const previewWidth = PAPER_DOTS[config.paper];
 
   // Re-render the preview a moment after the last change, as the selected
   // printer will print it (dots for the thermal printer, greyscale otherwise).
@@ -69,10 +70,12 @@ export default function ReceiptSettings({ settings, setSettings, p, locale, Togg
       <div>
         <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{r.preview || 'Preview'}</p>
         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 mb-2">{r.previewNote}</p>
-        <div className="rounded-xl bg-slate-100 dark:bg-slate-900 p-4 max-h-[480px] overflow-y-auto flex justify-center">
+        <div className="rounded-xl bg-slate-100 dark:bg-slate-900 p-4 max-h-[600px] overflow-y-auto flex justify-center">
           {preview
-            ? <img src={preview} alt="" className="w-[240px] h-auto shadow-md bg-white" style={{ imageRendering: thermal ? 'pixelated' : 'auto' }} />
-            : <div className="w-[240px] h-64 bg-white/60 dark:bg-slate-800 animate-pulse" />}
+            // One screen pixel per printer dot (narrower only when the card is), smoothly
+            // scaled: shrinking a 1-bit receipt pixel by pixel drops parts of letters.
+            ? <img src={preview} alt="" className="w-full h-auto shadow-md bg-white" style={{ maxWidth: previewWidth }} />
+            : <div className="w-full h-64 bg-white/60 dark:bg-slate-800 animate-pulse" style={{ maxWidth: previewWidth }} />}
         </div>
       </div>
 
