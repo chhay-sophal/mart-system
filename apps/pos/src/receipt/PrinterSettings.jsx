@@ -124,7 +124,8 @@ export default function PrinterSettings({ settings, setSettings, p, locale, Togg
           </div>
 
           <ToggleRow
-            label={p.autoCut || 'Cut the paper after printing'}
+            label={p.autoCut || 'Printer has an auto-cutter'}
+            help={p.autoCutHelp}
             checked={settings.receipt_auto_cut !== 'false'}
             onChange={(on) => set('receipt_auto_cut', on ? 'true' : 'false')}
           />

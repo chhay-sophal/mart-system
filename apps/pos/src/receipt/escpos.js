@@ -10,6 +10,11 @@ const PARTIAL_CUT = [GS, 0x56, 0x42, 0x00]; // GS V B 0: feed to the cutter, the
 // ESC p 0 t1 t2: pulse drawer pin 2 (the usual RJ-11 drawer port) for 50 ms on, 500 ms off.
 export const OPEN_DRAWER = [ESC, 0x70, 0x00, 0x19, 0xfa];
 
+// Without a cutter the receipt is torn off at the tear bar, which sits 1-2 cm
+// above the print head. Feed this many extra lines (1/6 inch each by
+// default) so the last printed line clears it instead of being torn through.
+const TEAR_BAR_LINES = 4;
+
 // Rows per GS v 0 command. Smaller bands keep cheap printers with little
 // buffer from dropping data on long receipts.
 const BAND_ROWS = 128;
@@ -28,11 +33,13 @@ export function rasterImage({ width, height, bytes }) {
 }
 
 /**
- * A complete print job: each copy is the receipt image, `feedLines` blank
- * lines, then a cut when the printer has a cutter.
+ * A complete print job: each copy is the receipt image and `feedLines` blank
+ * lines, then a cut (the printer feeds to its cutter first), or for a printer
+ * without one, enough extra feed to tear it off below the last line.
  */
 export function receiptJob(image, { cut = true, feedLines = 3, copies = 1 } = {}) {
-  const one = Uint8Array.from([...rasterImage(image), ...feed(feedLines), ...(cut ? PARTIAL_CUT : [])]);
+  const end = cut ? [...feed(feedLines), ...PARTIAL_CUT] : feed(feedLines + TEAR_BAR_LINES);
+  const one = Uint8Array.from([...rasterImage(image), ...end]);
   const out = new Uint8Array(INIT.length + one.length * copies);
   out.set(INIT);
   for (let i = 0; i < copies; i++) out.set(one, INIT.length + i * one.length);
