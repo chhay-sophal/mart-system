@@ -15,9 +15,11 @@ export async function storeDailySummary(storeId: string, dateFrom: Date, dateTo:
   return {
     order_count: s.orderCount,
     total_revenue: s.totalRevenue,
+    total_revenue_khr: s.totalRevenueKhr,
     avg_order: s.avgOrder,
+    avg_order_khr: s.avgOrderKhr,
     gross_profit: s.grossProfit,
-    by_method: s.byMethod.map((m) => ({ payment_method: m.paymentMethod, count: m.count, total: m.total })),
+    by_method: s.byMethod.map((m) => ({ payment_method: m.paymentMethod, count: m.count, total: m.total, total_khr: m.totalKhr })),
     top_products: s.topProducts.map((p) => ({ name: p.name, total_qty: p.totalQty, revenue: p.revenue })),
   };
 }

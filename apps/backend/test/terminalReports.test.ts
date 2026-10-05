@@ -110,8 +110,11 @@ describe("GET /api/terminal/daily-summary", () => {
     expect(res.body).toMatchObject({
       order_count: 2,
       total_revenue: 13,
+      // Riel: the riel sale exactly (41,000) plus $3 converted (12,300).
+      total_revenue_khr: 53300,
       avg_order: 6.5,
-      by_method: [{ payment_method: "CASH", count: 2, total: 13 }],
+      avg_order_khr: 26700, // 26,650 rounded to the 100 note
+      by_method: [{ payment_method: "CASH", count: 2, total: 13, total_khr: 53300 }],
       top_products: [{ name: "Widget", total_qty: 4, revenue: 6 }],
     });
     expect(res.body).toHaveProperty("gross_profit");

@@ -1,6 +1,6 @@
 import { prisma } from "../../prisma";
 import { forbidden } from "../../lib/httpError";
-import { fromMinorUnits } from "../../lib/money";
+import { fromMinorUnits, roundKhrToNote } from "../../lib/money";
 import { listStoresForUser } from "../stores/stores.service";
 
 export type ReportUser = { id: string; isSuperAdmin: boolean };
@@ -62,21 +62,28 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   });
 
   const orderCount = orders.length;
-  // Synced sales are always USD, but imported online-pos orders carry their own currency.
+  // Each sale's total is stored in the store's main currency at the time (and
+  // imported online-pos orders carry their own). Revenue is summed in USD, and
+  // also in riel: exact for sales charged in riel, converted for the rest.
   const orderTotalUsd = (order: (typeof orders)[number]) =>
     toUsd(fromMinorUnits(order.totalAmountMinor, order.currency), order.currency);
+  const orderTotalKhr = (order: (typeof orders)[number]) =>
+    order.currency === "KHR" ? order.totalAmountMinor : roundKhrToNote(orderTotalUsd(order) * rate);
   const totalRevenue = orders.reduce((sum, order) => sum + orderTotalUsd(order), 0);
+  const totalRevenueKhr = orders.reduce((sum, order) => sum + orderTotalKhr(order), 0);
   const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
+  const avgOrderKhr = orderCount > 0 ? roundKhrToNote(totalRevenueKhr / orderCount) : 0;
 
-  const byMethodMap = new Map<string, { count: number; total: number }>();
+  const byMethodMap = new Map<string, { count: number; total: number; totalKhr: number }>();
   for (const order of orders) {
-    const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0 };
+    const entry = byMethodMap.get(order.paymentMethod) ?? { count: 0, total: 0, totalKhr: 0 };
     entry.count += 1;
     entry.total += orderTotalUsd(order);
+    entry.totalKhr += orderTotalKhr(order);
     byMethodMap.set(order.paymentMethod, entry);
   }
   const byMethod = [...byMethodMap.entries()]
-    .map(([paymentMethod, v]) => ({ paymentMethod, count: v.count, total: v.total }))
+    .map(([paymentMethod, v]) => ({ paymentMethod, count: v.count, total: v.total, totalKhr: v.totalKhr }))
     .sort((a, b) => b.total - a.total);
 
   const orderIds = orders.map((order) => order.id);
@@ -112,7 +119,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     .sort((a, b) => b.totalQty - a.totalQty)
     .slice(0, 5);
 
-  return { storeId, orderCount, totalRevenue, avgOrder, grossProfit, byMethod, topProducts };
+  return { storeId, orderCount, totalRevenue, totalRevenueKhr, avgOrder, avgOrderKhr, grossProfit, byMethod, topProducts };
 }
 
 export async function getDailySummary(

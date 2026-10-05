@@ -12,6 +12,11 @@ export function toMinorUnits(amount: number, currency: Currency): number {
   return currency === "USD" ? Math.round(amount * 100) : Math.round(amount);
 }
 
+/** Riel is paid in notes of 100 at the smallest, so converted riel amounts round to 100. */
+export function roundKhrToNote(khr: number): number {
+  return Math.round(khr / 100) * 100;
+}
+
 /** Convert a stored minor-units integer back to the plain decimal number the API has always returned. */
 export function fromMinorUnits(minor: number | null | undefined, currency: Currency): number {
   if (minor === null || minor === undefined) return 0;

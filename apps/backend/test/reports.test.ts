@@ -108,8 +108,8 @@ describe("GET /api/reports/daily-summary", () => {
     expect(res.body.byStore[0].byMethod.sort((a: { paymentMethod: string }, b: { paymentMethod: string }) =>
       a.paymentMethod.localeCompare(b.paymentMethod)
     )).toEqual([
-      { paymentMethod: "CASH", count: 1, total: 6 },
-      { paymentMethod: "KHQR", count: 1, total: 4 },
+      { paymentMethod: "CASH", count: 1, total: 6, totalKhr: 24600 },
+      { paymentMethod: "KHQR", count: 1, total: 4, totalKhr: 16400 },
     ]);
     expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10 });
   });
