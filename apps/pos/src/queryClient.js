@@ -27,6 +27,8 @@ export const queryKeys = {
   // The branch catalog (Products tab). Changes only when sync pulls from IMS,
   // so the 30s freshness is plenty.
   products: () => ['products'],
+  // Draft carts set aside on this register (issue #1).
+  drafts: () => ['drafts'],
 };
 
 /** After a sale, void or resync: anything showing sales is out of date. */

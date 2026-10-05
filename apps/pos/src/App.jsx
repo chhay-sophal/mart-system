@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors, PauseCircle, FileClock } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -10,6 +11,7 @@ import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
 import ProductsView from './ProductsView';
+import DraftsDialog from './DraftsDialog';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
@@ -24,7 +26,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast } from './Toast';
-import { invalidateSales, queryClient } from './queryClient';
+import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
@@ -86,6 +88,8 @@ export default function App() {
 
   const [txDiscountType, setTxDiscountType] = useState('pct');
   const [txDiscountValue, setTxDiscountValue] = useState('');
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [draftToDelete, setDraftToDelete] = useState(null);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [lowStockDismissed, setLowStockDismissed] = useState(false);
   // Settings > General; on unless this register turned it off.
@@ -522,6 +526,76 @@ export default function App() {
     setActiveKhqr(null);
   };
 
+  // Draft carts (issue #1): set the sale aside while the customer fetches more
+  // items, serve the next person, and pick it up again without rescanning.
+  const draftsQuery = useQuery({
+    queryKey: queryKeys.drafts(),
+    queryFn: () => client.get('/api/drafts'),
+    enabled: backendStatus === 'ready' && Boolean(session),
+  });
+  const drafts = draftsQuery.data ?? [];
+  const dr = t[locale].drafts;
+
+  const resetSale = () => {
+    setCart([]);
+    setCheckoutResult(null);
+    setActiveKhqr(null);
+    setTxDiscountValue('');
+    setTxDiscountType('pct');
+    setAmountPaidUsd('');
+    setAmountPaidKhr('');
+    setStaticQrBank('');
+    setPaymentMethod('CASH');
+  };
+
+  // Saves the cart as a draft and clears it for the next customer. Returns
+  // whether it was saved, so a failure never loses the cart.
+  const saveDraft = async () => {
+    if (cart.length === 0) return false;
+    try {
+      await client.post('/api/drafts', { cart, txDiscountType, txDiscountValue });
+      resetSale();
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() });
+      notify(dr.saved, 'success');
+      return true;
+    } catch (err) {
+      console.error('Saving draft failed:', err);
+      notify(notice('localServerUnreachable'));
+      return false;
+    }
+  };
+
+  // Puts a draft back in the cart. Anything in the cart now is saved as a
+  // draft first, so nothing is ever lost by resuming.
+  const resumeDraft = async (draft) => {
+    if (cart.length > 0 && !(await saveDraft())) return;
+    try {
+      await client.delete(`/api/drafts/${draft.id}`);
+    } catch (err) {
+      console.error('Removing resumed draft failed:', err);
+      notify(notice('localServerUnreachable'));
+      return;
+    }
+    setCart(draft.cart);
+    setTxDiscountType(draft.txDiscountType);
+    setTxDiscountValue(draft.txDiscountValue);
+    setCheckoutResult(null);
+    setShowDrafts(false);
+    queryClient.invalidateQueries({ queryKey: queryKeys.drafts() });
+    notify(dr.resumed, 'success');
+  };
+
+  const deleteDraft = async (draft) => {
+    setDraftToDelete(null);
+    try {
+      await client.delete(`/api/drafts/${draft.id}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.drafts() });
+    } catch (err) {
+      console.error('Deleting draft failed:', err);
+      notify(notice('localServerUnreachable'));
+    }
+  };
+
   // Splits one unit off a line so it can be discounted on its own (e.g. a defect).
   const splitItem = (lineId) => {
     setCart((prevCart) => splitLine(prevCart, lineId));
@@ -632,9 +706,11 @@ export default function App() {
     {
       help: { run: () => setShowShortcuts((open) => !open) },
       back: {
-        when: () => showShortcuts || clearCartPrompt || view === 'HISTORY' || view === 'SUMMARY' || view === 'PRODUCTS',
+        when: () => showShortcuts || clearCartPrompt || showDrafts || draftToDelete || view === 'HISTORY' || view === 'SUMMARY' || view === 'PRODUCTS',
         run: () => {
           if (showShortcuts) return setShowShortcuts(false);
+          if (draftToDelete) return setDraftToDelete(null);
+          if (showDrafts) return setShowDrafts(false);
           if (clearCartPrompt) return setClearCartPrompt(false);
           goTo('REGISTER');
         },
@@ -651,6 +727,8 @@ export default function App() {
       payStaticQr: { when: () => onRegister, run: () => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); } },
       checkout: { when: () => onRegister && canCheckout, run: () => handleCheckout() },
       clearCart: { when: () => onRegister && cart.length > 0, run: () => setClearCartPrompt(true) },
+      saveDraft: { when: () => onRegister && cart.length > 0, run: () => saveDraft() },
+      drafts: { when: () => onRegister, run: () => setShowDrafts(true) },
     },
     Boolean(session)
   );
@@ -755,6 +833,21 @@ export default function App() {
   return (
     <>
     {shortcutHelp}
+    {showDrafts && (
+      <DraftsDialog drafts={drafts} locale={locale} mainCurrency={mainCurrency} dynamicRate={dynamicRate}
+        onResume={resumeDraft} onDelete={setDraftToDelete} onClose={() => setShowDrafts(false)} />
+    )}
+    {draftToDelete && (
+      <ConfirmDialog
+        title={dr.deleteTitle}
+        body={dr.deleteBody}
+        cancelLabel={sc.cancel || 'Cancel'}
+        confirmLabel={dr.delete}
+        onCancel={() => setDraftToDelete(null)}
+        onConfirm={() => deleteDraft(draftToDelete)}
+        danger
+      />
+    )}
     {clearCartPrompt && (
       <ConfirmDialog
         title={sc.clearCartTitle || 'Clear the cart?'}
@@ -914,9 +1007,20 @@ export default function App() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 flex-1 flex flex-col overflow-hidden shadow-xs">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center flex-shrink-0">
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight font-display">{t[locale].currentBasket}</h2>
-              <span className="text-xs bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-full">
-                {cart.reduce((a, b) => a + b.quantity, 0)} {t[locale].itemsCount}
-              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowDrafts(true)} title={`${dr.title}${keyHint('drafts')}`}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
+                  <FileClock size={13} /> {dr.title}
+                  {drafts.length > 0 && <span className="bg-amber-500 text-white rounded-full px-1.5 text-[10px] leading-4">{drafts.length}</span>}
+                </button>
+                <button onClick={saveDraft} disabled={cart.length === 0} title={`${dr.save}${keyHint('saveDraft')}`}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  <PauseCircle size={13} /> {dr.save}
+                </button>
+                <span className="text-xs bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-full">
+                  {cart.reduce((a, b) => a + b.quantity, 0)} {t[locale].itemsCount}
+                </span>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 content-start">

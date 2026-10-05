@@ -159,6 +159,21 @@ export const translations = {
     },
 
     // INVOICE LABELS
+    drafts: {
+      title: "សេចក្តីព្រាង",
+      save: "រក្សាទុកជាសេចក្តីព្រាង",
+      saved: "បានរក្សាទុកកន្ត្រកជាសេចក្តីព្រាង។ អាចបន្តលក់អតិថិជនបន្ទាប់បាន។",
+      resumed: "បានបន្តសេចក្តីព្រាង។",
+      resume: "បន្ត",
+      delete: "លុប",
+      deleteTitle: "លុបសេចក្តីព្រាងនេះ?",
+      deleteBody: "ទំនិញក្នុងសេចក្តីព្រាងនេះនឹងត្រូវបាត់ ហើយត្រូវស្កេនឡើងវិញ។",
+      none: "មិនមានសេចក្តីព្រាងទេ។",
+      items: "{n} មុខ",
+      item: "{n} មុខ",
+      close: "បិទ",
+      note: "សេចក្តីព្រាងរក្សាទុកលើម៉ាស៊ីននេះ ហើយមិនកក់ស្តុកទេ។ ការបន្ត ពេលមានទំនិញក្នុងកន្ត្រក នឹងរក្សាទុកកន្ត្រកបច្ចុប្បន្នជាសេចក្តីព្រាងសិន។",
+    },
     products: {
       title: "ទំនិញ",
       subtitle: "ទំនិញរបស់សាខានេះ (មើលតែប៉ុណ្ណោះ)",
@@ -233,6 +248,8 @@ export const translations = {
       history: "ប្រវត្តិការលក់",
       summary: "សរុបប្រចាំថ្ងៃ",
       products: "ស្វែងរកទំនិញ",
+      saveDraft: "រក្សាទុកកន្ត្រកជាសេចក្តីព្រាង",
+      drafts: "បើកសេចក្តីព្រាង",
       settings: "ការកំណត់ (អ្នកគ្រប់គ្រង)",
       back: "ត្រឡប់ទៅទំព័រលក់ / បិទ",
       lock: "ចាក់សោម៉ាស៊ីន",
@@ -606,6 +623,21 @@ export const translations = {
     },
 
     // INVOICE LABELS
+    drafts: {
+      title: "Drafts",
+      save: "Save draft",
+      saved: "Cart saved as a draft. You can serve the next customer.",
+      resumed: "Draft resumed.",
+      resume: "Resume",
+      delete: "Delete",
+      deleteTitle: "Delete this draft?",
+      deleteBody: "Its items will be lost and will have to be scanned again.",
+      none: "No drafts.",
+      items: "{n} items",
+      item: "{n} item",
+      close: "Close",
+      note: "Drafts are kept on this register and don't hold stock. Resuming while the cart has items saves the current cart as a draft first.",
+    },
     products: {
       title: "Products",
       subtitle: "This branch's products (view only)",
@@ -680,6 +712,8 @@ export const translations = {
       history: "Sales history",
       summary: "Daily summary",
       products: "Find a product",
+      saveDraft: "Save the cart as a draft",
+      drafts: "Open drafts",
       settings: "Settings (admins)",
       back: "Back to register / close",
       lock: "Lock register",
