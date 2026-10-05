@@ -23,7 +23,7 @@ function getDateRange(dateFrom, dateTo) {
   return { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null };
 }
 
-const DATE_PRESETS = ['today', '7d', '30d', 'all'];
+const DATE_PRESETS = ['today', 'yesterday', '7d', '30d', 'all'];
 
 // The {from, to} the date inputs land on for each shortcut -- shared by
 // applyDatePreset (sets it) and the active-chip check (detects it), so
@@ -33,6 +33,7 @@ function presetRange(preset) {
   const fmt = (d) => d.toISOString().slice(0, 10);
   const todayStr = fmt(today);
   if (preset === 'today') return { from: todayStr, to: todayStr };
+  if (preset === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); const y = fmt(d); return { from: y, to: y }; }
   if (preset === '7d')  { const d = new Date(today); d.setDate(d.getDate() - 7);  return { from: fmt(d), to: todayStr }; }
   if (preset === '30d') { const d = new Date(today); d.setDate(d.getDate() - 30); return { from: fmt(d), to: todayStr }; }
   return { from: '', to: '' }; // 'all'
@@ -334,7 +335,13 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              {{ today: ex.presetToday, '7d': ex.preset7d, '30d': ex.preset30d, all: ex.presetAll }[preset]}
+              {{
+                today: ex.presetToday,
+                yesterday: ex.presetYesterday || 'Yesterday',
+                '7d': ex.preset7d,
+                '30d': ex.preset30d,
+                all: ex.presetAll,
+              }[preset]}
             </button>
           ))}
         </div>
