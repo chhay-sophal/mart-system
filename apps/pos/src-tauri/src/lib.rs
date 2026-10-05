@@ -3,6 +3,8 @@ use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use std::sync::Mutex;
 
+mod printer;
+
 struct BackendPort(Mutex<Option<u16>>);
 
 #[tauri::command]
@@ -97,7 +99,13 @@ pub fn run() {
         window.app_handle().exit(0);
       }
     })
-    .invoke_handler(tauri::generate_handler![get_backend_port, read_file_bytes, kill_backend])
+    .invoke_handler(tauri::generate_handler![
+      get_backend_port,
+      read_file_bytes,
+      kill_backend,
+      printer::list_printers,
+      printer::print_raw
+    ])
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
