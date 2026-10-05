@@ -367,9 +367,14 @@ export default function App() {
     }
   }
 
+  // Banks offered under Bank QR: the ones switched on in Settings > KHQR, or
+  // every bank while none have a QR set up yet.
+  const staticQrBanks = staticQrCodes.length
+    ? staticQrCodes.filter((c) => c.enabled).map((c) => c.bank)
+    : BANKS;
   // The selected bank's QR, shown on the customer display to scan.
   const staticQrImage = paymentMethod === 'STATIC_QR'
-    ? staticQrCodes.find((c) => c.bank === staticQrBank)?.image ?? null
+    ? staticQrCodes.find((c) => c.bank === staticQrBank && c.enabled)?.image ?? null
     : null;
 
   useEffect(() => {
@@ -1172,9 +1177,11 @@ export default function App() {
             ) : paymentMethod === 'STATIC_QR' ? (
               <div className="space-y-3 bg-amber-50/30 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900 p-4 rounded-2xl">
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display">{t[locale].staticQrPrompt}</p>
+                {staticQrBanks.length === 0 && (
+                  <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">{t[locale].staticQrNoneEnabled}</p>
+                )}
                 <div className="grid grid-cols-3 gap-1.5">
-                  {/* Only the banks with a QR set up, once any are; otherwise all of them. */}
-                  {(staticQrCodes.length ? staticQrCodes.map((c) => c.bank) : BANKS).map(bank => (
+                  {staticQrBanks.map(bank => (
                     <button
                       key={bank}
                       onClick={() => setStaticQrBank(b => b === bank ? '' : bank)}
