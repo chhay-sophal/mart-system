@@ -227,7 +227,7 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportExport(true)}
-            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50"
+            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             Import / Export
           </button>
@@ -247,9 +247,9 @@ export default function ProductsPage() {
           value={filters.search}
           onChange={(e) => setFilter('search', e.target.value)}
           placeholder="Search by name or barcode…  ( / )"
-          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white"
+          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800"
         />
-        <span className="text-sm text-slate-500">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
           {visible.length === products.length ? `${products.length} products` : `${visible.length} of ${products.length} products`}
         </span>
         {(filterCount > 0 || filters.search) && (
@@ -260,28 +260,28 @@ export default function ProductsPage() {
       </div>
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-          <span className="text-sm font-medium text-indigo-700">{selected.size} selected</span>
+        <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{selected.size} selected</span>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
-            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {bulkDeleting ? 'Removing…' : 'Delete selected'}
           </button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 hover:text-slate-700 ml-auto">
+          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto">
             Clear selection
           </button>
         </div>
       )}
 
       {(error || productsQuery.isError) && (
-        <p className="text-sm text-red-600 mb-3">{error || 'Failed to load products.'}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load products.'}</p>
       )}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <th className="px-4 py-2 w-8">
                 <SelectAllCheckbox
@@ -356,19 +356,19 @@ export default function ProductsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
             ) : (
               pageRows.map((p) => (
-                <tr key={p.id} className={`border-t border-[var(--border)] ${selected.has(p.id) ? 'bg-indigo-50/50' : ''}`}>
+                <tr key={p.id} className={`border-t border-[var(--border)] ${selected.has(p.id) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}>
                   <td className="px-4 py-2">
                     <input
                       type="checkbox"
@@ -378,24 +378,24 @@ export default function ProductsPage() {
                     />
                   </td>
                   <td className="px-4 py-2">{p.name}</td>
-                  <td className="px-4 py-2 text-slate-500">{p.barcode ?? '—'}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.barcode ?? '—'}</td>
                   <td className="px-4 py-2">
                     {fmtPrice(effectivePrice(p), p.currency)}
                     {p.priceOverride != null && (
-                      <span className="ml-2 text-xs text-slate-400 line-through">{fmtPrice(p.defaultPrice, p.currency)}</span>
+                      <span className="ml-2 text-xs text-slate-400 dark:text-slate-500 line-through">{fmtPrice(p.defaultPrice, p.currency)}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
                     {p.stock}
                     {p.stock <= p.lowStockThreshold && (
-                      <span className="ml-2 text-xs text-amber-600">low</span>
+                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">low</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3">
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(p)} className="text-red-600 font-medium">
+                    <button onClick={() => handleDelete(p)} className="text-red-600 dark:text-red-400 font-medium">
                       Remove
                     </button>
                   </td>
@@ -407,7 +407,7 @@ export default function ProductsPage() {
       </div>
 
       {pageCount > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-600">
+        <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
           <span>
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} of {visible.length}
           </span>
@@ -423,7 +423,7 @@ export default function ProductsPage() {
         <Modal title={editing === 'new' ? 'Add product' : 'Edit product'} onClose={() => setEditing(null)}>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
               <input
                 required
                 value={form.name}
@@ -433,7 +433,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Barcode</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Barcode</label>
                 <input
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
@@ -441,7 +441,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
                 <input
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -451,7 +451,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Price</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Price</label>
                 <input
                   required
                   type="number"
@@ -463,7 +463,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Currency</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Currency</label>
                 <select
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
@@ -474,7 +474,7 @@ export default function ProductsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cost price</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cost price</label>
                 <input
                   type="number"
                   step="0.01"
@@ -486,8 +486,8 @@ export default function ProductsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Price override <span className="text-slate-400">(this store only, leave blank to use the price above)</span>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                Price override <span className="text-slate-400 dark:text-slate-500">(this store only, leave blank to use the price above)</span>
               </label>
               <input
                 type="number"
@@ -501,7 +501,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Stock</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Stock</label>
                 <input
                   type="number"
                   step="1"
@@ -511,7 +511,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Low-stock threshold</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Low-stock threshold</label>
                 <input
                   type="number"
                   step="1"
@@ -545,7 +545,7 @@ export default function ProductsPage() {
   );
 }
 
-const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white text-slate-700';
+const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200';
 
 // A plain `checked` prop can't express "some but not all rows on this page
 // are selected" -- that's the DOM-only `indeterminate` property, which has
@@ -599,7 +599,7 @@ function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, ha
   return (
     <th className="px-4 py-2">
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 select-none">
+        <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none">
           {label}
           <span className="ml-1 text-[var(--accent)]">{active ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
         </button>
@@ -610,7 +610,7 @@ function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, ha
           aria-label={`Filter ${label}`}
           aria-expanded={isOpen}
           className={`p-1 rounded-md transition-colors cursor-pointer ${
-            hasActiveFilter ? 'bg-indigo-50 text-[var(--accent)]' : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'
+            hasActiveFilter ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[var(--accent)]' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-600 dark:hover:text-slate-300'
           }`}
         >
           <FilterIcon className="w-3.5 h-3.5" />
@@ -620,7 +620,7 @@ function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, ha
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, right: pos.right }}
-          className="z-50 min-w-[200px] bg-white border border-[var(--border)] rounded-lg shadow-lg p-3 font-normal"
+          className="z-50 min-w-[200px] bg-white dark:bg-slate-800 border border-[var(--border)] rounded-lg shadow-lg p-3 font-normal"
         >
           {children}
         </div>,

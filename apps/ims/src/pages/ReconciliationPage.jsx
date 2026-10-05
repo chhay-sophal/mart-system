@@ -43,7 +43,7 @@ export default function ReconciliationPage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-lg font-semibold text-[var(--text-h)]">Stock reconciliation</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Products whose stock has gone negative across every store you can access — a sale or transfer went
             through when the shelf count didn't match the system.
           </p>
@@ -51,12 +51,12 @@ export default function ReconciliationPage() {
       </div>
 
       {(error || rowsQuery.isError) && (
-        <p className="text-sm text-red-600 mb-3">{error || 'Failed to load the negative-stock report.'}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load the negative-stock report.'}</p>
       )}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <th className="px-4 py-2">Store</th>
               <th className="px-4 py-2">Product</th>
@@ -68,26 +68,26 @@ export default function ReconciliationPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
                   Nothing to reconcile — no store has negative stock right now.
                 </td>
               </tr>
             ) : (
               rows.map((row) => (
                 <tr key={`${row.storeId}-${row.productId}`} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2 text-slate-500">{row.storeName}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.storeName}</td>
                   <td className="px-4 py-2">
                     {row.productName}
-                    {row.barcode && <span className="ml-2 text-xs text-slate-400">#{row.barcode}</span>}
+                    {row.barcode && <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">#{row.barcode}</span>}
                   </td>
-                  <td className="px-4 py-2 font-medium text-red-600">{row.stock}</td>
-                  <td className="px-4 py-2 text-slate-500 text-xs">
+                  <td className="px-4 py-2 font-medium text-red-600 dark:text-red-400">{row.stock}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
                     {row.recentMovements.length === 0
                       ? '—'
                       : row.recentMovements
@@ -115,12 +115,12 @@ export default function ReconciliationPage() {
       {adjustTarget && (
         <Modal title={`Correct stock — ${adjustTarget.productName}`} onClose={() => setAdjustTarget(null)}>
           <form onSubmit={handleAdjust} className="space-y-3">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {adjustTarget.storeName} currently shows <span className="font-medium">{adjustTarget.stock}</span>.
               Enter the actual physical count — this is recorded as an audited adjustment, not silently overwritten.
             </p>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Corrected stock count</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Corrected stock count</label>
               <input
                 required
                 type="number"

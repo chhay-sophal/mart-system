@@ -26,12 +26,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-white border border-[var(--border)] rounded-xl p-8 shadow-sm"
+        className="w-full max-w-sm bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-8 shadow-sm"
       >
         <h1 className="text-xl font-semibold text-[var(--text-h)] mb-1">Mart System IMS</h1>
-        <p className="text-sm text-slate-500 mb-6">Sign in to manage your store.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Sign in to manage your store.</p>
 
-        <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="email">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="email">
           Email
         </label>
         <input
@@ -44,7 +44,7 @@ export default function LoginPage() {
           className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
         />
 
-        <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="password">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="password">
           Password
         </label>
         <div className="relative mb-4">
@@ -59,13 +59,13 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-slate-700"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
             {showPassword ? 'Hide' : 'Show'}
           </button>
         </div>
 
-        {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
 
         <button
           type="submit"

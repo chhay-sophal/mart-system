@@ -150,31 +150,31 @@ export default function SettingsPage() {
     <div className="max-w-xl">
       <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">Store settings</h1>
 
-      {message && <p className="text-sm text-slate-600 mb-3">{message}</p>}
+      {message && <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">{message}</p>}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Store profile</h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           How this store is named in IMS. The shop name, image, address and phone customers see are set on each
           register, in POS Settings.
         </p>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 shrink-0">Store name</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Store name</label>
           <input value={storeName} placeholder="My Store" onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
         </div>
         <div className="flex items-center justify-end gap-3">
-          {profileMessage && <p className="text-xs text-slate-600">{profileMessage}</p>}
+          {profileMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{profileMessage}</p>}
           <button onClick={handleSaveProfile} disabled={profileSaving || !storeName.trim()} className={saveButtonClass}>
             {profileSaving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Currency &amp; language</h2>
-        <p className="text-xs text-slate-500">Applied to every POS terminal in this store.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Applied to every POS terminal in this store.</p>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 shrink-0">Main currency</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Main currency</label>
           <select
             value={posSynced.main_currency}
             onChange={(e) => setSettings({ ...settings, main_currency: e.target.value })}
@@ -185,7 +185,7 @@ export default function SettingsPage() {
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 shrink-0">Main language</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Main language</label>
           <select
             value={posSynced.locale}
             onChange={(e) => setSettings({ ...settings, locale: e.target.value })}
@@ -196,7 +196,7 @@ export default function SettingsPage() {
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 shrink-0">Exchange rate</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Exchange rate</label>
           <input
             type="number"
             min="1"
@@ -204,19 +204,19 @@ export default function SettingsPage() {
             onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
             className={inputClass}
           />
-          <span className="text-xs text-slate-500 shrink-0">KHR per 1 USD</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">KHR per 1 USD</span>
         </div>
         <div className="flex items-center justify-end gap-3">
-          {posSyncedMessage && <p className="text-xs text-slate-600">{posSyncedMessage}</p>}
+          {posSyncedMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{posSyncedMessage}</p>}
           <button onClick={handleSavePosSynced} disabled={posSyncedSaving || loading} className={saveButtonClass}>
             {posSyncedSaving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
 
-      <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">Bakong KHQR</h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           The email registered with this store's Bakong merchant account. Used to mint the token that lets POS
           terminals generate KHQR codes and check payment status — never shown again once saved.
         </p>
@@ -236,20 +236,20 @@ export default function SettingsPage() {
             {bakongSaving ? 'Saving…' : 'Save'}
           </button>
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Status: {bakongHasToken ? 'connected (token cached)' : 'registered, not yet used'}
         </p>
-        {bakongMessage && <p className="text-xs text-slate-600">{bakongMessage}</p>}
+        {bakongMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{bakongMessage}</p>}
       </div>
 
-      <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3">
         {loading ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
         ) : (
           <>
             {keys.map((key) => (
               <div key={key} className="flex items-center gap-3">
-                <label className="w-40 text-sm text-slate-600 shrink-0">{key}</label>
+                <label className="w-40 text-sm text-slate-600 dark:text-slate-300 shrink-0">{key}</label>
                 <input
                   value={settings[key]}
                   onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}

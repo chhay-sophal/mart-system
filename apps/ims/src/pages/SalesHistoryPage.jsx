@@ -213,9 +213,9 @@ export default function SalesHistoryPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3 mb-4 bg-white border border-[var(--border)] rounded-xl p-4">
+      <div className="flex flex-wrap items-end gap-3 mb-4 bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Branch</label>
           <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
             <option value="">All branches</option>
             {stores.map((s) => (
@@ -224,14 +224,14 @@ export default function SalesHistoryPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Date range</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Date range</label>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
               {DATE_PRESETS.map((preset) => (
                 <button
                   key={preset}
                   onClick={() => applyDatePreset(preset)}
-                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {DATE_PRESET_LABELS[preset]}
                 </button>
@@ -244,7 +244,7 @@ export default function SalesHistoryPage() {
               onChange={(e) => setDateFrom(e.target.value)}
               className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
             />
-            <span className="text-slate-400">–</span>
+            <span className="text-slate-400 dark:text-slate-500">–</span>
             <input
               type="date"
               value={dateTo}
@@ -255,7 +255,7 @@ export default function SalesHistoryPage() {
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Payment</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Payment</label>
           <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
             <option value="all">All methods</option>
             {PAYMENT_METHODS.map((m) => (
@@ -264,7 +264,7 @@ export default function SalesHistoryPage() {
           </select>
         </div>
         <div className="flex-1 min-w-48">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Search</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Search</label>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -272,34 +272,34 @@ export default function SalesHistoryPage() {
             className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600 pb-1.5">
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 pb-1.5">
           <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)} />
           Show voided
         </label>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-white border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500">Revenue</p>
+        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Revenue</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{revenue.primary}</p>
-          <p className="text-xs text-slate-500">{revenue.secondary}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{revenue.secondary}</p>
         </div>
-        <div className="bg-white border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500">Sales</p>
+        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Sales</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{counted.length}</p>
         </div>
-        <div className="bg-white border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500">Average sale</p>
+        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Average sale</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{average.primary}</p>
-          <p className="text-xs text-slate-500">{average.secondary}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{average.secondary}</p>
         </div>
       </div>
 
-      {(error || ordersQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load sales.'}</p>}
+      {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load sales.'}</p>}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-x-auto">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <SortTh sort={sort} onSort={toggleSort} col="receipt">Receipt #</SortTh>
               <SortTh sort={sort} onSort={toggleSort} col="date">Date</SortTh>
@@ -312,9 +312,9 @@ export default function SalesHistoryPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="px-3 py-4 text-slate-400" colSpan={7}>Loading…</td></tr>
+              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>Loading…</td></tr>
             ) : pageRows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-400" colSpan={7}>No sales found.</td></tr>
+              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>No sales found.</td></tr>
             ) : (
               pageRows.map((o) => (
                 <OrderRow
@@ -332,7 +332,7 @@ export default function SalesHistoryPage() {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-600">
+        <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
           <span>
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
           </span>
@@ -346,7 +346,7 @@ export default function SalesHistoryPage() {
 
       {voidTarget && (
         <Modal title="Void this sale?" onClose={() => !voiding && setVoidTarget(null)}>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Receipt <span className="font-semibold">#{voidTarget.receipt_no}</span> ({orderTotal(voidTarget).primary}, {voidTarget.store_name}) will be
             marked voided and its items put back in stock. It no longer counts toward revenue.
           </p>
@@ -379,10 +379,10 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
   const voided = isVoided(o);
   return (
     <>
-      <tr onClick={onToggle} className={`border-t border-[var(--border)] cursor-pointer hover:bg-slate-50 ${voided ? 'text-slate-400' : ''}`}>
+      <tr onClick={onToggle} className={`border-t border-[var(--border)] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${voided ? 'text-slate-400 dark:text-slate-500' : ''}`}>
         <td className="px-3 py-2 font-medium whitespace-nowrap">
           #{o.receipt_no}
-          {voided && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 text-red-600 rounded px-1.5 py-0.5">Voided</span>}
+          {voided && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5">Voided</span>}
         </td>
         <td className="px-3 py-2 whitespace-nowrap">{fmtDateTime(o.created_at)}</td>
         {showBranch && <td className="px-3 py-2">{o.store_name}</td>}
@@ -390,18 +390,18 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
         <td className="px-3 py-2 text-center">{itemCount(o)}</td>
         <td className={`px-3 py-2 text-right whitespace-nowrap ${voided ? 'line-through' : ''}`}>
           <span className="font-medium">{orderTotal(o).primary}</span>
-          <span className="block text-xs text-slate-500">{orderTotal(o).secondary}</span>
+          <span className="block text-xs text-slate-500 dark:text-slate-400">{orderTotal(o).secondary}</span>
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
           {PAYMENT_LABELS[o.payment_method] ?? o.payment_method}
-          {o.bank_name && <span className="text-xs text-slate-500"> · {o.bank_name}</span>}
+          {o.bank_name && <span className="text-xs text-slate-500 dark:text-slate-400"> · {o.bank_name}</span>}
         </td>
       </tr>
       {expanded && (
-        <tr className="bg-slate-50/60">
+        <tr className="bg-slate-50/60 dark:bg-slate-900/60">
           <td colSpan={7} className="px-4 py-3">
             <table className="w-full text-xs mb-3">
-              <thead className="text-slate-500 text-left">
+              <thead className="text-slate-500 dark:text-slate-400 text-left">
                 <tr>
                   <th className="py-1 font-medium">Product</th>
                   <th className="py-1 font-medium">Barcode</th>
@@ -416,13 +416,13 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
                   return (
                     <tr key={idx} className="border-t border-[var(--border)]">
                       <td className="py-1">{i.product_name}</td>
-                      <td className="py-1 text-slate-500">{i.barcode ?? ''}</td>
+                      <td className="py-1 text-slate-500 dark:text-slate-400">{i.barcode ?? ''}</td>
                       <td className="py-1 text-right">{i.quantity}</td>
                       <td className="py-1 text-right">{fmt(i.price)}</td>
                       <td className="py-1 text-right">
                         {/* What the line charged, less its item discount. */}
                         {fmt(i.price * i.quantity - (i.discount || 0))}
-                        {i.discount > 0 && <span className="block text-xs text-amber-600">−{fmt(i.discount)}</span>}
+                        {i.discount > 0 && <span className="block text-xs text-amber-600 dark:text-amber-400">−{fmt(i.discount)}</span>}
                       </td>
                     </tr>
                   );
@@ -430,17 +430,17 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
               </tbody>
             </table>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-slate-600 flex flex-wrap gap-x-4">
+              <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4">
                 {o.amount_paid_usd > 0 && <span>Paid USD: {fmtUsd(o.amount_paid_usd)}</span>}
                 {o.amount_paid_khr > 0 && <span>Paid KHR: {fmtKhr(o.amount_paid_khr)}</span>}
                 {o.change_given_khr > 0 && <span>Change: {fmtKhr(o.change_given_khr)}</span>}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white">
+                <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800">
                   Print receipt
                 </button>
                 {!voided && (
-                  <button onClick={onVoid} className="text-xs font-medium text-red-600 border border-red-200 rounded-lg px-3 py-1.5 bg-white hover:bg-red-50">
+                  <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40">
                     Void sale
                   </button>
                 )}
@@ -507,10 +507,10 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
   return (
     <Modal title="Export sales" onClose={onClose} width="max-w-2xl">
       <div className="space-y-4">
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Branch</label>
             <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
               <option value="">All branches</option>
               {stores.map((s) => (
@@ -519,15 +519,15 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From</label>
             <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To</label>
             <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Payment</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Payment</label>
             <select value={payment} onChange={(e) => setPayment(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
               <option value="all">All methods</option>
               {PAYMENT_METHODS.map((m) => (
@@ -538,23 +538,23 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {[['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['all', 'All time']].map(([key, label]) => (
-            <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50">
+            <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800">
               {label}
             </button>
           ))}
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-600 mb-2">Columns</p>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Columns</p>
           <div className="grid grid-cols-3 gap-2">
             {EXPORT_COLUMNS.map((c) => (
-              <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600">
+              <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input type="checkbox" checked={columns.has(c.key)} onChange={() => toggleColumn(c.key)} />
                 {c.header}
               </label>
             ))}
           </div>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={includeVoided} onChange={(e) => setIncludeVoided(e.target.checked)} />
           Include voided sales
         </label>

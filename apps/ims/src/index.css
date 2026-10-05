@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --text: #475569;
@@ -12,6 +13,18 @@
   color: var(--text);
   background: var(--bg);
   color-scheme: light;
+}
+
+/* Night mode: toggled by adding/removing .dark on <html> (useTheme.js),
+   defaulting to the OS preference. Only the semantic tokens above need
+   redefining here -- every dark: utility class elsewhere handles its own. */
+.dark {
+  --text: #cbd5e1;
+  --text-h: #ffffff;
+  --bg: #0f172a;
+  --border: #334155;
+  --accent-bg: rgba(79, 70, 229, 0.25);
+  color-scheme: dark;
 }
 
 body {

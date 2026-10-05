@@ -16,7 +16,7 @@ const money = (store, usd, khr) => inMainCurrency(store.mainCurrency, usd, khr ?
 function Amount({ value }) {
   return (
     <>
-      {value.primary} <span className="text-slate-400 text-xs">{value.secondary}</span>
+      {value.primary} <span className="text-slate-400 dark:text-slate-500 text-xs">{value.secondary}</span>
     </>
   );
 }
@@ -56,9 +56,9 @@ export default function ReportsPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Reports</h1>
       </div>
 
-      <div className="flex items-end gap-3 mb-4 bg-white border border-[var(--border)] rounded-xl p-4">
+      <div className="flex items-end gap-3 mb-4 bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Store</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Store</label>
           <select
             value={storeId}
             onChange={(e) => setStoreId(e.target.value)}
@@ -73,7 +73,7 @@ export default function ReportsPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From</label>
           <input
             type="date"
             value={dateFrom}
@@ -83,7 +83,7 @@ export default function ReportsPage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To</label>
           <input
             type="date"
             value={dateTo}
@@ -94,10 +94,10 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
       ) : !report ? null : (
         <>
           <div className="grid grid-cols-4 gap-3 mb-4">
@@ -114,18 +114,18 @@ export default function ReportsPage() {
                 ),
               },
             ].map((card) => (
-              <div key={card.label} className="bg-white border border-[var(--border)] rounded-xl p-4">
-                <p className="text-xs text-slate-500">{card.label}</p>
+              <div key={card.label} className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
                 <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{card.value.primary}</p>
-                {card.value.secondary && <p className="text-xs text-slate-500">{card.value.secondary}</p>}
+                {card.value.secondary && <p className="text-xs text-slate-500 dark:text-slate-400">{card.value.secondary}</p>}
               </div>
             ))}
           </div>
 
           {!storeId && report.byStore.length > 1 && (
-            <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden mb-4">
+            <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden mb-4">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 text-left">
+                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
                   <tr>
                     <th className="px-4 py-2">Store</th>
                     <th className="px-4 py-2">Orders</th>
@@ -149,34 +149,34 @@ export default function ReportsPage() {
 
           {singleStore && (
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+              <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
                 <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">Payment breakdown</h2>
                 {singleStore.byMethod.length === 0 ? (
-                  <p className="text-sm text-slate-400">No orders.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">No orders.</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm">
                     {singleStore.byMethod.map((m) => (
                       <li key={m.paymentMethod} className="flex justify-between">
                         <span>{m.paymentMethod}</span>
                         <span>
-                          {money(singleStore, m.total, m.totalKhr).primary} <span className="text-slate-400">({m.count})</span>
+                          {money(singleStore, m.total, m.totalKhr).primary} <span className="text-slate-400 dark:text-slate-500">({m.count})</span>
                         </span>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
-              <div className="bg-white border border-[var(--border)] rounded-xl p-4">
+              <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
                 <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">Top products</h2>
                 {singleStore.topProducts.length === 0 ? (
-                  <p className="text-sm text-slate-400">No sales.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">No sales.</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm">
                     {singleStore.topProducts.map((p) => (
                       <li key={p.productId} className="flex justify-between">
                         <span>{p.name}</span>
                         <span>
-                          {p.totalQty} <span className="text-slate-400">· {money(singleStore, p.revenue).primary}</span>
+                          {p.totalQty} <span className="text-slate-400 dark:text-slate-500">· {money(singleStore, p.revenue).primary}</span>
                         </span>
                       </li>
                     ))}

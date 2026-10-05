@@ -198,7 +198,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
         <button
           onClick={() => setTab('import')}
           className={`px-3 py-2 text-sm font-medium border-b-2 ${
-            tab === 'import' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500'
+            tab === 'import' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
           Import
@@ -206,14 +206,14 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
         <button
           onClick={() => setTab('export')}
           className={`px-3 py-2 text-sm font-medium border-b-2 ${
-            tab === 'export' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500'
+            tab === 'export' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
           Export
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
 
       {tab === 'import' && step === 'upload' && (
         <div
@@ -223,7 +223,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
             handleFile(e.dataTransfer.files[0]);
           }}
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-[var(--border)] rounded-xl p-10 text-center text-sm text-slate-500 cursor-pointer hover:border-[var(--accent)]"
+          className="border-2 border-dashed border-[var(--border)] rounded-xl p-10 text-center text-sm text-slate-500 dark:text-slate-400 cursor-pointer hover:border-[var(--accent)]"
         >
           Drop an Excel/CSV file or an online-pos database (.sqlite) here, or click to choose one.
           <input
@@ -238,15 +238,15 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
       {tab === 'import' && step === 'map' && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {sourceNote && `${sourceNote} `}
             {rows.length} rows found. Map columns below.
           </p>
           {IMPORT_FIELDS.map((field) => (
             <div key={field.key} className="flex items-center gap-3">
-              <label className="w-32 text-sm text-slate-600">
+              <label className="w-32 text-sm text-slate-600 dark:text-slate-300">
                 {field.label}
-                {field.required && <span className="text-red-500">*</span>}
+                {field.required && <span className="text-red-500 dark:text-red-400">*</span>}
               </label>
               <select
                 value={mapping[field.key] ?? ''}
@@ -265,7 +265,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
           {!mapping.currency && (
             <div className="flex items-center gap-3">
-              <label className="w-32 text-sm text-slate-600">Default currency</label>
+              <label className="w-32 text-sm text-slate-600 dark:text-slate-300">Default currency</label>
               <select
                 value={defaultCurrency}
                 onChange={(e) => setDefaultCurrency(e.target.value)}
@@ -277,7 +277,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
             Update existing products matched by barcode
           </label>
@@ -299,8 +299,8 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
       {tab === 'import' && step === 'result' && result && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-700">Import complete.</p>
-          <ul className="text-sm text-slate-600 space-y-1">
+          <p className="text-sm text-slate-700 dark:text-slate-200">Import complete.</p>
+          <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
             <li>Imported: {result.imported}</li>
             <li>Updated: {result.updated}</li>
             <li>Skipped: {result.skipped}</li>
@@ -319,10 +319,10 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
       {tab === 'export' && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-500">Exports the {products.length} currently loaded products.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Exports the {products.length} currently loaded products.</p>
           <div className="grid grid-cols-2 gap-2">
             {EXPORT_COLUMNS.map((c) => (
-              <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600">
+              <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={exportCols[c.key]}

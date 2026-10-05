@@ -16,7 +16,7 @@ export default function App() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">Loading…</div>
+      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">Loading…</div>
     );
   }
 

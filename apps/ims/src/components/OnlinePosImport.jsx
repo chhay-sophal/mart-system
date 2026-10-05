@@ -156,9 +156,9 @@ export default function OnlinePosImport({ storeId, onImported }) {
   const settingEntries = file ? Object.entries(SETTING_LABELS).filter(([key]) => file.settings[key]) : [];
 
   return (
-    <div className="bg-white border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
+    <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
       <h2 className="text-sm font-semibold text-[var(--text-h)]">Import from online-pos</h2>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 dark:text-slate-400">
         Bring over data from the old online-pos app. Choose its <code>database.sqlite</code> (on the old PC under{' '}
         <code>.soso-babymart-pos</code>, or a file from its <code>backups</code> folder).
       </p>
@@ -172,10 +172,10 @@ export default function OnlinePosImport({ storeId, onImported }) {
         >
           Choose file
         </button>
-        <span className="text-xs text-slate-500 truncate">{file?.name ?? 'No file chosen'}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{file?.name ?? 'No file chosen'}</span>
         <input ref={fileInputRef} type="file" accept=".sqlite,.sqlite3,.db" className="hidden" onChange={handleFile} />
       </div>
-      {readError && <p className="text-xs text-red-600">{readError}</p>}
+      {readError && <p className="text-xs text-red-600 dark:text-red-400">{readError}</p>}
 
       {file && (
         <div className="space-y-3 pt-2 border-t border-[var(--border)]">
@@ -197,7 +197,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
                   </span>
                 ))}
                 <span className="block">Shop name, image, address and phone are set on each register (POS Settings).</span>
-                <span className="block text-amber-700">Replaces this store's current values.</span>
+                <span className="block text-amber-700 dark:text-amber-300">Replaces this store's current values.</span>
               </>
             )}
           </Step>
@@ -235,7 +235,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
           </Step>
 
           {errors.length > 0 && (
-            <div className="text-xs text-red-700 bg-red-50 rounded-lg p-3 space-y-0.5">
+            <div className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg p-3 space-y-0.5">
               {errors.slice(0, SHOWN_ERRORS).map((e) => (
                 <p key={e}>{e}</p>
               ))}
@@ -265,8 +265,8 @@ function Step({ checked, disabled, onChange, title, status, children }) {
       <input type="checkbox" className="mt-1" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[var(--text-h)]">{title}</p>
-        <div className="text-xs text-slate-500">{children}</div>
-        {status && <p className="text-xs font-medium text-slate-700 mt-1">{status}</p>}
+        <div className="text-xs text-slate-500 dark:text-slate-400">{children}</div>
+        {status && <p className="text-xs font-medium text-slate-700 dark:text-slate-200 mt-1">{status}</p>}
       </div>
     </div>
   );

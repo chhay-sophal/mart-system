@@ -85,11 +85,11 @@ export default function TerminalsPage() {
         </button>
       </div>
 
-      {(error || listQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load terminals.'}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load terminals.'}</p>}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Paired</th>
@@ -102,13 +102,13 @@ export default function TerminalsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : terminals.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   No terminals paired yet.
                 </td>
               </tr>
@@ -116,19 +116,19 @@ export default function TerminalsPage() {
               terminals.map((t) => (
                 <tr key={t.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{t.name}</td>
-                  <td className="px-4 py-2 text-slate-500">{formatDate(t.pairedAt)}</td>
-                  <td className="px-4 py-2 text-slate-500">{formatDate(t.lastSeenAt)}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(t.pairedAt)}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(t.lastSeenAt)}</td>
                   <td className="px-4 py-2">
                     {!t.isActive ? (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : (
-                      <span className={isOnline(t) ? 'text-emerald-600' : 'text-amber-600'}>
+                      <span className={isOnline(t) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
                         {isOnline(t) ? 'Online' : 'Offline'}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    <span className={t.isActive ? 'text-emerald-600' : 'text-slate-400'}>
+                    <span className={t.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
                       {t.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -136,7 +136,7 @@ export default function TerminalsPage() {
                     <button onClick={() => handleRotate(t)} className="text-[var(--accent)] font-medium">
                       Rotate secret
                     </button>
-                    <button onClick={() => handleToggleActive(t)} className="text-red-600 font-medium">
+                    <button onClick={() => handleToggleActive(t)} className="text-red-600 dark:text-red-400 font-medium">
                       {t.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </td>
@@ -151,7 +151,7 @@ export default function TerminalsPage() {
         <Modal title="Pair new terminal" onClose={() => setShowPair(false)}>
           <form onSubmit={handlePair} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Terminal name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Terminal name</label>
               <input
                 required
                 autoFocus
@@ -175,15 +175,15 @@ export default function TerminalsPage() {
 
       {revealedSecret && (
         <Modal title={`Device secret for "${revealedSecret.name}"`} onClose={() => setRevealedSecret(null)}>
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-3">
             Save these now — the device secret will not be shown again. Enter both in the POS terminal's setup screen.
           </p>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Terminal ID</label>
-          <code className="block break-all bg-slate-100 rounded-lg px-3 py-2 text-sm mb-3">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Terminal ID</label>
+          <code className="block break-all bg-slate-100 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm mb-3">
             {revealedSecret.id}
           </code>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Device Secret</label>
-          <code className="block break-all bg-slate-100 rounded-lg px-3 py-2 text-sm mb-4">
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Device Secret</label>
+          <code className="block break-all bg-slate-100 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm mb-4">
             {revealedSecret.deviceSecret}
           </code>
           <div className="flex justify-end">

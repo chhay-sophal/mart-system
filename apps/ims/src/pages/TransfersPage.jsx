@@ -123,11 +123,11 @@ export default function TransfersPage() {
         </button>
       </div>
 
-      {(error || transfersQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load transfers.'}</p>}
+      {(error || transfersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load transfers.'}</p>}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <th className="px-4 py-2">From</th>
               <th className="px-4 py-2">To</th>
@@ -139,13 +139,13 @@ export default function TransfersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
                   Loading…
                 </td>
               </tr>
             ) : transfers.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={5}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
                   No transfers yet.
                 </td>
               </tr>
@@ -154,17 +154,17 @@ export default function TransfersPage() {
                 <tr key={t.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{t.fromStoreName}</td>
                   <td className="px-4 py-2">{t.toStoreName}</td>
-                  <td className="px-4 py-2 text-slate-500 text-xs">
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
                     {t.items.map((i) => `${i.quantity}× ${i.productName}`).join(', ')}
                   </td>
                   <td className="px-4 py-2">
                     <span
                       className={
                         t.status === 'COMPLETED'
-                          ? 'text-emerald-600'
+                          ? 'text-emerald-600 dark:text-emerald-400'
                           : t.status === 'CANCELLED'
-                            ? 'text-slate-400'
-                            : 'text-amber-600'
+                            ? 'text-slate-400 dark:text-slate-500'
+                            : 'text-amber-600 dark:text-amber-400'
                       }
                     >
                       {t.status}
@@ -176,7 +176,7 @@ export default function TransfersPage() {
                         <button onClick={() => handleComplete(t)} className="text-[var(--accent)] font-medium">
                           Complete
                         </button>
-                        <button onClick={() => handleCancel(t)} className="text-red-600 font-medium">
+                        <button onClick={() => handleCancel(t)} className="text-red-600 dark:text-red-400 font-medium">
                           Cancel
                         </button>
                       </>
@@ -194,7 +194,7 @@ export default function TransfersPage() {
           <form onSubmit={handleCreate} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">From store</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From store</label>
                 <select
                   required
                   value={createForm.fromStoreId}
@@ -210,7 +210,7 @@ export default function TransfersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">To store</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To store</label>
                 <select
                   required
                   value={createForm.toStoreId}
@@ -231,7 +231,7 @@ export default function TransfersPage() {
 
             {createForm.fromStoreId && (
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Add item</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Add item</label>
                 <div className="flex gap-2">
                   <select
                     value={pendingProductId}
@@ -267,7 +267,7 @@ export default function TransfersPage() {
                     <span>
                       {item.quantity}× {item.name}
                     </span>
-                    <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 text-xs">
+                    <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 dark:text-red-400 text-xs">
                       Remove
                     </button>
                   </li>

@@ -94,11 +94,11 @@ export default function StaffPage() {
         </button>
       </div>
 
-      {(error || listQuery.isError) && <p className="text-sm text-red-600 mb-3">{error || 'Failed to load staff.'}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load staff.'}</p>}
 
-      <div className="bg-white border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Email</th>
@@ -111,13 +111,13 @@ export default function StaffPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   Loading…
                 </td>
               </tr>
             ) : staff.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
                   No staff yet.
                 </td>
               </tr>
@@ -125,7 +125,7 @@ export default function StaffPage() {
               staff.map((row) => (
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
-                  <td className="px-4 py-2 text-slate-500">{row.email}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email}</td>
                   <td className="px-4 py-2">
                     <select
                       value={row.role}
@@ -139,9 +139,9 @@ export default function StaffPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2 text-slate-500">{row.hasPinSet ? 'Set' : 'Not set'}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.hasPinSet ? 'Set' : 'Not set'}</td>
                   <td className="px-4 py-2">
-                    <span className={row.isActive ? 'text-emerald-600' : 'text-slate-400'}>
+                    <span className={row.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
                       {row.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -155,7 +155,7 @@ export default function StaffPage() {
                     >
                       Reset PIN
                     </button>
-                    <button onClick={() => handleToggleActive(row)} className="text-red-600 font-medium">
+                    <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium">
                       {row.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </td>
@@ -170,7 +170,7 @@ export default function StaffPage() {
         <Modal title="Add staff" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
               <input
                 required
                 type="email"
@@ -180,7 +180,7 @@ export default function StaffPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
               <input
                 required
                 value={createForm.name}
@@ -189,7 +189,7 @@ export default function StaffPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Initial password</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Initial password</label>
               <div className="relative">
                 <input
                   required
@@ -202,7 +202,7 @@ export default function StaffPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 hover:text-slate-700"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -210,7 +210,7 @@ export default function StaffPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
                 <select
                   value={createForm.role}
                   onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
@@ -224,7 +224,7 @@ export default function StaffPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">PIN (optional, 4 digits)</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">PIN (optional, 4 digits)</label>
                 <input
                   inputMode="numeric"
                   pattern="[0-9]{4}"
@@ -252,7 +252,7 @@ export default function StaffPage() {
         <Modal title={`Reset PIN for ${pinTarget.name}`} onClose={() => setPinTarget(null)}>
           <form onSubmit={handleResetPin} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">New PIN (4 digits)</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">New PIN (4 digits)</label>
               <input
                 required
                 inputMode="numeric"
