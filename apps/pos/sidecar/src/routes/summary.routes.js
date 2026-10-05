@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../db');
+const { roundKhrToNote } = require('../money');
 const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
 
 const router = express.Router();
@@ -21,17 +22,22 @@ router.get('/api/summary/daily', async (req, res) => {
 
   const rateRow = query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0];
   const rate = parseFloat(rateRow?.value || '4100');
-  // Totals are stored in the store's main currency at the time; report in USD.
+  // Totals are stored in the store's main currency at the time. Revenue is
+  // reported in USD, and in riel: exact for riel sales, converted (to the 100
+  // note) for the rest -- the same as the backend's store-wide summary.
   const TOTAL_USD = `CASE WHEN currency = 'KHR' THEN total_amount / ${rate} ELSE total_amount END`;
+  const TOTAL_KHR = `CASE WHEN currency = 'KHR' THEN total_amount ELSE ROUND(total_amount * ${rate} / 100) * 100 END`;
 
   const stats = query(
-    `SELECT COUNT(*) as order_count, COALESCE(SUM(${TOTAL_USD}), 0) as total_revenue
+    `SELECT COUNT(*) as order_count, COALESCE(SUM(${TOTAL_USD}), 0) as total_revenue,
+            COALESCE(SUM(${TOTAL_KHR}), 0) as total_revenue_khr
      FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0`,
     base
-  )[0] || { order_count: 0, total_revenue: 0 };
+  )[0] || { order_count: 0, total_revenue: 0, total_revenue_khr: 0 };
 
   const byMethod = query(
-    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(${TOTAL_USD}), 0) as total
+    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(${TOTAL_USD}), 0) as total,
+            COALESCE(SUM(${TOTAL_KHR}), 0) as total_khr
      FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0
      GROUP BY payment_method ORDER BY total DESC`,
     base
@@ -65,7 +71,9 @@ router.get('/api/summary/daily', async (req, res) => {
   res.json({
     order_count: stats.order_count,
     total_revenue: stats.total_revenue,
+    total_revenue_khr: stats.total_revenue_khr,
     avg_order: stats.order_count > 0 ? stats.total_revenue / stats.order_count : 0,
+    avg_order_khr: stats.order_count > 0 ? roundKhrToNote(stats.total_revenue_khr / stats.order_count) : 0,
     gross_profit: profitRow.gross_profit,
     by_method: byMethod,
     top_products: topProducts,

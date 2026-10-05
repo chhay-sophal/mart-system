@@ -75,9 +75,11 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
   });
 
   const isKhr = mainCurrency === 'KHR';
-  const fmt = (n) => isKhr
-    ? `${usdToKhr(n, dynamicRate).toLocaleString()} ៛`
-    : `$${Number(n || 0).toFixed(2)}`;
+  // `khr`: the exact riel sum the summary reports for revenue (riel sales as
+  // charged); anything without one is converted from USD.
+  const fmt = (n, khr) => isKhr
+    ? `${(khr ?? usdToKhr(n, dynamicRate)).toLocaleString()} ៛`
+    : `${Number(n || 0).toFixed(2)}`;
   const fmtSub = (n) => isKhr
     ? `≈ $${Number(n || 0).toFixed(2)}`
     : `≈ ${usdToKhr(n, dynamicRate).toLocaleString()} ៛`;
@@ -164,14 +166,14 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               {[
                 {
                   label: s.revenue || 'Revenue',
-                  value: fmt(summary.total_revenue),
-                  sub: fmtSub(summary.total_revenue),
+                  value: fmt(summary.total_revenue, summary.total_revenue_khr),
+                  sub: isKhr ? fmtSub(summary.total_revenue) : `≈ ${(summary.total_revenue_khr ?? usdToKhr(summary.total_revenue, dynamicRate)).toLocaleString()} ៛`,
                   color: 'text-slate-900 dark:text-white',
                 },
                 {
                   label: s.orders || 'Orders',
                   value: summary.order_count,
-                  sub: `${s.avg || 'Avg'} ${fmt(summary.avg_order)}`,
+                  sub: `${s.avg || 'Avg'} ${fmt(summary.avg_order, summary.avg_order_khr)}`,
                   color: 'text-slate-900 dark:text-white',
                 },
                 {
@@ -209,7 +211,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{methodLabel(m.payment_method)}</span>
                         <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          {fmt(m.total)}{' '}
+                          {fmt(m.total, m.total_khr)}{' '}
                           <span className="text-xs font-normal text-slate-400">{m.count} {s.txCount || 'txns'}</span>
                         </span>
                       </div>
