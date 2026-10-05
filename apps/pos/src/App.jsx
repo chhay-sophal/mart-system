@@ -11,7 +11,7 @@ import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
-import { BANKS, STATIC_QR_KEY, parseStaticQrCodes, sortByBank } from './staticQr';
+import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
@@ -367,11 +367,9 @@ export default function App() {
     }
   }
 
-  // Banks offered under Bank QR: the ones switched on in Settings > KHQR, or
-  // every bank while none have a QR set up yet.
-  const staticQrBanks = staticQrCodes.length
-    ? staticQrCodes.filter((c) => c.enabled).map((c) => c.bank)
-    : BANKS;
+  // Banks offered under Bank QR: the admin's list in Settings > KHQR, the
+  // ones switched on, in the admin's order.
+  const staticQrBanks = staticQrCodes.filter((c) => c.enabled).map((c) => c.bank);
   // The selected bank's QR, shown on the customer display to scan.
   const staticQrImage = paymentMethod === 'STATIC_QR'
     ? staticQrCodes.find((c) => c.bank === staticQrBank && c.enabled)?.image ?? null
@@ -461,7 +459,7 @@ export default function App() {
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
         setShowLowStockAlert(data.show_low_stock_alert !== 'false');
         setPrinter(printerConfig(data));
-        setStaticQrCodes(sortByBank(parseStaticQrCodes(data[STATIC_QR_KEY])));
+        setStaticQrCodes(parseStaticQrCodes(data[STATIC_QR_KEY]));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
