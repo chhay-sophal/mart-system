@@ -179,12 +179,14 @@ export default function CustomerDisplay() {
                   </td>
                   <td className="px-4 py-4 text-center text-slate-500 font-bold w-14">×{item.quantity}</td>
                   <td className="px-6 py-4 text-right">
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
-                      {item.currency === 'KHR'
-                        ? `${Math.round(item.price * item.quantity).toLocaleString()} ៛`
-                        : `$${(Number(item.price) * item.quantity).toFixed(2)}`
-                      }
-                    </p>
+                    {item.discount > 0 && (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
+                        {item.currency === 'KHR'
+                          ? `${Math.round(item.price * item.quantity).toLocaleString()} ៛`
+                          : `${(Number(item.price) * item.quantity).toFixed(2)}`
+                        }
+                      </p>
+                    )}
                     <p className="font-bold text-sm text-slate-900 dark:text-white">
                       {item.currency === 'KHR'
                         ? `${Math.round(discountedUnitPrice(item) * item.quantity).toLocaleString()} ៛`

@@ -948,9 +948,12 @@ export default function App() {
                         <div className="flex items-stretch gap-5">
                           {/* Price Per Unit */}
                           <div className="text-right w-24">
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
-                              {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `$${Number(item.price).toFixed(2)}`}
-                            </p>
+                            {/* The original price is struck through only when the item is discounted. */}
+                            {item.discount > 0 && (
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
+                                {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `${Number(item.price).toFixed(2)}`}
+                              </p>
+                            )}
                             <p className="font-bold text-sm text-slate-900 dark:text-white">
                               {item.discountType === 'fixed'
                                 ? item.currency === 'KHR'
