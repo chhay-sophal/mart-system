@@ -789,7 +789,7 @@ export default function App() {
           <div className="w-10 h-10 flex items-center justify-center text-4xl flex-shrink-0">
             {storeIcon
               ? <img src={storeIcon} alt="store" className="w-10 h-10 rounded-xl object-cover" />
-              : <Store size={20} className="text-slate-400 dark:text-slate-500" />}
+              : <Store size={20} className="text-slate-400 dark:text-slate-400" />}
           </div>
           <div>
             <h1 className="text-base font-bold text-slate-900 dark:text-white tracking-tight font-display">{storeName || t[locale].shopName}</h1>
@@ -830,14 +830,14 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowShortcuts(true)}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
             title={`${sc.title || 'Keyboard Shortcuts'}${keyHint('help')}`}
           >
             <KeyboardIcon size={16} />
           </button>
           <button
             onClick={toggleDark}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
@@ -845,7 +845,7 @@ export default function App() {
           <UpdateChecker />
           <button
             onClick={() => setSession(null)}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
             title={`${t[locale].lockTerminal}${keyHint('lock')}`}
           >
             <Lock size={16} />
@@ -860,7 +860,7 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden w-full">
         {/* Left Workspace Panel: Basket stream and actions */}
         <div className="flex-1 flex flex-col p-5 overflow-hidden gap-4">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 p-4 rounded-2xl shadow-xs text-indigo-900 dark:text-indigo-200 flex-shrink-0">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 p-4 rounded-2xl shadow-xs text-indigo-900 dark:text-indigo-200 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -922,8 +922,8 @@ export default function App() {
           )}
 
           {/* Master Item Basket View */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex-1 flex flex-col overflow-hidden shadow-xs">
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center flex-shrink-0">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 flex-1 flex flex-col overflow-hidden shadow-xs">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center flex-shrink-0">
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight font-display">{t[locale].currentBasket}</h2>
               <span className="text-xs bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-full">
                 {cart.reduce((a, b) => a + b.quantity, 0)} {t[locale].itemsCount}
@@ -932,25 +932,25 @@ export default function App() {
 
             <div className="flex-1 overflow-y-auto p-4 content-start">
               {cart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3 py-12">
-                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-700/50 text-slate-300 dark:text-slate-600"><ShoppingCart size={28} /></div>
-                  <p className="text-sm font-semibold text-slate-400 dark:text-slate-500 font-display">{t[locale].basketEmpty}</p>
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-400 gap-3 py-12">
+                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-700 text-slate-300 dark:text-slate-400"><ShoppingCart size={28} /></div>
+                  <p className="text-sm font-semibold text-slate-400 dark:text-slate-400 font-display">{t[locale].basketEmpty}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {cart.map((item) => (
-                    <div key={item.id} className="p-3.5 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl border border-slate-100/80 dark:border-slate-700/30 transition-colors">
+                    <div key={item.id} className="p-3.5 bg-slate-50/60 dark:bg-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-700/70 rounded-xl border border-slate-100/80 dark:border-slate-700 transition-colors">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0 pr-4">
                           <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{item.name}</h3>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500 tracking-wider mt-0.5">#{item.barcode}</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-400 tracking-wider mt-0.5">#{item.barcode}</p>
                         </div>
                         <div className="flex items-stretch gap-5">
                           {/* Price Per Unit */}
                           <div className="text-right w-24 flex flex-col justify-center">
                             {/* The original price is struck through only when the item is discounted. */}
                             {item.discount > 0 && (
-                              <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
+                              <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
                                 {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `${Number(item.price).toFixed(2)}`}
                               </p>
                             )}
@@ -988,7 +988,7 @@ export default function App() {
                                 className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all ${
                                   (item.discountType || 'pct') === 'pct'
                                     ? 'bg-amber-500 text-white'
-                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                               >%</button>
                               <button
@@ -996,7 +996,7 @@ export default function App() {
                                 className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all ${
                                   item.discountType === 'fixed'
                                     ? 'bg-amber-500 text-white border-amber-500'
-                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                               >{item.currency === 'KHR' ? '៛' : '$'}</button>
                             </div>
@@ -1004,9 +1004,9 @@ export default function App() {
                           
                           {/* Qty stepper */}
                           <div className="flex items-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 rounded-xl p-0.5 shadow-2xs">
-                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">&minus;</button>
+                            <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">&minus;</button>
                             <span className="w-9 text-center font-bold text-sm text-slate-800 dark:text-slate-100">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">+</button>
+                            <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">+</button>
                           </div>
 
                           {/* Line total */}
@@ -1018,7 +1018,7 @@ export default function App() {
                                 : item.price * item.quantity * (1 - item.discount / 100);
                               return (
                                 <>
-                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
                                     {item.currency === 'KHR' ? `${Math.round(base).toLocaleString()} ៛` : `$${Number(base).toFixed(2)}`}
                                   </p>
                                   <p className="font-bold text-sm text-amber-600 dark:text-amber-400">
@@ -1034,7 +1034,7 @@ export default function App() {
                               </p>
                             )}
                           </div>
-                          <button onClick={() => removeItem(item.id)} className="text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center"><X size={14} /></button>
+                          <button onClick={() => removeItem(item.id)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center"><X size={14} /></button>
                         </div>
                       </div>
                     </div>
@@ -1051,7 +1051,7 @@ export default function App() {
             {/* Transaction Discount */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <label className="text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase font-display truncate min-w-fit">
+                <label className="text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase font-display truncate min-w-fit">
                   {locale === 'km' ? 'បញ្ចុះតម្លៃ' : 'Discount'}
                 </label>
                 <input
@@ -1076,7 +1076,7 @@ export default function App() {
                     className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all ${
                       txDiscountType === 'pct'
                         ? 'bg-amber-500 text-white'
-                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >%</button>
                   <button
@@ -1084,7 +1084,7 @@ export default function App() {
                     className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all ${
                       txDiscountType === 'fixed'
                         ? 'bg-amber-500 text-white border-amber-500'
-                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
                   >{mainCurrency === 'KHR' ? '៛' : '$'}</button>
                 </div>
@@ -1111,7 +1111,7 @@ export default function App() {
                     </span>
                   </div>
                 )}
-                <div className="border-t border-slate-800 dark:border-slate-700/80 pt-2.5 flex justify-between items-baseline">
+                <div className="border-t border-slate-800 dark:border-slate-700 pt-2.5 flex justify-between items-baseline">
                   <span className="text-xs font-medium text-slate-400 font-display">
                     {mainCurrency === 'USD' ? t[locale].totalUsd : t[locale].totalKhr}
                   </span>
@@ -1131,7 +1131,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase mb-2 font-display">{t[locale].settlementType}</label>
+              <label className="block text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase mb-2 font-display">{t[locale].settlementType}</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); }}
@@ -1156,9 +1156,9 @@ export default function App() {
 
             {paymentMethod === 'CASH' ? (
               <div className="space-y-4">
-                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/40">
+                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700">
                   <div className='flex gap-1'>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -1175,7 +1175,7 @@ export default function App() {
                     />
                   </div>
                   <div className='flex gap-1'>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedUsd}</label>
+                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedUsd}</label>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -1195,7 +1195,7 @@ export default function App() {
                 {totalTenderedInUsd > 0 && (
                   <div className={`p-4 rounded-2xl border transition-all ${changeDueUsd >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'}`}>
                     <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display">
                         {changeDueUsd >= 0 ? t[locale].changeDue : t[locale].shortage}
                       </span>
                       <span className={`text-lg font-black ${changeDueUsd >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
@@ -1205,7 +1205,7 @@ export default function App() {
                         }
                       </span>
                     </div>
-                    <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-500">
+                    <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
                       {mainCurrency === 'USD'
                         ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛`
                         : `$${changeDueUsd.toFixed(2)} USD`
@@ -1216,7 +1216,7 @@ export default function App() {
               </div>
             ) : paymentMethod === 'STATIC_QR' ? (
               <div className="space-y-3 bg-amber-50/30 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900 p-4 rounded-2xl">
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display">{t[locale].staticQrPrompt}</p>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display">{t[locale].staticQrPrompt}</p>
                 {staticQrBanks.length === 0 && (
                   <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">{t[locale].staticQrNoneEnabled}</p>
                 )}
@@ -1237,11 +1237,11 @@ export default function App() {
                     <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">{t[locale].staticQrShowing}</p>
                   </div>
                 )}
-                <p className="text-[10px] text-slate-400 dark:text-slate-500">{t[locale].staticQrNote}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-400">{t[locale].staticQrNote}</p>
                 <button
                   onClick={handleCheckout}
                   disabled={cart.length === 0 || !staticQrBank}
-                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all font-display shadow-xs ${cart.length === 0 || !staticQrBank ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-[0.99]'}`}
+                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all font-display shadow-xs ${cart.length === 0 || !staticQrBank ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-400 cursor-not-allowed' : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-[0.99]'}`}
                 >
                   {staticQrBank ? t[locale].confirmReceived : `${t[locale].selectBank}...`}
                 </button>
@@ -1256,11 +1256,11 @@ export default function App() {
                     <div className="text-center">
                       <p className="font-bold text-xs text-slate-800 dark:text-slate-100 font-display">{t[locale].scanToPay}</p>
                       <p className="text-[10px] text-rose-500 font-bold mt-0.5">{t[locale].ref}: {activeKhqr.md5_hash.substring(0, 8).toUpperCase()}</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-2 font-display animate-pulse">{t[locale].waitingPayment}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-400 mt-2 font-display animate-pulse">{t[locale].waitingPayment}</p>
                     </div>
                   </>
                 ) : khqrLoading ? (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-bold font-display animate-pulse">{t[locale].assemblingPacket}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-400 font-bold font-display animate-pulse">{t[locale].assemblingPacket}</p>
                 ) : (
                   <button
                     onClick={fetchKHQRString}
@@ -1299,7 +1299,7 @@ export default function App() {
               <button
                 onClick={handleCheckout}
                 disabled={cart.length === 0 || !isCashPaymentSufficient}
-                className={`w-full h-12 rounded-xl font-bold transition-all text-sm font-display shadow-xs ${cart.length === 0 || !isCashPaymentSufficient ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700 active:scale-[0.99]'}`}
+                className={`w-full h-12 rounded-xl font-bold transition-all text-sm font-display shadow-xs ${cart.length === 0 || !isCashPaymentSufficient ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700 active:scale-[0.99]'}`}
               >
                 {t[locale].finalizeOrder}
               </button>
