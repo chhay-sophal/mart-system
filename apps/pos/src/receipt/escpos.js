@@ -5,7 +5,7 @@ const ESC = 0x1b;
 const GS = 0x1d;
 
 export const INIT = [ESC, 0x40]; // ESC @: reset to defaults
-const feedLines = (n) => [ESC, 0x64, n]; // ESC d n
+const feed = (n) => (n > 0 ? [ESC, 0x64, n] : []); // ESC d n
 const PARTIAL_CUT = [GS, 0x56, 0x42, 0x00]; // GS V B 0: feed to the cutter, then cut
 // ESC p 0 t1 t2: pulse drawer pin 2 (the usual RJ-11 drawer port) for 50 ms on, 500 ms off.
 export const OPEN_DRAWER = [ESC, 0x70, 0x00, 0x19, 0xfa];
@@ -27,14 +27,16 @@ export function rasterImage({ width, height, bytes }) {
   return out;
 }
 
-/** A complete print job: the receipt image, then feed and (optionally) cut. */
-export function receiptJob(image, { cut = true } = {}) {
-  return Uint8Array.from([
-    ...INIT,
-    ...rasterImage(image),
-    ...feedLines(cut ? 3 : 5),
-    ...(cut ? PARTIAL_CUT : []),
-  ]);
+/**
+ * A complete print job: each copy is the receipt image, `feedLines` blank
+ * lines, then a cut when the printer has a cutter.
+ */
+export function receiptJob(image, { cut = true, feedLines = 3, copies = 1 } = {}) {
+  const one = Uint8Array.from([...rasterImage(image), ...feed(feedLines), ...(cut ? PARTIAL_CUT : [])]);
+  const out = new Uint8Array(INIT.length + one.length * copies);
+  out.set(INIT);
+  for (let i = 0; i < copies; i++) out.set(one, INIT.length + i * one.length);
+  return out;
 }
 
 export const drawerJob = () => Uint8Array.from([...INIT, ...OPEN_DRAWER]);

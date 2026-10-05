@@ -1,9 +1,10 @@
 import { translations as t } from '../locales';
 import { usdToKhr } from '../khr';
+import { receiptOptions } from './receiptOptions';
 
-// What a receipt says, independent of how it's printed. The thermal-printer
-// renderer (raster.js) lays these blocks out; the on-screen/system-print
-// receipt in Invoice.jsx shows the same content with the same formatters.
+// What a receipt says, independent of how it's printed. raster.js lays these
+// blocks out as an image, which both the thermal printer and the system print
+// dialog print, so there's one receipt layout.
 
 export const fmtUnit = (price, currency) => {
   const p = Number(price);
@@ -52,60 +53,69 @@ export function paymentLabel({ paymentMethod, bankName }, inv) {
 }
 
 /**
- * The receipt as a list of blocks:
- *   { type: 'text', text, align, size, bold }   size: 'sm' | 'md' | 'lg'
+ * The receipt as a list of blocks, shaped by the receipt options
+ * (receiptOptions.js; the defaults when omitted):
+ *   { type: 'image', src }                       the store logo
+ *   { type: 'text', text, align, size, bold }     size: 'sm' | 'md' | 'lg'
  *   { type: 'pair', left, right, size, bold }
- *   { type: 'item', no, name, detail, amount, note }
- *   { type: 'rule' } | { type: 'space' }
+ *   { type: 'item', no, name, detail, amount, note }  no/detail/note may be empty
+ *   { type: 'rule' }
  */
-export function buildReceipt(invoiceData, locale) {
+export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
   const inv = t[locale].invoice;
+  const o = options;
   const {
     order_id, items, subtotalBeforeDiscountUsd, transactionDiscountUsd, totalDiscountUsd, totalUsd,
     mainCurrency, dynamicRate, paymentMethod, amountPaidUsd, amountPaidKhr, changeDueKhr, timestamp,
-    storeName, storeAddress, storePhone,
+    storeName, storeAddress, storePhone, storeIcon, cashierName,
   } = invoiceData;
   const fmt = currencyFormatters(mainCurrency, dynamicRate);
   const blocks = [];
   const add = (block) => blocks.push(block);
 
+  if (o.showLogo && storeIcon) add({ type: 'image', src: storeIcon });
   add({ type: 'text', text: storeName || t[locale].shopName, align: 'center', size: 'lg', bold: true });
-  if (storeAddress) add({ type: 'text', text: storeAddress, align: 'center', size: 'sm' });
-  if (storePhone) add({ type: 'text', text: `${inv.tel} ${storePhone}`, align: 'center', size: 'sm' });
+  if (o.showAddress && storeAddress) add({ type: 'text', text: storeAddress, align: 'center', size: 'sm' });
+  if (o.showPhone && storePhone) add({ type: 'text', text: `${inv.tel} ${storePhone}`, align: 'center', size: 'sm' });
+  o.headerLines.forEach((text) => add({ type: 'text', text, align: 'center', size: 'sm' }));
   add({ type: 'rule' });
-  add({ type: 'text', text: inv.receiptTitle, align: 'center', size: 'md', bold: true });
+  add({ type: 'text', text: o.title || inv.receiptTitle, align: 'center', size: 'md', bold: true });
   add({ type: 'pair', left: inv.orderId, right: receiptNo(order_id), bold: true });
-  add({ type: 'pair', left: inv.date, right: receiptDateTime(timestamp, locale) });
+  if (o.showDate) add({ type: 'pair', left: inv.date, right: receiptDateTime(timestamp, locale) });
+  if (o.showCashier && cashierName) add({ type: 'pair', left: inv.cashier, right: cashierName });
+  if (o.showRate && dynamicRate) add({ type: 'pair', left: inv.exchangeRate, right: `$1 = ${Number(dynamicRate).toLocaleString()} ៛` });
   add({ type: 'rule' });
 
   add({ type: 'pair', left: inv.item, right: inv.amount, size: 'sm', bold: true });
   items.forEach((item, index) => {
     const discounted = item.discount > 0;
+    const unit = discounted ? discountedUnitPrice(item) : item.price;
     add({
       type: 'item',
-      no: `${index + 1}.`,
-      name: item.name,
-      detail: `${item.quantity} × ${fmtUnit(discounted ? discountedUnitPrice(item) : item.price, item.currency)}`,
+      no: o.showLineNumbers ? `${index + 1}.` : '',
+      name: o.showUnitPrice || item.quantity === 1 ? item.name : `${item.quantity} × ${item.name}`,
+      detail: o.showUnitPrice ? `${item.quantity} × ${fmtUnit(unit, item.currency)}` : '',
       amount: discounted ? fmtDiscountedSubtotal(item) : fmtSubtotal(item.price, item.quantity, item.currency),
-      note: discounted ? `${fmtItemDiscountLabel(item)} (${fmtSubtotal(item.price, item.quantity, item.currency)})` : '',
+      note: discounted && o.showDiscounts ? `${fmtItemDiscountLabel(item)} (${fmtSubtotal(item.price, item.quantity, item.currency)})` : '',
     });
   });
   add({ type: 'rule' });
 
   add({ type: 'pair', left: inv.subtotal, right: fmt.primary(subtotalBeforeDiscountUsd) });
-  if (transactionDiscountUsd > 0) add({ type: 'pair', left: inv.txDiscount, right: `−${fmt.primary(transactionDiscountUsd)}` });
+  if (o.showDiscounts && transactionDiscountUsd > 0) add({ type: 'pair', left: inv.txDiscount, right: `−${fmt.primary(transactionDiscountUsd)}` });
   if (totalDiscountUsd > 0) add({ type: 'pair', left: inv.discount, right: `−${fmt.primary(totalDiscountUsd)}` });
   add({ type: 'pair', left: inv.total, right: fmtTotal(invoiceData), size: 'lg', bold: true });
-  add({ type: 'pair', left: '', right: fmt.secondary(totalUsd) });
+  if (o.showSecondCurrency) add({ type: 'pair', left: '', right: fmt.secondary(totalUsd) });
   add({ type: 'rule' });
 
   add({ type: 'pair', left: inv.payment, right: paymentLabel(invoiceData, inv), bold: true });
-  if (paymentMethod === 'CASH') {
+  if (o.showPayment && paymentMethod === 'CASH') {
     if (amountPaidUsd > 0) add({ type: 'pair', left: inv.paidUsd, right: `$${Number(amountPaidUsd).toFixed(2)}` });
     if (amountPaidKhr > 0) add({ type: 'pair', left: inv.paidKhr, right: `${Number(amountPaidKhr).toLocaleString()} ៛` });
     if (changeDueKhr > 0) add({ type: 'pair', left: inv.change, right: `${changeDueKhr.toLocaleString()} ៛`, bold: true });
   }
   add({ type: 'rule' });
-  add({ type: 'text', text: inv.thankYou, align: 'center', size: 'sm' });
+  const footer = o.footerLines.length ? o.footerLines : [inv.thankYou];
+  footer.forEach((text) => add({ type: 'text', text, align: 'center', size: 'sm' }));
   return blocks;
 }

@@ -1,17 +1,22 @@
-// Draws receipt blocks (receiptModel.js) onto a canvas exactly as wide as the
-// printer's print head, then turns it into 1-bit rows for ESC/POS raster
-// printing. Printing an image rather than text is what lets Khmer (and ៛)
-// print correctly: thermal printers have no Khmer characters of their own.
+// Draws receipt blocks (receiptModel.js) as an image exactly as wide as the
+// printer's print head. The thermal printer gets it as 1-bit rows for ESC/POS
+// raster printing; the system print dialog prints the image itself. Printing
+// an image rather than text is what lets Khmer (and ៛) print correctly:
+// thermal printers have no Khmer characters of their own.
 
-// Printable dots across at 203 dpi.
+// Printable dots across at 203 dpi, and the printed width they cover.
 export const PAPER_DOTS = { 58: 384, 80: 576 };
+export const PRINT_WIDTH_MM = { 58: 48, 80: 72 };
 
 const FONT_FAMILY = '"Kantumruy Pro", "Noto Sans Khmer", "Khmer UI", "Leelawadee UI", sans-serif';
 const BASE_SIZE = { 58: 22, 80: 26 }; // font px per paper width
+const TEXT_SIZE_SCALE = { small: 0.85, normal: 1, large: 1.15 };
 const SIZE_SCALE = { sm: 0.85, md: 1, lg: 1.35 };
 const LINE_HEIGHT = 1.45;
 const GAP = 8; // space between label and value
-const INK_THRESHOLD = 160; // darker than this (0-255) prints
+const LOGO_MAX = { width: 0.5, height: 120 }; // share of the width, dots
+// Darker settings print greyer pixels too (0-255: darker than this prints).
+const INK_THRESHOLD = { 1: 120, 2: 140, 3: 160, 4: 185, 5: 210 };
 
 const fontFor = (px, bold) => `${bold ? 700 : 500} ${px}px ${FONT_FAMILY}`;
 
@@ -23,6 +28,15 @@ async function loadFonts(base) {
     document.fonts.load(fontFor(base, false), sample),
     document.fonts.load(fontFor(base, true), sample),
   ]);
+}
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // a broken logo just isn't printed
+    img.src = src;
+  });
 }
 
 // Break on words where the language has them (Khmer has no spaces, so this
@@ -53,7 +67,46 @@ function wrap(ctx, text, maxWidth) {
   return lines;
 }
 
-function layout(ctx, blocks, width, base, draw) {
+const logoSize = (img, width) => {
+  const scale = Math.min((width * LOGO_MAX.width) / img.width, LOGO_MAX.height / img.height, 1.5);
+  return { w: Math.round(img.width * scale), h: Math.round(img.height * scale) };
+};
+
+/** Floyd–Steinberg dithering to pure black/white, so a photo logo keeps its shading on a thermal printer. */
+function ditherInto(ctx, img, x, y, w, h) {
+  const tmp = document.createElement('canvas');
+  tmp.width = w;
+  tmp.height = h;
+  const t = tmp.getContext('2d', { willReadFrequently: true });
+  t.fillStyle = '#fff';
+  t.fillRect(0, 0, w, h); // transparent logo areas print as paper
+  t.drawImage(img, 0, 0, w, h);
+  const data = t.getImageData(0, 0, w, h);
+  const px = data.data;
+  const gray = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) gray[i] = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+  for (let py = 0; py < h; py++) {
+    for (let pxl = 0; pxl < w; pxl++) {
+      const i = py * w + pxl;
+      const value = gray[i] < 128 ? 0 : 255;
+      const err = gray[i] - value;
+      gray[i] = value;
+      if (pxl + 1 < w) gray[i + 1] += (err * 7) / 16;
+      if (py + 1 < h) {
+        if (pxl > 0) gray[i + w - 1] += (err * 3) / 16;
+        gray[i + w] += (err * 5) / 16;
+        if (pxl + 1 < w) gray[i + w + 1] += err / 16;
+      }
+    }
+  }
+  for (let i = 0; i < w * h; i++) {
+    px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = gray[i];
+    px[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(data, x, y);
+}
+
+function layout(ctx, blocks, { width, base, draw, images, mono }) {
   const margin = 4;
   const inner = width - margin * 2;
   let y = margin;
@@ -87,6 +140,18 @@ function layout(ctx, blocks, width, base, draw) {
 
   for (const block of blocks) {
     switch (block.type) {
+      case 'image': {
+        const img = images.get(block.src);
+        if (!img) break;
+        const { w, h } = logoSize(img, width);
+        const x = Math.round((width - w) / 2);
+        if (draw) {
+          if (mono) ditherInto(ctx, img, x, y, w, h);
+          else ctx.drawImage(img, x, y, w, h);
+        }
+        y += h + 6;
+        break;
+      }
       case 'text': {
         const size = block.size || 'md';
         ctx.font = fontFor(base * SIZE_SCALE[size], block.bold);
@@ -102,14 +167,18 @@ function layout(ctx, blocks, width, base, draw) {
         break;
       case 'item': {
         ctx.font = fontFor(base, true);
-        const indent = Math.ceil(ctx.measureText('00. ').width);
-        text(block.no, margin, 'md', true);
-        ctx.font = fontFor(base, true);
-        for (const l of wrap(ctx, block.name, inner - indent)) {
-          text(l, margin + indent, 'md', true);
-          y += lineHeight('md');
+        const indent = block.no ? Math.ceil(ctx.measureText('00. ').width) : 0;
+        if (block.no) text(block.no, margin, 'md', true);
+        if (block.detail) {
+          ctx.font = fontFor(base, true);
+          for (const l of wrap(ctx, block.name, inner - indent)) {
+            text(l, margin + indent, 'md', true);
+            y += lineHeight('md');
+          }
+          pair(block.detail, block.amount, 'md', false, indent);
+        } else {
+          pair(block.name, block.amount, 'md', true, indent); // compact: name and amount on one line
         }
-        pair(block.detail, block.amount, 'md', false, indent);
         if (block.note) pair(block.note, '', 'sm', false, indent);
         y += 2;
         break;
@@ -120,9 +189,6 @@ function layout(ctx, blocks, width, base, draw) {
         y += 14;
         break;
       }
-      case 'space':
-        y += lineHeight('md');
-        break;
       default:
         break;
     }
@@ -131,41 +197,76 @@ function layout(ctx, blocks, width, base, draw) {
 }
 
 /**
- * Renders the receipt and returns it as 1-bit rows: `bytes` holds `height`
- * rows of `width / 8` bytes, most significant bit = leftmost dot, 1 = black.
+ * Renders the receipt onto a canvas `PAPER_DOTS[paper]` dots wide (times
+ * `scale`, for a sharper image in the print dialog).
+ *   mono: draw the logo dithered, as the thermal printer will print it
+ *   textSize: 'small' | 'normal' | 'large'
  */
-export async function renderReceipt(blocks, paper = 58) {
+export async function drawReceipt(blocks, { paper = 58, textSize = 'normal', mono = true, scale = 1 } = {}) {
   const width = PAPER_DOTS[paper] || PAPER_DOTS[58];
-  const base = BASE_SIZE[paper] || BASE_SIZE[58];
+  const base = Math.round((BASE_SIZE[paper] || BASE_SIZE[58]) * (TEXT_SIZE_SCALE[textSize] || 1));
   await loadFonts(base);
+  const sources = [...new Set(blocks.filter((b) => b.type === 'image').map((b) => b.src))];
+  const images = new Map(await Promise.all(sources.map(async (src) => [src, await loadImage(src)])));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = 1;
   const measure = canvas.getContext('2d');
   measure.textBaseline = 'top';
-  const height = layout(measure, blocks, width, base, false);
+  const height = layout(measure, blocks, { width, base, draw: false, images });
 
-  canvas.height = height; // resets the context
+  canvas.width = Math.round(width * scale); // resets the context
+  canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(scale, scale);
   ctx.fillStyle = '#000';
   ctx.textBaseline = 'top';
-  layout(ctx, blocks, width, base, true);
-
-  return { width, height, bytes: toBits(ctx.getImageData(0, 0, width, height).data, width, height), canvas };
+  layout(ctx, blocks, { width, base, draw: true, images, mono: mono && scale === 1 });
+  return canvas;
 }
 
-function toBits(rgba, width, height) {
+/**
+ * The receipt as 1-bit rows for the thermal printer: `bytes` holds `height`
+ * rows of `width / 8` bytes, most significant bit = leftmost dot, 1 = black.
+ */
+export async function renderReceipt(blocks, { paper = 58, textSize = 'normal', darkness = 3 } = {}) {
+  const canvas = await drawReceipt(blocks, { paper, textSize, mono: true });
+  const { width, height } = canvas;
+  const rgba = canvas.getContext('2d').getImageData(0, 0, width, height).data;
+  return { width, height, bytes: toBits(rgba, width, height, INK_THRESHOLD[darkness] || INK_THRESHOLD[3]), canvas };
+}
+
+function toBits(rgba, width, height, threshold) {
   const rowBytes = width / 8;
   const bytes = new Uint8Array(rowBytes * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
       const luminance = 0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2];
-      if (luminance < INK_THRESHOLD) bytes[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      if (luminance < threshold) bytes[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
     }
   }
   return bytes;
+}
+
+/** What the thermal printer will print, as a canvas (for the Settings preview). */
+export function bitsToCanvas({ width, height, bytes }) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(width, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const v = bytes[y * (width / 8) + (x >> 3)] & (0x80 >> (x & 7)) ? 0 : 255;
+      const i = (y * width + x) * 4;
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = v;
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  return canvas;
 }
