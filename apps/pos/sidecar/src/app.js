@@ -9,6 +9,7 @@ const paymentsRoutes = require('./routes/payments.routes');
 const backupRoutes = require('./routes/backup.routes');
 const syncStatusRoutes = require('./routes/sync.routes');
 const authRoutes = require('./routes/auth.routes');
+const draftsRoutes = require('./routes/drafts.routes');
 
 function createApp() {
   const app = express();
@@ -23,6 +24,7 @@ function createApp() {
   app.use(backupRoutes);
   app.use(syncStatusRoutes);
   app.use(authRoutes);
+  app.use(draftsRoutes);
 
   return app;
 }

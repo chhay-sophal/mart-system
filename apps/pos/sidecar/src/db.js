@@ -179,6 +179,11 @@ const SCHEMA = `
     key TEXT PRIMARY KEY,
     value TEXT
   );
+  CREATE TABLE IF NOT EXISTS draft_carts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload TEXT NOT NULL,
+    created_at TEXT
+  );
   CREATE TABLE IF NOT EXISTS staff_pins (
     user_id TEXT PRIMARY KEY,
     name TEXT,
