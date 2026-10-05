@@ -6,6 +6,9 @@ import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
+// Staff PINs are exactly 4 digits (the POS lock screen has four places).
+const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
+
 const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
 export default function StaffPage() {
@@ -221,12 +224,14 @@ export default function StaffPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">PIN (optional)</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">PIN (optional, 4 digits)</label>
                 <input
-                  minLength={4}
-                  maxLength={8}
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  title="Exactly 4 digits"
+                  maxLength={4}
                   value={createForm.pin}
-                  onChange={(e) => setCreateForm({ ...createForm, pin: e.target.value })}
+                  onChange={(e) => setCreateForm({ ...createForm, pin: onlyDigits(e.target.value) })}
                   className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
                 />
               </div>
@@ -247,13 +252,15 @@ export default function StaffPage() {
         <Modal title={`Reset PIN for ${pinTarget.name}`} onClose={() => setPinTarget(null)}>
           <form onSubmit={handleResetPin} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">New PIN</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">New PIN (4 digits)</label>
               <input
                 required
-                minLength={4}
-                maxLength={8}
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                title="Exactly 4 digits"
+                maxLength={4}
                 value={pinValue}
-                onChange={(e) => setPinValue(e.target.value)}
+                onChange={(e) => setPinValue(onlyDigits(e.target.value))}
                 className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               />
             </div>
