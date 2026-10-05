@@ -81,6 +81,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [standbyError, setStandbyError] = useState('');
   const [shopIconError, setShopIconError] = useState('');
   const [leavePrompt, setLeavePrompt] = useState(false);
+  const [bankQrModal, setBankQrModal] = useState(null); // Settings > KHQR > Bank QR codes
   const [storeLocale, setStoreLocale] = useState('km');
   const notify = useToast();
   const notices = t[currentLocale]?.notices || t.en.notices;
@@ -315,6 +316,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   useShortcuts({
     back: {
       run: () => {
+        if (bankQrModal) return setBankQrModal(null);
         if (leavePrompt) return setLeavePrompt(false);
         if (showConfirmPopup) return setShowConfirmPopup(false);
         requestLeave();
@@ -619,7 +621,8 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                     </div>
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-6 mb-3">{s.bankQrSection?.header || 'Bank QR codes'}</p>
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-                      <BankQrSettings settings={settings} setSettings={setSettings} q={s.bankQrSection || {}} inputClass={inputNormal} />
+                      <BankQrSettings settings={settings} setSettings={setSettings} q={s.bankQrSection || {}} inputClass={inputNormal}
+                        modal={bankQrModal} setModal={setBankQrModal} />
                     </div>
                   </div>
                 )}
