@@ -747,7 +747,7 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.75 19.2m.72-5.371L6 13.5m12 .329c.24.03.48.062.72.096m-.72-.096a42.415 42.415 0 0 0-10.56 0m10.56 0L17.25 19.2m-.72-5.371L18 13.5M12 3v9m0 0-3-3m3 3 3-3" />
               </svg>
-              Print / Save PDF
+              Print
             </button>
           </div>
         </div>
