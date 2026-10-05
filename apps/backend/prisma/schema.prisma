@@ -234,7 +234,11 @@ model OrderItem {
   orderId          String
   productId        String
   quantity         Int
-  priceAtSaleMinor Int
+  priceAtSaleMinor Int // the unit price before any item discount
+  // Item discount on this line, in total (not per unit), in `currency`: the
+  // line was charged priceAtSale × quantity − discount. A sale-wide discount
+  // isn't spread over lines; it's only in Order.totalAmountMinor.
+  discountMinor    Int      @default(0)
   currency         Currency
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
