@@ -5,7 +5,10 @@ const ESC = 0x1b;
 const GS = 0x1d;
 
 export const INIT = [ESC, 0x40]; // ESC @: reset to defaults
-const PARTIAL_CUT = [GS, 0x56, 0x42, 0x00]; // GS V B 0: feed to the cutter, then cut
+// GS V 1: partial cut right where the paper is. Not GS V B ("feed to the
+// cutter, then cut"): many printers don't feed for it, and this job has
+// already fed the receipt past the blade (BLADE_CLEARANCE_LINES).
+const PARTIAL_CUT = [GS, 0x56, 0x01];
 // ESC p 0 t1 t2: pulse drawer pin 2 (the usual RJ-11 drawer port) for 50 ms on, 500 ms off.
 export const OPEN_DRAWER = [ESC, 0x70, 0x00, 0x19, 0xfa];
 
@@ -15,10 +18,10 @@ export const OPEN_DRAWER = [ESC, 0x70, 0x00, 0x19, 0xfa];
 // One "line" is 1/6 inch, the usual text line, at 203 dpi.
 const LINE_DOTS = 34;
 
-// Without a cutter the receipt is torn off at the tear bar, which sits 1-2 cm
-// above the print head. This many extra lines of paper make the last printed
-// line clear it instead of being torn through.
-const TEAR_BAR_LINES = 4;
+// The tear bar -- or the cutter blade, on a printer that has one -- sits 1-2
+// cm above the print head. This many extra lines of paper move the last
+// printed line past it, so it isn't torn or cut through.
+const BLADE_CLEARANCE_LINES = 4;
 
 // Rows per GS v 0 command. Smaller bands keep cheap printers with little
 // buffer from dropping data on long receipts.
@@ -46,11 +49,11 @@ function withBlankRows({ width, height, bytes }, rows) {
 
 /**
  * A complete print job: each copy is the receipt image with `feedLines` blank
- * lines under it, then a cut (the printer feeds to its cutter first), or for a
- * printer without one, enough extra paper to tear it off below the last line.
+ * lines under it plus room to clear the tear bar or blade, then a cut when the
+ * printer has a cutter. The cutter setting never changes the receipt's length.
  */
 export function receiptJob(image, { cut = true, feedLines = 3, copies = 1 } = {}) {
-  const blankLines = feedLines + (cut ? 0 : TEAR_BAR_LINES);
+  const blankLines = feedLines + BLADE_CLEARANCE_LINES;
   const printed = rasterImage(withBlankRows(image, blankLines * LINE_DOTS));
   const one = Uint8Array.from(cut ? [...printed, ...PARTIAL_CUT] : printed);
   const out = new Uint8Array(INIT.length + one.length * copies);
