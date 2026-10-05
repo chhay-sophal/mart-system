@@ -4,7 +4,8 @@ import { receiptOptions } from './receiptOptions';
 
 // What a receipt says, independent of how it's printed. raster.js lays these
 // blocks out as an image, which both the thermal printer and the system print
-// dialog print, so there's one receipt layout.
+// dialog print, so there's one receipt layout. Only the store name is bold;
+// everything else prints at regular weight.
 
 export const fmtUnit = (price, currency) => {
   const p = Number(price);
@@ -79,14 +80,14 @@ export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
   if (o.showPhone && storePhone) add({ type: 'text', text: `${inv.tel} ${storePhone}`, align: 'center', size: 'sm' });
   o.headerLines.forEach((text) => add({ type: 'text', text, align: 'center', size: 'sm' }));
   add({ type: 'rule' });
-  add({ type: 'text', text: o.title || inv.receiptTitle, align: 'center', size: 'md', bold: true });
-  add({ type: 'pair', left: inv.orderId, right: receiptNo(order_id), bold: true });
+  add({ type: 'text', text: o.title || inv.receiptTitle, align: 'center', size: 'md' });
+  add({ type: 'pair', left: inv.orderId, right: receiptNo(order_id) });
   if (o.showDate) add({ type: 'pair', left: inv.date, right: receiptDateTime(timestamp, locale) });
   if (o.showCashier && cashierName) add({ type: 'pair', left: inv.cashier, right: cashierName });
   if (o.showRate && dynamicRate) add({ type: 'pair', left: inv.exchangeRate, right: `$1 = ${Number(dynamicRate).toLocaleString()} ៛` });
   add({ type: 'rule' });
 
-  add({ type: 'pair', left: inv.item, right: inv.amount, size: 'sm', bold: true });
+  add({ type: 'pair', left: inv.item, right: inv.amount, size: 'sm' });
   items.forEach((item, index) => {
     const discounted = item.discount > 0;
     const unit = discounted ? discountedUnitPrice(item) : item.price;
@@ -104,15 +105,15 @@ export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
   add({ type: 'pair', left: inv.subtotal, right: fmt.primary(subtotalBeforeDiscountUsd) });
   if (o.showDiscounts && transactionDiscountUsd > 0) add({ type: 'pair', left: inv.txDiscount, right: `−${fmt.primary(transactionDiscountUsd)}` });
   if (totalDiscountUsd > 0) add({ type: 'pair', left: inv.discount, right: `−${fmt.primary(totalDiscountUsd)}` });
-  add({ type: 'pair', left: inv.total, right: fmtTotal(invoiceData), size: 'lg', bold: true });
+  add({ type: 'pair', left: inv.total, right: fmtTotal(invoiceData), size: 'lg' });
   if (o.showSecondCurrency) add({ type: 'pair', left: '', right: fmt.secondary(totalUsd) });
   add({ type: 'rule' });
 
-  add({ type: 'pair', left: inv.payment, right: paymentLabel(invoiceData, inv), bold: true });
+  add({ type: 'pair', left: inv.payment, right: paymentLabel(invoiceData, inv) });
   if (o.showPayment && paymentMethod === 'CASH') {
     if (amountPaidUsd > 0) add({ type: 'pair', left: inv.paidUsd, right: `$${Number(amountPaidUsd).toFixed(2)}` });
     if (amountPaidKhr > 0) add({ type: 'pair', left: inv.paidKhr, right: `${Number(amountPaidKhr).toLocaleString()} ៛` });
-    if (changeDueKhr > 0) add({ type: 'pair', left: inv.change, right: `${changeDueKhr.toLocaleString()} ៛`, bold: true });
+    if (changeDueKhr > 0) add({ type: 'pair', left: inv.change, right: `${changeDueKhr.toLocaleString()} ៛` });
   }
   add({ type: 'rule' });
   const footer = o.footerLines.length ? o.footerLines : [inv.thankYou];

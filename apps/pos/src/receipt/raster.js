@@ -179,18 +179,18 @@ function layout(ctx, blocks, { width, base, weight, draw, images, mono }) {
         pair(block.left, block.right, block.size, block.bold);
         break;
       case 'item': {
-        ctx.font = font(base, true);
+        ctx.font = font(base, false);
         const indent = block.no ? Math.ceil(ctx.measureText('00. ').width) : 0;
-        if (block.no) text(block.no, margin, 'md', true);
+        if (block.no) text(block.no, margin, 'md', false);
         if (block.detail) {
-          ctx.font = font(base, true);
+          ctx.font = font(base, false);
           for (const l of wrap(ctx, block.name, inner - indent)) {
-            text(l, margin + indent, 'md', true);
+            text(l, margin + indent, 'md', false);
             y += lineHeight('md');
           }
           pair(block.detail, block.amount, 'md', false, indent);
         } else {
-          pair(block.name, block.amount, 'md', true, indent); // compact: name and amount on one line
+          pair(block.name, block.amount, 'md', false, indent); // compact: name and amount on one line
         }
         if (block.note) pair(block.note, '', 'sm', false, indent);
         y += 2;
