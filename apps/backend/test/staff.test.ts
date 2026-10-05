@@ -89,6 +89,26 @@ describe("staff management", () => {
     expect(res.status).toBe(409);
   });
 
+  it("only accepts a PIN of exactly 4 digits", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const cashier = await addCashier(store.id, "5555");
+
+    for (const pin of ["123", "12345", "123456", "12a4", " 1234"]) {
+      const create = await request(app)
+        .post(`/api/stores/${store.id}/staff`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ email: `pin${pin.trim()}@test.local`, name: "New", password: "Passw0rd!!", role: "CASHIER", pin });
+      expect(create.status, `create with "${pin}"`).toBe(400);
+
+      const reset = await request(app)
+        .post(`/api/stores/${store.id}/staff/${cashier.id}/reset-pin`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ pin });
+      expect(reset.status, `reset to "${pin}"`).toBe(400);
+    }
+  });
+
   it("updates role/isActive and resets a PIN", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();

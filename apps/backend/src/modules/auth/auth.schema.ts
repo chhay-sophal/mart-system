@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pinSchema } from "../staff/staff.schema";
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -12,5 +13,5 @@ export const refreshSchema = z.object({
 export const pinLoginSchema = z.object({
   terminalId: z.string().min(1),
   storeId: z.string().min(1),
-  pin: z.string().min(4).max(8),
+  pin: pinSchema,
 });
