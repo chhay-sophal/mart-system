@@ -350,12 +350,15 @@ export default function App() {
         storeName,
         storeAddress,
         storePhone,
+        storeIcon,
+        cashierName: session.name,
         paymentMethod: 'KHQR',
         amountPaidUsd: totalUsd,
         amountPaidKhr: 0,
         changeDueKhr: 0,
         timestamp: new Date().toISOString(),
       });
+      if (printer.receipt.autoPrint) setShowInvoice(true); // Settings > Printer > Receipt
       setCart([]);
       setActiveKhqr(null);
       setPaymentMethod('CASH');
@@ -561,6 +564,8 @@ export default function App() {
         storeName,
         storeAddress,
         storePhone,
+        storeIcon,
+        cashierName: session.name,
         paymentMethod,
         bankName: paymentMethod === 'STATIC_QR' ? staticQrBank : null,
         amountPaidUsd: paidUsd,
@@ -568,6 +573,7 @@ export default function App() {
         changeDueKhr: data.change_due_khr || 0,
         timestamp: new Date().toISOString(),
       });
+      if (printer.receipt.autoPrint) setShowInvoice(true); // Settings > Printer > Receipt
       setCart([]);
       setAmountPaidUsd('');
       setAmountPaidKhr('');
@@ -671,7 +677,7 @@ export default function App() {
       <BackendContext.Provider value={client}>
         <SalesHistory
           onBackToRegister={() => setView('REGISTER')}
-          shop={{ storeName, storeAddress, storePhone }}
+          shop={{ storeName, storeAddress, storePhone, storeIcon }}
           printer={printer}
           currentLocale={locale}
           dynamicRate={dynamicRate}
@@ -1239,10 +1245,10 @@ export default function App() {
 
       {invoiceData && showInvoice && (
         <Invoice
+          key={invoiceData.order_id} // a new sale prints its own receipt
           invoiceData={invoiceData}
           locale={locale}
           onClose={() => setShowInvoice(false)}
-          autoPrint
           printer={printer}
         />
       )}

@@ -165,6 +165,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       storeName: shop.storeName,
       storeAddress: shop.storeAddress,
       storePhone: shop.storePhone,
+      storeIcon: shop.storeIcon,
       paymentMethod: order.payment_method,
       bankName: order.bank_name || null,
       amountPaidUsd: parseFloat(order.amount_paid_usd) || 0,
@@ -417,7 +418,6 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           invoiceData={invoiceModal}
           locale={currentLocale}
           onClose={() => setInvoiceModal(null)}
-          autoPrint
           printer={printer}
         />
       )}
