@@ -53,7 +53,7 @@ export default function AppShell() {
               <select
                 value={currentStoreId ?? ''}
                 onChange={(e) => setCurrentStoreId(e.target.value)}
-                className="border border-[var(--border)] rounded-lg px-2 py-1 text-sm"
+                className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               >
                 {stores.map((store) => (
                   <option key={store.id} value={store.id}>

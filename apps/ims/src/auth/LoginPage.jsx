@@ -41,7 +41,7 @@ export default function LoginPage() {
           autoFocus
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-[var(--border)] rounded-lg px-3 py-2 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
         />
 
         <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="password">
@@ -54,7 +54,7 @@ export default function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-[var(--border)] rounded-lg px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
           <button
             type="button"

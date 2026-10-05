@@ -251,7 +251,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
               <select
                 value={mapping[field.key] ?? ''}
                 onChange={(e) => setMapping({ ...mapping, [field.key]: e.target.value })}
-                className="flex-1 border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm"
+                className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               >
                 <option value="">— not mapped —</option>
                 {headers.map((h) => (
@@ -269,7 +269,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
               <select
                 value={defaultCurrency}
                 onChange={(e) => setDefaultCurrency(e.target.value)}
-                className="flex-1 border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm"
+                className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               >
                 <option value="USD">USD</option>
                 <option value="KHR">KHR</option>

@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
@@ -200,7 +201,7 @@ export default function ProductsPage() {
           value={filters.search}
           onChange={(e) => setFilter('search', e.target.value)}
           placeholder="Search by name or barcode…  ( / )"
-          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-2 text-sm bg-white"
+          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white"
         />
         <span className="text-sm text-slate-500">
           {visible.length === products.length ? `${products.length} products` : `${visible.length} of ${products.length} products`}
@@ -467,7 +468,7 @@ export default function ProductsPage() {
   );
 }
 
-const filterInput = 'w-full border border-[var(--border)] rounded-md px-2 py-1 text-xs bg-white text-slate-700';
+const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 py-1.5 text-sm bg-white text-slate-700';
 
 function FilterIcon({ className }) {
   return (
@@ -482,14 +483,40 @@ function FilterIcon({ className }) {
 // controls, replacing the old always-visible filter-inputs row.
 function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, hasActiveFilter, panelRef, children }) {
   const active = sort.col === col;
+  const buttonRef = useRef(null);
+  // Screen coordinates for the portaled panel below, in state (not read at
+  // render time) so a resize/scroll while open re-renders it at the right spot.
+  const [pos, setPos] = useState(null);
+
+  // The table's wrapper div needs overflow-hidden to clip its background to
+  // the rounded corners, which would also clip this dropdown if it rendered
+  // as a normal descendant -- a short table (few rows) left no room below.
+  // Rendering it through a portal, positioned from the button's own
+  // viewport rect, escapes that clipping entirely.
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current) return;
+    const updatePos = () => {
+      const r = buttonRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    };
+    updatePos();
+    window.addEventListener('resize', updatePos);
+    window.addEventListener('scroll', updatePos, true);
+    return () => {
+      window.removeEventListener('resize', updatePos);
+      window.removeEventListener('scroll', updatePos, true);
+    };
+  }, [isOpen]);
+
   return (
-    <th className="px-4 py-2 relative">
+    <th className="px-4 py-2">
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 select-none">
           {label}
           <span className="ml-1 text-[var(--accent)]">{active ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
         </button>
         <button
+          ref={buttonRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFilter(col); }}
           aria-label={`Filter ${label}`}
@@ -501,16 +528,15 @@ function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, ha
           <FilterIcon className="w-3.5 h-3.5" />
         </button>
       </div>
-      {isOpen && (
-        // Right-anchored to the header cell's padding edge, which is exactly
-        // where the filter button sits (it's the flex row's last item) --
-        // so the panel always opens directly below the button, not the label.
+      {isOpen && pos && createPortal(
         <div
           ref={panelRef}
-          className="absolute right-0 top-full mt-1 z-20 min-w-[200px] bg-white border border-[var(--border)] rounded-lg shadow-lg p-3 font-normal"
+          style={{ position: 'fixed', top: pos.top, right: pos.right }}
+          className="z-50 min-w-[200px] bg-white border border-[var(--border)] rounded-lg shadow-lg p-3 font-normal"
         >
           {children}
-        </div>
+        </div>,
+        document.body
       )}
     </th>
   );
