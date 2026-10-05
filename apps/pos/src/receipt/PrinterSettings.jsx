@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Printer, RefreshCw, Inbox } from 'lucide-react';
 import { useToast } from '../Toast';
-import { listPrinters, openCashDrawer, printReceiptDirect, printerConfig, sampleInvoice, TCP_PREFIX } from './thermalPrinter';
+import { listPrinters, openCashDrawer, printReceiptDirect, printerConfig, sampleInvoice, sampleShop, TCP_PREFIX } from './thermalPrinter';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 const NETWORK = '__network__'; // the select's "network printer" choice
@@ -52,7 +52,7 @@ export default function PrinterSettings({ settings, setSettings, p, locale, Togg
   const testPrint = () =>
     run((config) =>
       printReceiptDirect(
-        sampleInvoice({ storeName: settings.store_name, storeAddress: settings.store_address, storePhone: settings.store_phone }),
+        sampleInvoice(sampleShop(settings)),
         locale,
         config,
       ),
@@ -75,6 +75,19 @@ export default function PrinterSettings({ settings, setSettings, p, locale, Togg
           <button type="button" className={option(direct)} onClick={() => set('receipt_printer_mode', 'escpos')}>
             {p.modeDirect || 'Thermal printer (ESC/POS)'}
           </button>
+        </div>
+      </div>
+
+      {/* Both print paths print the receipt image at this width. */}
+      <div>
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">{p.paperWidth || 'Paper width'}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {['58', '80'].map((mm) => (
+            <button key={mm} type="button" className={option((settings.receipt_paper_width || '58') === mm)}
+              onClick={() => set('receipt_paper_width', mm)}>
+              {mm} mm
+            </button>
+          ))}
         </div>
       </div>
 
@@ -108,18 +121,6 @@ export default function PrinterSettings({ settings, setSettings, p, locale, Togg
                 className={`${inputClass} mt-2 font-mono`} placeholder="192.168.1.100" aria-label={p.networkAddress}
                 title={p.networkAddress} />
             )}
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">{p.paperWidth || 'Paper width'}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {['58', '80'].map((mm) => (
-                <button key={mm} type="button" className={option((settings.receipt_paper_width || '58') === mm)}
-                  onClick={() => set('receipt_paper_width', mm)}>
-                  {mm} mm
-                </button>
-              ))}
-            </div>
           </div>
 
           <ToggleRow

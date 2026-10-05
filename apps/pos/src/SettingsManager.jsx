@@ -12,6 +12,7 @@ import Flag from './Flag';
 import { useToast } from './Toast';
 import { invalidateSales } from './queryClient';
 import PrinterSettings from './receipt/PrinterSettings';
+import ReceiptSettings from './receipt/ReceiptSettings';
 import { PRINTER_DEFAULTS } from './receipt/thermalPrinter';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
@@ -624,6 +625,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                       <PrinterSettings settings={settings} setSettings={setSettings} p={s.printerSection || {}} locale={currentLocale}
                         ToggleRow={ToggleRow} inputClass={inputNormal} />
                       <p className="text-xs text-slate-400 dark:text-slate-500">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
+                    </div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-6 mb-3">{s.printerSection?.receipt?.receiptHeader || 'Receipt'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                      <ReceiptSettings settings={settings} setSettings={setSettings} p={s.printerSection || {}} locale={currentLocale}
+                        ToggleRow={ToggleRow} inputClass={inputNormal} />
                     </div>
                   </div>
                 )}
