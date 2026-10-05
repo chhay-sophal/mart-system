@@ -208,7 +208,7 @@ export default function SalesHistoryPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Sales history</h1>
-        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent">
           Export
         </button>
       </div>
@@ -216,7 +216,7 @@ export default function SalesHistoryPage() {
       <div className="flex flex-wrap items-end gap-3 mb-4 bg-white border border-[var(--border)] rounded-xl p-4">
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
-          <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm">
+          <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
             <option value="">All branches</option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
@@ -231,7 +231,7 @@ export default function SalesHistoryPage() {
                 <button
                   key={preset}
                   onClick={() => applyDatePreset(preset)}
-                  className={`px-3 py-1.5 text-sm whitespace-nowrap ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                 >
                   {DATE_PRESET_LABELS[preset]}
                 </button>
@@ -242,7 +242,7 @@ export default function SalesHistoryPage() {
               value={dateFrom}
               max={dateTo || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+              className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
             />
             <span className="text-slate-400">–</span>
             <input
@@ -250,13 +250,13 @@ export default function SalesHistoryPage() {
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
-              className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+              className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
             />
           </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Payment</label>
-          <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm">
+          <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
             <option value="all">All methods</option>
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
@@ -269,7 +269,7 @@ export default function SalesHistoryPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Receipt #, product, barcode, register…"
-            className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+            className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-600 pb-1.5">
@@ -351,8 +351,8 @@ export default function SalesHistoryPage() {
             marked voided and its items put back in stock. It no longer counts toward revenue.
           </p>
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5">Cancel</button>
-            <button onClick={confirmVoid} disabled={voiding} className="text-sm font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-60">
+            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5 border border-transparent">Cancel</button>
+            <button onClick={confirmVoid} disabled={voiding} className="text-sm font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60">
               {voiding ? 'Voiding…' : 'Void sale'}
             </button>
           </div>
@@ -511,7 +511,7 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
         <div className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
-            <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm">
+            <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
               <option value="">All branches</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -520,15 +520,15 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
-            <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm" />
+            <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
-            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm" />
+            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Payment</label>
-            <select value={payment} onChange={(e) => setPayment(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm">
+            <select value={payment} onChange={(e) => setPayment(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
               <option value="all">All methods</option>
               {PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
@@ -559,11 +559,11 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
           Include voided sales
         </label>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="text-sm px-3 py-1.5">Cancel</button>
+          <button onClick={onClose} className="text-sm px-3 py-1.5 border border-transparent">Cancel</button>
           <button
             onClick={runExport}
             disabled={exporting || columns.size === 0}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 disabled:opacity-60"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60"
           >
             {exporting ? 'Exporting…' : 'Export to Excel'}
           </button>
