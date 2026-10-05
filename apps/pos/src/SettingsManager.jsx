@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard, SlidersHorizontal, Printer } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
@@ -11,6 +11,8 @@ import ConfirmDialog from './ConfirmDialog';
 import Flag from './Flag';
 import { useToast } from './Toast';
 import { invalidateSales } from './queryClient';
+import PrinterSettings from './receipt/PrinterSettings';
+import { PRINTER_DEFAULTS } from './receipt/thermalPrinter';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
 // sends these back, so a save can't briefly revert a value IMS just pushed.
@@ -47,6 +49,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     show_low_stock_alert: 'true',
     // '' = follow the store's language from IMS; 'km' / 'en' = this register only.
     display_language: '',
+    ...PRINTER_DEFAULTS,
     store_name: '',
     store_address: '',
     store_phone: '',
@@ -319,6 +322,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     { id: 'general',  icon: SlidersHorizontal, label: s.generalSection?.header || 'General' },
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
     { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
+    { id: 'printer',  icon: Printer,   label: s.printerSection?.header || 'Printer' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
     { id: 'shortcuts', icon: Keyboard, label: currentTranslations.shortcuts?.sectionHeader || 'Shortcuts' },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
@@ -608,6 +612,18 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             className={inputNormal} placeholder="Phnom Penh" />
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── PRINTER (per register) ── */}
+                {activeSection === 'printer' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.printerSection?.header || 'Printer'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <PrinterSettings settings={settings} setSettings={setSettings} p={s.printerSection || {}} locale={currentLocale}
+                        ToggleRow={ToggleRow} inputClass={inputNormal} />
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
                     </div>
                   </div>
                 )}
