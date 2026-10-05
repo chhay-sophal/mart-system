@@ -96,10 +96,10 @@ export default function CustomerDisplay() {
               </div>}
           <div className="text-center">
             <h1 className="text-5xl font-black text-white tracking-tight">{storeName}</h1>
-            <p className="text-slate-400 text-2xl mt-3 font-medium">{cd.welcome}</p>
+            <p className="text-slate-300 text-2xl mt-3 font-medium">{cd.welcome}</p>
           </div>
         </div>
-        <p className="text-slate-600 text-sm absolute bottom-8 tracking-wide">{cd.tagline}</p>
+        <p className="text-slate-400 text-sm absolute bottom-8 tracking-wide">{cd.tagline}</p>
       </div>
     );
   }
@@ -133,7 +133,7 @@ export default function CustomerDisplay() {
           ? <img src={storeIcon} alt="store" className="w-7 h-7 rounded-lg object-cover" />
           : <ShoppingCart size={17} className="text-indigo-400" />}
         <span className="text-white font-bold text-sm tracking-wide">{storeName}</span>
-        <span className="ml-auto text-slate-500 text-xs font-bold uppercase tracking-widest">
+        <span className="ml-auto text-slate-300 text-xs font-bold uppercase tracking-widest">
           {cart.reduce((s, i) => s + i.quantity, 0)} {cd.items}
         </span>
       </div>
@@ -145,7 +145,7 @@ export default function CustomerDisplay() {
         <div className="flex-[7] overflow-y-auto p-5 border-r border-slate-800">
           <table className="min-w-full border-separate border-spacing-y-2">
             <thead>
-              <tr className="text-slate-400 text-[11px] font-bold uppercase tracking-widest">
+              <tr className="text-slate-300 text-[11px] font-bold uppercase tracking-widest">
                 <th className="w-6 pr-2 text-right">{cd.no}</th>
                 <th className="text-left">{cd.item}</th>
                 <th className="w-28 text-center">{cd.unitPrice}</th>
@@ -157,7 +157,7 @@ export default function CustomerDisplay() {
             <tbody>
               {cart.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-20 text-center text-slate-700 text-sm font-bold uppercase tracking-widest">
+                  <td colSpan="6" className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest">
                     {cd.welcome}
                   </td>
                 </tr>
@@ -165,7 +165,7 @@ export default function CustomerDisplay() {
                 <tr key={item.id} className="bg-slate-800 rounded-2xl border border-slate-700/40 overflow-hidden">
                   <td className="px-6 py-4 text-right text-white font-bold">{idx + 1}</td>
                   <td className="px-0 py-4 text-white font-bold truncate">{item.name}</td>
-                  <td className="px-6 py-4 text-right w-24 font-bold text-slate-900 dark:text-white">
+                  <td className="px-6 py-4 text-right w-24 font-bold text-white">
                     {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `$${Number(item.price).toFixed(2)}`}
                   </td>
                   <td className="px-4 py-4 text-right w-20 text-amber-400 font-bold">
@@ -177,17 +177,17 @@ export default function CustomerDisplay() {
                         : `-${item.discount}%`
                       : ''}
                   </td>
-                  <td className="px-4 py-4 text-center text-slate-500 font-bold w-14">×{item.quantity}</td>
+                  <td className="px-4 py-4 text-center text-slate-300 font-bold w-14">×{item.quantity}</td>
                   <td className="px-6 py-4 text-right">
                     {item.discount > 0 && (
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
+                      <p className="text-sm text-slate-400 line-through">
                         {item.currency === 'KHR'
                           ? `${Math.round(item.price * item.quantity).toLocaleString()} ៛`
                           : `${(Number(item.price) * item.quantity).toFixed(2)}`
                         }
                       </p>
                     )}
-                    <p className="font-bold text-sm text-slate-900 dark:text-white">
+                    <p className="font-bold text-sm text-white">
                       {item.currency === 'KHR'
                         ? `${Math.round(discountedUnitPrice(item) * item.quantity).toLocaleString()} ៛`
                         : `$${(discountedUnitPrice(item) * item.quantity).toFixed(2)}`
@@ -201,7 +201,7 @@ export default function CustomerDisplay() {
         </div>
 
         {/* RIGHT — 30% — total + payment info */}
-        <div className="flex-[3] flex flex-col bg-slate-850 border-l border-slate-800 overflow-hidden">
+        <div className="flex-[3] flex flex-col bg-slate-800/50 border-l border-slate-800 overflow-hidden">
 
           {/* Per transaction discount */}
           {txDiscountAmt > 0 && (
@@ -214,14 +214,14 @@ export default function CustomerDisplay() {
           )}
           {/* Total */}
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 border-b border-slate-800">
-            <p className="text-slate-500 text-lg font-bold uppercase tracking-widest mb-3">{cd.total}</p>
+            <p className="text-slate-300 text-lg font-bold uppercase tracking-widest mb-3">{cd.total}</p>
             {hasDiscount && (
-              <p className="text-slate-600 text-2xl font-bold line-through mb-1">
+              <p className="text-slate-400 text-2xl font-bold line-through mb-1">
                 {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${usdToKhr(rawSubtotalUsd, dynamicRate).toLocaleString()} ៛`}
               </p>
             )}
             <p className="text-white font-black text-6xl leading-none tracking-tight text-center">{primaryTotal}</p>
-            <p className="text-slate-500 text-2xl font-bold mt-2">{secondaryTotal}</p>
+            <p className="text-slate-300 text-2xl font-bold mt-2">{secondaryTotal}</p>
           </div>
 
           {/* Payment detail */}
@@ -232,7 +232,7 @@ export default function CustomerDisplay() {
                 <div className="bg-white p-3 rounded-2xl shadow-lg">
                   <QRCodeCanvas value={qrString} size={160} level="M" includeMargin={false} />
                 </div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center">
+                <p className="text-slate-300 text-xs font-bold uppercase tracking-widest text-center">
                   {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay via KHQR'}
                 </p>
               </>
@@ -244,7 +244,7 @@ export default function CustomerDisplay() {
                   <img src={staticQrImage} alt={staticQrBank} className="w-64 h-64 object-contain" />
                 </div>
                 <p className="text-white text-lg font-black text-center">{staticQrBank}</p>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center">
+                <p className="text-slate-300 text-xs font-bold uppercase tracking-widest text-center">
                   {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay'}
                 </p>
               </>
@@ -254,7 +254,7 @@ export default function CustomerDisplay() {
               <div className="w-full space-y-3">
                 {tenderedKhr > 0 && (
                   <div className="flex justify-between items-baseline">
-                    <span className="text-slate-500 text-xl font-bold uppercase tracking-wide">
+                    <span className="text-slate-300 text-xl font-bold uppercase tracking-wide">
                       {locale === 'km' ? 'ទទួល (KHR)' : 'Tendered (KHR)'}
                     </span>
                     <span className="text-slate-200 font-black text-3xl">{tenderedKhr.toLocaleString()} ៛</span>
@@ -262,7 +262,7 @@ export default function CustomerDisplay() {
                 )}
                 {tenderedUsd > 0 && (
                   <div className="flex justify-between items-baseline">
-                    <span className="text-slate-500 text-xl font-bold uppercase tracking-wide">
+                    <span className="text-slate-300 text-xl font-bold uppercase tracking-wide">
                       {locale === 'km' ? 'ទទួល (USD)' : 'Tendered (USD)'}
                     </span>
                     <span className="text-slate-200 font-black text-3xl">${tenderedUsd.toFixed(2)}</span>
@@ -278,7 +278,7 @@ export default function CustomerDisplay() {
             )}
 
             {!showKhqr && !showStaticQr && !showTendered && (
-              <p className="text-slate-700 text-xs font-bold uppercase tracking-widest text-center">
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center">
                 {paymentMethod === 'STATIC_QR'
                   ? (locale === 'km' ? 'QR ធនាគារ' : 'Bank QR')
                   : cd.awaitingPayment}
