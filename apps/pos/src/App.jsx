@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
 import SettingsManager from './SettingsManager';
 import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
+import ProductsView from './ProductsView';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
@@ -496,6 +497,20 @@ export default function App() {
     }
   };
 
+  // Products tab (issue #13): the same as scanning the item's barcode.
+  const addFromProducts = (product) => {
+    const quantity = (cart.find((item) => item.id === product.id)?.quantity ?? 0) + 1;
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item));
+      }
+      return [{ ...product, quantity: 1, discount: 0, discountType: 'pct' }, ...prevCart];
+    });
+    setCheckoutResult(null);
+    notify((t[locale].products.added || 'Added {name} ({qty} in cart)').replace('{name}', product.name).replace('{qty}', quantity), 'success');
+  };
+
   const fetchKHQRString = async () => {
     const amount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
     if (amount <= 0) return;
@@ -628,7 +643,7 @@ export default function App() {
     {
       help: { run: () => setShowShortcuts((open) => !open) },
       back: {
-        when: () => showShortcuts || clearCartPrompt || view === 'HISTORY' || view === 'SUMMARY',
+        when: () => showShortcuts || clearCartPrompt || view === 'HISTORY' || view === 'SUMMARY' || view === 'PRODUCTS',
         run: () => {
           if (showShortcuts) return setShowShortcuts(false);
           if (clearCartPrompt) return setClearCartPrompt(false);
@@ -638,6 +653,7 @@ export default function App() {
       register: { run: () => goTo('REGISTER') },
       history: { run: () => goTo('HISTORY') },
       summary: { run: () => goTo('SUMMARY') },
+      products: { run: () => goTo('PRODUCTS') },
       settings: { when: () => session?.role === 'ADMIN', run: () => goTo('SETTINGS') },
       lock: { run: () => { setShowShortcuts(false); setSession(null); } },
       manualBarcode: { run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
@@ -697,6 +713,22 @@ export default function App() {
           currentLocale={locale}
           dynamicRate={dynamicRate}
           mainCurrency={mainCurrency}
+        />
+        {shortcutHelp}
+      </BackendContext.Provider>
+    );
+  }
+
+  if (view === 'PRODUCTS') {
+    return (
+      <BackendContext.Provider value={client}>
+        <ProductsView
+          onBackToRegister={() => setView('REGISTER')}
+          currentLocale={locale}
+          cart={cart}
+          onAddToCart={addFromProducts}
+          mainCurrency={mainCurrency}
+          dynamicRate={dynamicRate}
         />
         {shortcutHelp}
       </BackendContext.Provider>
@@ -770,6 +802,13 @@ export default function App() {
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
           >
             <History size={14} /> {t[locale].salesHistory.title}
+          </button>
+          <button
+            onClick={() => setView('PRODUCTS')}
+            title={`${t[locale].products.title}${keyHint('products')}`}
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+          >
+            <Package size={14} /> {t[locale].products.title}
           </button>
           <button
             onClick={() => setView('SUMMARY')}

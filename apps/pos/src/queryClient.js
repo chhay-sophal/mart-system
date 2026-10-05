@@ -24,6 +24,9 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   orders: (period) => ['orders', period],
   dailySummary: (day) => ['summary', day],
+  // The branch catalog (Products tab). Changes only when sync pulls from IMS,
+  // so the 30s freshness is plenty.
+  products: () => ['products'],
 };
 
 /** After a sale, void or resync: anything showing sales is out of date. */
