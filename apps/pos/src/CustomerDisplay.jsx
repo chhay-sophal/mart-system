@@ -61,6 +61,8 @@ export default function CustomerDisplay() {
   const tenderedUsd   = payload?.tenderedUsd   || 0;
   const tenderedKhr   = payload?.tenderedKhr   || 0;
   const qrString      = payload?.qrString      || null;
+  const staticQrImage = payload?.staticQrImage || null; // fixed bank KHQR (issue #12)
+  const staticQrBank  = payload?.staticQrBank  || '';
 
   const hasDiscount   = txDiscountAmt > 0 || cart.some(i => (i.discount || 0) > 0);
 
@@ -121,6 +123,7 @@ export default function CustomerDisplay() {
   /* ── ACTIVE / PAYMENT — 70 / 30 split ──────────────────── */
   const showTendered = paymentMethod === 'CASH' && (tenderedUsd > 0 || tenderedKhr > 0);
   const showKhqr     = paymentMethod === 'KHQR' && qrString;
+  const showStaticQr = paymentMethod === 'STATIC_QR' && staticQrImage;
 
   return (
     <div className="h-screen w-screen bg-slate-900 flex flex-col overflow-hidden select-none">
@@ -233,6 +236,18 @@ export default function CustomerDisplay() {
               </>
             )}
 
+            {showStaticQr && (
+              <>
+                <div className="bg-white p-3 rounded-2xl shadow-lg">
+                  <img src={staticQrImage} alt={staticQrBank} className="w-64 h-64 object-contain" />
+                </div>
+                <p className="text-white text-lg font-black text-center">{staticQrBank}</p>
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center">
+                  {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay'}
+                </p>
+              </>
+            )}
+
             {showTendered && (
               <div className="w-full space-y-3">
                 {tenderedKhr > 0 && (
@@ -260,7 +275,7 @@ export default function CustomerDisplay() {
               </div>
             )}
 
-            {!showKhqr && !showTendered && (
+            {!showKhqr && !showStaticQr && !showTendered && (
               <p className="text-slate-700 text-xs font-bold uppercase tracking-widest text-center">
                 {paymentMethod === 'STATIC_QR'
                   ? (locale === 'km' ? 'QR ធនាគារ' : 'Bank QR')

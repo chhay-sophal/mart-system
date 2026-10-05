@@ -11,6 +11,7 @@ import SalesHistory from './SalesHistory';
 import DailySummary from './DailySummary';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
+import { BANKS, STATIC_QR_KEY, parseStaticQrCodes, sortByBank } from './staticQr';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
 import BackendContext from './BackendContext';
@@ -41,6 +42,8 @@ export default function App() {
   const [activeKhqr, setActiveKhqr] = useState(null);
   const [khqrLoading, setKhqrLoading] = useState(false);
   const [staticQrBank, setStaticQrBank] = useState('');
+  // Fixed bank KHQR images from Settings > KHQR (issue #12).
+  const [staticQrCodes, setStaticQrCodes] = useState([]);
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -364,6 +367,11 @@ export default function App() {
     }
   }
 
+  // The selected bank's QR, shown on the customer display to scan.
+  const staticQrImage = paymentMethod === 'STATIC_QR'
+    ? staticQrCodes.find((c) => c.bank === staticQrBank)?.image ?? null
+    : null;
+
   useEffect(() => {
     if (!IS_TAURI) return;
 
@@ -398,13 +406,15 @@ export default function App() {
       tenderedUsd: parseFloat(amountPaidUsd || 0),
       tenderedKhr: parseFloat(amountPaidKhr || 0),
       qrString: activeKhqr?.qr_string || null,
+      staticQrBank: paymentMethod === 'STATIC_QR' ? staticQrBank : '',
+      staticQrImage,
       isDark,
     };
     if (customerDisplayOpen) emit('customer-display', customerDisplayPayloadRef.current);
   }, [
     IS_TAURI, cart, rawSubtotalUsd, subtotalUsd, txDiscountAmt, checkoutResult, paymentMethod, activeKhqr,
     customerDisplayOpen, amountPaidUsd, amountPaidKhr, isDark, changeDueKhr, dynamicRate, locale, mainCurrency,
-    storeIcon, storeName, totalKhr, totalUsd,
+    storeIcon, storeName, totalKhr, totalUsd, staticQrBank, staticQrImage,
   ]);
 
   useEffect(() => {
@@ -446,6 +456,7 @@ export default function App() {
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
         setShowLowStockAlert(data.show_low_stock_alert !== 'false');
         setPrinter(printerConfig(data));
+        setStaticQrCodes(sortByBank(parseStaticQrCodes(data[STATIC_QR_KEY])));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -1162,7 +1173,8 @@ export default function App() {
               <div className="space-y-3 bg-amber-50/30 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900 p-4 rounded-2xl">
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide font-display">{t[locale].staticQrPrompt}</p>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {['ABA', 'ACLEDA', 'Wing', 'KB Prasac', 'Sathapana', 'Canadia', 'Maybank', 'CHIP Mong', 'Hattha', 'Prince', 'Other'].map(bank => (
+                  {/* Only the banks with a QR set up, once any are; otherwise all of them. */}
+                  {(staticQrCodes.length ? staticQrCodes.map((c) => c.bank) : BANKS).map(bank => (
                     <button
                       key={bank}
                       onClick={() => setStaticQrBank(b => b === bank ? '' : bank)}
@@ -1172,6 +1184,12 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                {staticQrImage && (
+                  <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-amber-100 dark:border-amber-900 rounded-xl p-2">
+                    <img src={staticQrImage} alt={staticQrBank} className="w-14 h-14 object-contain bg-white rounded-lg" />
+                    <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">{t[locale].staticQrShowing}</p>
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">{t[locale].staticQrNote}</p>
                 <button
                   onClick={handleCheckout}
