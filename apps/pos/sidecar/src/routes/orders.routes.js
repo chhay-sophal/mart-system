@@ -5,6 +5,17 @@ const { roundUsd, roundAmount, roundKhrToNote } = require('../money');
 
 const router = express.Router();
 
+// The item discount on a cart line, as a total for the line in its own
+// currency: a percentage of the line, or a fixed amount off each unit (never
+// more than the unit price) -- the same rule the register screen uses.
+function lineDiscount(item, price, currency) {
+  const value = Number(item.discount) || 0;
+  if (value <= 0) return 0;
+  const qty = Number(item.quantity) || 0;
+  const off = item.discountType === 'fixed' ? Math.min(value, price) * qty : (price * qty * Math.min(value, 100)) / 100;
+  return roundAmount(off, currency);
+}
+
 function storeExchangeRate() {
   const rate = parseFloat(query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0]?.value);
   return rate > 0 ? rate : 4100;
@@ -38,7 +49,8 @@ router.post('/api/orders/checkout', (req, res) => {
   const paidKhr = roundAmount(amount_paid_khr, 'KHR');
   const lines = items.map((item) => {
     const currency = item.currency || 'USD';
-    return { id: item.id, quantity: item.quantity, currency, price: roundAmount(item.price, currency) };
+    const price = roundAmount(item.price, currency);
+    return { id: item.id, quantity: item.quantity, currency, price, discount: lineDiscount(item, price, currency) };
   });
 
   const changeKhr = paidUsd * rate + paidKhr - (totalCurrency === 'KHR' ? total : total * rate);
@@ -70,13 +82,13 @@ router.post('/api/orders/checkout', (req, res) => {
     const backendItems = [];
     for (const item of lines) {
       run(
-        'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [orderId, item.id, item.quantity, item.price, item.currency, localNow(), localNow()]
+        'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [orderId, item.id, item.quantity, item.price, item.discount, item.currency, localNow(), localNow()]
       );
       run('UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?', [item.quantity, localNow(), item.id]);
 
       const backendProductId = query('SELECT backend_product_id FROM products WHERE id = ?', [item.id])[0]?.backend_product_id;
-      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, currency: item.currency });
+      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, discount: item.discount, currency: item.currency });
     }
 
     // Only enqueue a sync event if every item resolves to a backend product —
@@ -89,6 +101,7 @@ router.post('/api/orders/checkout', (req, res) => {
           productId: i.backendProductId,
           quantity: i.quantity,
           priceAtSale: i.priceAtSale,
+          discount: i.discount,
           currency: i.currency,
         })),
         paymentMethod: payment_method,
@@ -163,7 +176,7 @@ function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
     receipt_no: receiptNoFor(order.id),
     can_delete: true,
     items: query(
-      `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.currency
+      `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.discount, oi.currency
        FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
        WHERE oi.order_id = ?`,
       [order.id]

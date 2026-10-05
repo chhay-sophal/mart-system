@@ -141,6 +141,7 @@ const SCHEMA = `
     product_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL,
     price_at_sale REAL NOT NULL,
+    discount REAL NOT NULL DEFAULT 0,
     currency TEXT DEFAULT 'USD',
     created_at TEXT,
     updated_at TEXT
@@ -218,6 +219,8 @@ function runMigrations() {
   const itemCols = cols('order_items');
   if (!itemCols.includes('created_at')) db.run('ALTER TABLE order_items ADD COLUMN created_at TEXT');
   if (!itemCols.includes('updated_at')) db.run('ALTER TABLE order_items ADD COLUMN updated_at TEXT');
+  // Item discount for the whole line (the line charged price_at_sale x quantity - discount).
+  if (!itemCols.includes('discount')) db.run('ALTER TABLE order_items ADD COLUMN discount REAL NOT NULL DEFAULT 0');
 
   const khqrCols = cols('khqr_transactions');
   if (!khqrCols.includes('updated_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN updated_at TEXT');

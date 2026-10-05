@@ -45,7 +45,7 @@ router.get('/api/summary/daily', async (req, res) => {
 
   const topProducts = query(
     `SELECT p.name, SUM(oi.quantity) as total_qty,
-            SUM(CASE WHEN oi.currency = 'KHR' THEN oi.price_at_sale / ${rate} ELSE oi.price_at_sale END * oi.quantity) as revenue
+            SUM(CASE WHEN oi.currency = 'KHR' THEN (oi.price_at_sale * oi.quantity - oi.discount) / ${rate} ELSE oi.price_at_sale * oi.quantity - oi.discount END) as revenue
      FROM order_items oi
      JOIN orders o ON o.id = oi.order_id
      JOIN products p ON p.id = oi.product_id
@@ -57,9 +57,8 @@ router.get('/api/summary/daily', async (req, res) => {
 
   const profitRow = query(
     `SELECT COALESCE(SUM(
-       (CASE WHEN oi.currency = 'KHR' THEN oi.price_at_sale / ${rate} ELSE oi.price_at_sale END
-        - CASE WHEN p.currency = 'KHR' THEN p.cost_price / ${rate} ELSE p.cost_price END)
-       * oi.quantity
+       CASE WHEN oi.currency = 'KHR' THEN (oi.price_at_sale * oi.quantity - oi.discount) / ${rate} ELSE oi.price_at_sale * oi.quantity - oi.discount END
+       - CASE WHEN p.currency = 'KHR' THEN p.cost_price / ${rate} ELSE p.cost_price END * oi.quantity
      ), 0) as gross_profit
      FROM order_items oi
      JOIN orders o ON o.id = oi.order_id
