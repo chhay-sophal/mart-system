@@ -10,6 +10,15 @@ import { invalidateSales, queryKeys } from './queryClient';
 
 const PAGE_SIZE = 10;
 
+// `new Date().toISOString().slice(0, 10)` looks like "today's date" but
+// isn't: toISOString() converts to UTC first, so anywhere east of UTC (e.g.
+// Cambodia, UTC+7) it silently returns yesterday's date for the first few
+// hours of the local day. Always derive 'YYYY-MM-DD' from local getters instead.
+const toLocalDateStr = (d) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 // dateFrom/dateTo are plain 'YYYY-MM-DD' (<input type="date"> values, local
 // time, no timezone). Empty means unbounded on that side -- "All time" is
 // just both sides empty, not a distinct mode.
@@ -30,7 +39,7 @@ const DATE_PRESETS = ['today', 'yesterday', '7d', '30d', 'all'];
 // they can never silently drift apart.
 function presetRange(preset) {
   const today = new Date();
-  const fmt = (d) => d.toISOString().slice(0, 10);
+  const fmt = toLocalDateStr;
   const todayStr = fmt(today);
   if (preset === 'today') return { from: todayStr, to: todayStr };
   if (preset === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); const y = fmt(d); return { from: y, to: y }; }
@@ -54,8 +63,8 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const ex = s.export;
 
   // Free-form date range, not a fixed set of periods -- defaults to today.
-  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
+  const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
   const [expandedId, setExpandedId] = useState(null);
   const [search, setSearch] = useState('');
   const [sortCol, setSortCol] = useState('id');
@@ -68,9 +77,9 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const [showExportModal, setShowExportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDateFrom, setExportDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 30); return toLocalDateStr(d);
   });
-  const [exportDateTo, setExportDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportDateTo, setExportDateTo] = useState(() => toLocalDateStr(new Date()));
   const [exportPayment, setExportPayment] = useState('all');
   const [exportCols, setExportCols] = useState({
     orderId: true, date: true, time: true, items: true,
@@ -231,9 +240,10 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
 
   const applyExportPreset = (preset) => {
     const today = new Date();
-    const fmt = (d) => d.toISOString().slice(0, 10);
+    const fmt = toLocalDateStr;
     const todayStr = fmt(today);
     if (preset === 'today') { setExportDateFrom(todayStr); setExportDateTo(todayStr); }
+    else if (preset === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); const y = fmt(d); setExportDateFrom(y); setExportDateTo(y); }
     else if (preset === '7d')  { const d = new Date(today); d.setDate(d.getDate() - 7);  setExportDateFrom(fmt(d)); setExportDateTo(todayStr); }
     else if (preset === '30d') { const d = new Date(today); d.setDate(d.getDate() - 30); setExportDateFrom(fmt(d)); setExportDateTo(todayStr); }
     else if (preset === 'month') { setExportDateFrom(fmt(new Date(today.getFullYear(), today.getMonth(), 1))); setExportDateTo(todayStr); }
@@ -243,12 +253,14 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const exportOrders = async () => {
     setExporting(true);
     try {
+      // Same local-time-correct range builder the main list uses below --
+      // `new Date(exportDateFrom)` on a bare 'YYYY-MM-DD' string parses as
+      // UTC midnight, not local midnight, which silently dropped early-
+      // morning orders on the start date everywhere east of UTC.
+      const { from, to } = getDateRange(exportDateFrom, exportDateTo);
       const query = {};
-      if (exportDateFrom) query.date_from = new Date(exportDateFrom).toISOString();
-      if (exportDateTo) {
-        const end = new Date(exportDateTo); end.setHours(23, 59, 59, 999);
-        query.date_to = end.toISOString();
-      }
+      if (from) query.date_from = from;
+      if (to) query.date_to = to;
       let data = unwrapOrders(await client.get('/api/orders', query));
       if (exportPayment !== 'all') data = data.filter(o => o.payment_method === exportPayment);
 
@@ -549,6 +561,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {[
                     { label: ex.presetToday, preset: 'today' },
+                    { label: ex.presetYesterday || 'Yesterday', preset: 'yesterday' },
                     { label: ex.preset7d,    preset: '7d' },
                     { label: ex.preset30d,   preset: '30d' },
                     { label: ex.presetMonth, preset: 'month' },
