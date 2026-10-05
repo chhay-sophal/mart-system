@@ -11,7 +11,8 @@ function receiptHtml(o) {
   const lines = o.items
     .map((i) => {
       const fmt = i.currency === 'KHR' ? khr : usd;
-      return `<tr><td>${esc(i.product_name)}<div class="muted">${i.quantity} × ${fmt(i.price)}</div></td><td class="r">${fmt(i.price * i.quantity)}</td></tr>`;
+      const discount = i.discount > 0 ? ` · −${fmt(i.discount)}` : '';
+      return `<tr><td>${esc(i.product_name)}<div class="muted">${i.quantity} × ${fmt(i.price)}${discount}</div></td><td class="r">${fmt(i.price * i.quantity - (i.discount || 0))}</td></tr>`;
     })
     .join('');
   const paid = [

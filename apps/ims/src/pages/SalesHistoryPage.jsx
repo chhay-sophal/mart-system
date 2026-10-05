@@ -363,7 +363,11 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
                       <td className="py-1 text-slate-500">{i.barcode ?? ''}</td>
                       <td className="py-1 text-right">{i.quantity}</td>
                       <td className="py-1 text-right">{fmt(i.price)}</td>
-                      <td className="py-1 text-right">{fmt(i.price * i.quantity)}</td>
+                      <td className="py-1 text-right">
+                        {/* What the line charged, less its item discount. */}
+                        {fmt(i.price * i.quantity - (i.discount || 0))}
+                        {i.discount > 0 && <span className="block text-xs text-amber-600">−{fmt(i.discount)}</span>}
+                      </td>
                     </tr>
                   );
                 })}

@@ -153,6 +153,10 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         price: i.price,
         quantity: i.quantity,
         currency: i.currency,
+        // The saved item discount is for the whole line; the receipt takes a
+        // fixed amount off each unit, so spread it evenly.
+        discount: i.discount > 0 ? i.discount / i.quantity : 0,
+        discountType: 'fixed',
       })),
       // A reprint has no discount breakdown: the stored total is the subtotal.
       subtotalBeforeDiscountUsd: parseFloat(order.total_amount),
@@ -668,9 +672,15 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
                       : `$${parseFloat(item.price).toFixed(2)}`}
                   </span>
                   <span className="text-right text-slate-900 dark:text-white font-bold">
+                    {/* What the line charged: less its item discount, shown underneath. */}
                     {item.currency === 'KHR'
-                      ? `${(parseFloat(item.price) * item.quantity).toLocaleString()} ៛`
-                      : `$${(parseFloat(item.price) * item.quantity).toFixed(2)}`}
+                      ? `${Math.round(parseFloat(item.price) * item.quantity - (item.discount || 0)).toLocaleString()} ៛`
+                      : `${(parseFloat(item.price) * item.quantity - (item.discount || 0)).toFixed(2)}`}
+                    {item.discount > 0 && (
+                      <span className="block text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                        −{item.currency === 'KHR' ? `${Math.round(item.discount).toLocaleString()} ៛` : `${Number(item.discount).toFixed(2)}`}
+                      </span>
+                    )}
                   </span>
                 </div>
               ))}
