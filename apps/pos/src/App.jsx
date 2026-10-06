@@ -891,18 +891,18 @@ export default function App() {
           </div>
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-600 ml-2"></div>
           <button
-            onClick={() => setView('HISTORY')}
-            title={`${t[locale].salesHistory.title}${keyHint('history')}`}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <History size={14} /> {t[locale].salesHistory.title}
-          </button>
-          <button
             onClick={() => setView('PRODUCTS')}
             title={`${t[locale].products.title}${keyHint('products')}`}
             className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Package size={14} /> {t[locale].products.title}
+          </button>
+          <button
+            onClick={() => setView('HISTORY')}
+            title={`${t[locale].salesHistory.title}${keyHint('history')}`}
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <History size={14} /> {t[locale].salesHistory.title}
           </button>
           <button
             onClick={() => setView('SUMMARY')}
@@ -922,6 +922,7 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <UpdateChecker />
           <button
             onClick={() => setShowShortcuts(true)}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
@@ -944,7 +945,6 @@ export default function App() {
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <UpdateChecker />
           <button
             onClick={() => setSession(null)}
             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
@@ -1170,7 +1170,7 @@ export default function App() {
         <div className="w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl p-5 flex flex-col justify-between overflow-y-auto flex-shrink-0">
           <div className="space-y-3">
             {/* Transaction Discount */}
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase font-display truncate min-w-fit">
                   {locale === 'km' ? 'បញ្ចុះតម្លៃ' : 'Discount'}
@@ -1210,21 +1210,65 @@ export default function App() {
                   >{mainCurrency === 'KHR' ? '៛' : '$'}</button>
                 </div>
               </div>
-            </div>
+            </div> */}
             
-            <div className="bg-slate-900 dark:bg-slate-950 text-white rounded-2xl p-5 relative overflow-hidden shadow-md shadow-slate-900/10">
+            <div className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-2xl p-5 relative overflow-hidden shadow-md shadow-slate-900/10 border border-slate-200/60 dark:border-slate-700">
               <div className="space-y-3 relative z-10">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs font-medium text-slate-400 font-display">
-                    {t[locale].subtotalBeforeDiscount}
+                  <span className="text-md font-medium font-display">
+                    {t[locale].subtotal}
                   </span>
-                  <span className="text-sm font-bold text-slate-200">
+                  <span className="text-sm font-bold">
                     {mainCurrency === 'USD' ? `$${rawSubtotalUsd.toFixed(2)}` : `${usdToKhr(rawSubtotalUsd, dynamicRate).toLocaleString()} ៛`}
                   </span>
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-md font-medium tracking-wider font-display truncate min-w-fit">
+                      {locale === 'km' ? 'បញ្ចុះតម្លៃ' : 'Discount'}
+                    </label>
+                    <div className="flex-1">
+                      <input
+                        type="number"
+                        value={txDiscountValue}
+                        onChange={e => {
+                          let v = parseFloat(e.target.value);
+                          if (isNaN(v) || v < 0) v = 0;
+                          if (txDiscountType === 'pct' && v > 100) v = 100;
+                          setTxDiscountValue(v === 0 && e.target.value === '' ? '' : String(v));
+                          setCheckoutResult(null);
+                          setActiveKhqr(null);
+                        }}
+                        min="0"
+                        max={txDiscountType === 'pct' ? '100' : undefined}
+                        placeholder={txDiscountType === 'pct' ? '0' : mainCurrency === 'KHR' ? '0' : '0.00'}
+                        className="w-full h-9 px-3 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-sm focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-900/30 focus:outline-hidden focus:border-amber-500"
+                      />
+                    </div>
+                    
+                    <div className="flex w-16 ml-auto rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                      <button
+                        onClick={() => { setTxDiscountType('pct'); setTxDiscountValue(''); setCheckoutResult(null); setActiveKhqr(null); }}
+                        className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all cursor-pointer ${
+                          txDiscountType === 'pct'
+                            ? 'bg-amber-500 text-white'
+                            : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        }`}
+                      >%</button>
+                      <button
+                        onClick={() => { setTxDiscountType('fixed'); setTxDiscountValue(''); setCheckoutResult(null); setActiveKhqr(null); }}
+                        className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all cursor-pointer ${
+                          txDiscountType === 'fixed'
+                            ? 'bg-amber-500 text-white border-amber-500'
+                            : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                        }`}
+                      >{mainCurrency === 'KHR' ? '៛' : '$'}</button>
+                    </div>
+                  </div>
+                </div>
                 {totalDiscountAmt > 0 && (
                   <div className="flex justify-between items-baseline">
-                    <span className="text-xs font-medium text-slate-400 font-display">
+                    <span className="text-md font-medium font-display">
                       {t[locale].totalDiscountAmount}
                     </span>
                     <span className="text-sm font-bold text-amber-400">
@@ -1233,7 +1277,7 @@ export default function App() {
                   </div>
                 )}
                 <div className="border-t border-slate-800 dark:border-slate-700 pt-2.5 flex justify-between items-baseline">
-                  <span className="text-xs font-medium text-slate-400 font-display">
+                  <span className="text-md font-medium font-display">
                     {mainCurrency === 'USD' ? t[locale].totalUsd : t[locale].totalKhr}
                   </span>
                   <span className="text-3xl font-black tracking-tight">
@@ -1241,7 +1285,7 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs font-medium text-slate-400 font-display">
+                  <span className="text-md font-medium font-display">
                     {mainCurrency === 'USD' ? t[locale].totalKhr : t[locale].totalUsd}
                   </span>
                   <span className="text-base font-bold text-emerald-400">
