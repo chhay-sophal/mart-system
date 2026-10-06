@@ -168,7 +168,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={running}
-          className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 disabled:opacity-60"
+          className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 disabled:opacity-60 cursor-pointer"
         >
           Choose file
         </button>
@@ -248,7 +248,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
               type="button"
               onClick={handleRun}
               disabled={!canRun}
-              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60"
+              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60 cursor-pointer"
             >
               {running ? 'Importing…' : 'Import selected'}
             </button>

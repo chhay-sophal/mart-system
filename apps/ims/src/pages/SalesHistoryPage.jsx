@@ -208,7 +208,7 @@ export default function SalesHistoryPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Sales history</h1>
-        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent">
+        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
           Export
         </button>
       </div>
@@ -231,7 +231,7 @@ export default function SalesHistoryPage() {
                 <button
                   key={preset}
                   onClick={() => applyDatePreset(preset)}
-                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent cursor-pointer ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {DATE_PRESET_LABELS[preset]}
                 </button>
@@ -337,9 +337,9 @@ export default function SalesHistoryPage() {
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Prev</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
             <span>Page {page} / {totalPages}</span>
-            <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Next</button>
+            <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
           </div>
         </div>
       )}
@@ -351,8 +351,8 @@ export default function SalesHistoryPage() {
             marked voided and its items put back in stock. It no longer counts toward revenue.
           </p>
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5 border border-transparent">Cancel</button>
-            <button onClick={confirmVoid} disabled={voiding} className="text-sm font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60">
+            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">Cancel</button>
+            <button onClick={confirmVoid} disabled={voiding} className="text-sm font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60 cursor-pointer">
               {voiding ? 'Voiding…' : 'Void sale'}
             </button>
           </div>
@@ -436,11 +436,11 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
                 {o.change_given_khr > 0 && <span>Change: {fmtKhr(o.change_given_khr)}</span>}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800">
+                <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
                   Print receipt
                 </button>
                 {!voided && (
-                  <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40">
+                  <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer">
                     Void sale
                   </button>
                 )}
@@ -538,7 +538,7 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {[['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['all', 'All time']].map(([key, label]) => (
-            <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
               {label}
             </button>
           ))}
@@ -559,11 +559,11 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
           Include voided sales
         </label>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="text-sm px-3 py-1.5 border border-transparent">Cancel</button>
+          <button onClick={onClose} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">Cancel</button>
           <button
             onClick={runExport}
             disabled={exporting || columns.size === 0}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60 cursor-pointer"
           >
             {exporting ? 'Exporting…' : 'Export to Excel'}
           </button>

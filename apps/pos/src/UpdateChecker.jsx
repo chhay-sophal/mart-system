@@ -79,7 +79,7 @@ export default function UpdateChecker() {
       {status === 'available' && (
         <button
           onClick={() => setShowModal(true)}
-          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           ↑ v{updateInfo?.version}
         </button>
@@ -122,7 +122,7 @@ export default function UpdateChecker() {
               {!isWorking && (
                 <button
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
                 >
                   Later
                 </button>
@@ -130,7 +130,7 @@ export default function UpdateChecker() {
               {(status === 'available' || status === 'error') && (
                 <button
                   onClick={handleInstall}
-                  className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors"
+                  className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer"
                 >
                   Install & Restart
                 </button>

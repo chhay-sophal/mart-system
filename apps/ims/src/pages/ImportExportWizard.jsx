@@ -197,7 +197,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       <div className="flex gap-2 mb-4 border-b border-[var(--border)]">
         <button
           onClick={() => setTab('import')}
-          className={`px-3 py-2 text-sm font-medium border-b-2 ${
+          className={`px-3 py-2 text-sm font-medium border-b-2 cursor-pointer ${
             tab === 'import' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
@@ -205,7 +205,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
         </button>
         <button
           onClick={() => setTab('export')}
-          className={`px-3 py-2 text-sm font-medium border-b-2 ${
+          className={`px-3 py-2 text-sm font-medium border-b-2 cursor-pointer ${
             tab === 'export' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
@@ -283,13 +283,13 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
           </label>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setStep('upload')} disabled={importing} className="text-sm px-3 py-1.5 disabled:opacity-50">
+            <button onClick={() => setStep('upload')} disabled={importing} className="text-sm px-3 py-1.5 cursor-pointer disabled:opacity-50">
               Back
             </button>
             <button
               onClick={handleImportSubmit}
               disabled={!canSubmitImport || importing}
-              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer disabled:opacity-50"
             >
               {importing ? `Importing… ${progress} / ${rows.length}` : `Import ${rows.length} rows`}
             </button>
@@ -309,7 +309,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
           <div className="flex justify-end">
             <button
               onClick={onClose}
-              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
               Done
             </button>
@@ -335,7 +335,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
           <div className="flex justify-end">
             <button
               onClick={exportToExcel}
-              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
               Export to Excel
             </button>

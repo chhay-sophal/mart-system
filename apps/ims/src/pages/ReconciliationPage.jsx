@@ -100,7 +100,7 @@ export default function ReconciliationPage() {
                         setAdjustTarget(row);
                         setCorrectedStock('');
                       }}
-                      className="text-[var(--accent)] font-medium"
+                      className="text-[var(--accent)] font-medium cursor-pointer"
                     >
                       Set corrected count
                     </button>
@@ -131,10 +131,10 @@ export default function ReconciliationPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setAdjustTarget(null)} className="text-sm px-3 py-1.5">
+              <button type="button" onClick={() => setAdjustTarget(null)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Save
               </button>
             </div>

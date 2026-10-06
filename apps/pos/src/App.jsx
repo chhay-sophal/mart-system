@@ -893,21 +893,21 @@ export default function App() {
           <button
             onClick={() => setView('HISTORY')}
             title={`${t[locale].salesHistory.title}${keyHint('history')}`}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <History size={14} /> {t[locale].salesHistory.title}
           </button>
           <button
             onClick={() => setView('PRODUCTS')}
             title={`${t[locale].products.title}${keyHint('products')}`}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Package size={14} /> {t[locale].products.title}
           </button>
           <button
             onClick={() => setView('SUMMARY')}
             title={`${(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}${keyHint('summary')}`}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <BarChart3 size={14} /> {(t[locale].dailySummary || {}).navLabel || 'Daily Summary'}
           </button>
@@ -915,7 +915,7 @@ export default function App() {
             <button
               onClick={() => setView('SETTINGS')}
               title={`${t[locale].settings}${keyHint('settings')}`}
-              className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+              className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Settings size={14} /> {t[locale].settings}
             </button>
@@ -924,7 +924,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowShortcuts(true)}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
             title={`${sc.title || 'Keyboard Shortcuts'}${keyHint('help')}`}
           >
             <KeyboardIcon size={16} />
@@ -932,14 +932,14 @@ export default function App() {
           <button
             onClick={handleOpenDrawer}
             disabled={!printer.direct}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             title={`${sc.openDrawer || 'Open cash drawer'}${keyHint('openDrawer')}`}
           >
             <Inbox size={16} />
           </button>
           <button
             onClick={toggleDark}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
@@ -947,7 +947,7 @@ export default function App() {
           <UpdateChecker />
           <button
             onClick={() => setSession(null)}
-            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors"
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors cursor-pointer"
             title={`${t[locale].lockTerminal}${keyHint('lock')}`}
           >
             <Lock size={16} />
@@ -973,7 +973,7 @@ export default function App() {
                   setShowManualInput(!showManualInput);
                   setBarcodeInput('');
                 }}
-                className={`text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 ${showManualInput ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}
+                className={`text-xs font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 cursor-pointer ${showManualInput ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200' : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}
               >
                 {showManualInput
                   ? <><Lock size={13} /> {t[locale].closeManual}</>
@@ -994,7 +994,7 @@ export default function App() {
                 />
                 <button
                   type="submit"
-                  className="h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors shadow-xs"
+                  className="h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors shadow-xs cursor-pointer"
                 >
                   {t[locale].addItem}
                 </button>
@@ -1029,12 +1029,12 @@ export default function App() {
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight font-display">{t[locale].currentBasket}</h2>
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowDrafts(true)} title={`${dr.title}${keyHint('drafts')}`}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors">
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer">
                   <FileClock size={13} /> {dr.title}
                   {drafts.length > 0 && <span className="bg-amber-500 text-white rounded-full px-1.5 text-[10px] leading-4">{drafts.length}</span>}
                 </button>
                 <button onClick={saveDraft} disabled={cart.length === 0} title={`${dr.save}${keyHint('saveDraft')}`}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
                   <PauseCircle size={13} /> {dr.save}
                 </button>
                 <span className="text-xs bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-bold px-3 py-1 rounded-full">
@@ -1098,7 +1098,7 @@ export default function App() {
                             <div className="flex w-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                               <button
                                 onClick={() => setItemDiscount(item.lineId, undefined, 'pct')}
-                                className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all ${
+                                className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all cursor-pointer ${
                                   (item.discountType || 'pct') === 'pct'
                                     ? 'bg-amber-500 text-white'
                                     : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -1106,7 +1106,7 @@ export default function App() {
                               >%</button>
                               <button
                                 onClick={() => setItemDiscount(item.lineId, undefined, 'fixed')}
-                                className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all ${
+                                className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all cursor-pointer ${
                                   item.discountType === 'fixed'
                                     ? 'bg-amber-500 text-white border-amber-500'
                                     : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -1117,16 +1117,16 @@ export default function App() {
                           
                           {/* Qty stepper */}
                           <div className="flex items-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 rounded-xl p-0.5 shadow-2xs">
-                            <button onClick={() => updateQuantity(item.lineId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">&minus;</button>
+                            <button onClick={() => updateQuantity(item.lineId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">&minus;</button>
                             <span className="w-9 text-center font-bold text-sm text-slate-800 dark:text-slate-100">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.lineId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">+</button>
+                            <button onClick={() => updateQuantity(item.lineId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">+</button>
                           </div>
 
                           {/* Split one unit onto its own line, to discount just that one. Kept
                               in place (invisible) at quantity 1 so the columns stay aligned. */}
                           <button onClick={() => splitItem(item.lineId)} disabled={item.quantity < 2}
                             title={t[locale].splitLine} aria-label={t[locale].splitLine}
-                            className={`self-center w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all ${item.quantity < 2 ? 'invisible' : ''}`}>
+                            className={`self-center w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer ${item.quantity < 2 ? 'invisible' : ''}`}>
                             <Scissors size={14} />
                           </button>
 
@@ -1155,7 +1155,7 @@ export default function App() {
                               </p>
                             )}
                           </div>
-                          <button onClick={() => removeItem(item.lineId)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center"><X size={14} /></button>
+                          <button onClick={() => removeItem(item.lineId)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center cursor-pointer"><X size={14} /></button>
                         </div>
                       </div>
                     </div>
@@ -1194,7 +1194,7 @@ export default function App() {
                 <div className="flex w-16 ml-auto rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                   <button
                     onClick={() => { setTxDiscountType('pct'); setTxDiscountValue(''); setCheckoutResult(null); setActiveKhqr(null); }}
-                    className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all ${
+                    className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all cursor-pointer ${
                       txDiscountType === 'pct'
                         ? 'bg-amber-500 text-white'
                         : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -1202,7 +1202,7 @@ export default function App() {
                   >%</button>
                   <button
                     onClick={() => { setTxDiscountType('fixed'); setTxDiscountValue(''); setCheckoutResult(null); setActiveKhqr(null); }}
-                    className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all ${
+                    className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all cursor-pointer ${
                       txDiscountType === 'fixed'
                         ? 'bg-amber-500 text-white border-amber-500'
                         : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -1256,19 +1256,19 @@ export default function App() {
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); }}
-                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 ${paymentMethod === 'CASH' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${paymentMethod === 'CASH' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {t[locale].cash}
                 </button>
                 <button
                   onClick={() => { setPaymentMethod('KHQR'); setCheckoutResult(null); }}
-                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 ${paymentMethod === 'KHQR' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${paymentMethod === 'KHQR' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {t[locale].khqr}
                 </button>
                 <button
                   onClick={() => { setPaymentMethod('STATIC_QR'); setCheckoutResult(null); setActiveKhqr(null); setStaticQrBank(''); }}
-                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 ${paymentMethod === 'STATIC_QR' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${paymentMethod === 'STATIC_QR' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {t[locale].staticQr}
                 </button>
@@ -1346,7 +1346,7 @@ export default function App() {
                     <button
                       key={bank}
                       onClick={() => setStaticQrBank(b => b === bank ? '' : bank)}
-                      className={`py-2 px-1 rounded-xl border font-bold text-[11px] transition-all ${staticQrBank === bank ? 'bg-amber-500 text-white border-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:border-amber-200 dark:hover:border-amber-800'}`}
+                      className={`py-2 px-1 rounded-xl border font-bold text-[11px] transition-all cursor-pointer ${staticQrBank === bank ? 'bg-amber-500 text-white border-amber-500' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:border-amber-200 dark:hover:border-amber-800'}`}
                     >
                       {bank}
                     </button>
@@ -1362,7 +1362,7 @@ export default function App() {
                 <button
                   onClick={handleCheckout}
                   disabled={cart.length === 0 || !staticQrBank}
-                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all font-display shadow-xs ${cart.length === 0 || !staticQrBank ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-400 cursor-not-allowed' : 'bg-amber-500 text-white hover:bg-amber-600 active:scale-[0.99]'}`}
+                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all font-display shadow-xs ${cart.length === 0 || !staticQrBank ? 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-400 cursor-not-allowed' : 'bg-amber-500 text-white cursor-pointer hover:bg-amber-600 active:scale-[0.99]'}`}
                 >
                   {staticQrBank ? t[locale].confirmReceived : `${t[locale].selectBank}...`}
                 </button>

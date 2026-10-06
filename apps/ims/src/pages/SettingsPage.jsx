@@ -12,7 +12,7 @@ const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate:
 const LEGACY_HIDDEN_KEYS = ['store_icon'];
 
 const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm';
-const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60';
+const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer';
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
@@ -231,7 +231,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSaveBakongEmail}
             disabled={bakongSaving || !bakongEmail}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
           >
             {bakongSaving ? 'Saving…' : 'Save'}
           </button>
@@ -271,7 +271,7 @@ export default function SettingsPage() {
                 onChange={(e) => setNewValue(e.target.value)}
                 className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               />
-              <button onClick={addSetting} className="text-sm font-medium text-[var(--accent)]">
+              <button onClick={addSetting} className="text-sm font-medium text-[var(--accent)] cursor-pointer">
                 Add
               </button>
             </div>
@@ -280,7 +280,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60"
+                className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>

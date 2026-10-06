@@ -44,7 +44,7 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
   return (
     <th className="px-4 py-2">
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none">
+        <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
           {label}
           <span className="ml-1 text-[var(--accent)]">{active ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
         </button>

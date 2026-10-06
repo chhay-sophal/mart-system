@@ -291,7 +291,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         <div className="flex items-center gap-3.5">
           <button
             onClick={onBackToRegister}
-            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowLeft size={14} />
           </button>
@@ -317,7 +317,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
             {search && (
               <button
                 onClick={() => { setSearch(''); setExpandedId(null); }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
               ><X size={12} /></button>
             )}
           </div>
@@ -399,7 +399,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
             <button
               key={key}
               onClick={() => setPayFilter(f => f === key ? 'all' : key)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
                 payFilter === key ? activeClass : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
               }`}
             >
@@ -485,12 +485,12 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length}
             </span>
             <div className="flex items-center gap-1">
-              <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className="px-2.5 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center"><ChevronLeft size={14} /></button>
+              <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className="px-2.5 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center cursor-pointer"><ChevronLeft size={14} /></button>
               {pageNums.map((n, i) => n === '...'
                 ? <span key={`e${i}`} className="px-1 text-slate-300 dark:text-slate-600 text-xs">…</span>
-                : <button key={n} onClick={() => setPage(n)} className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${page === n ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{n}</button>
+                : <button key={n} onClick={() => setPage(n)} className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${page === n ? 'bg-indigo-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>{n}</button>
               )}
-              <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages} className="px-2.5 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center"><ChevronRight size={14} /></button>
+              <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages} className="px-2.5 py-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center cursor-pointer"><ChevronRight size={14} /></button>
             </div>
           </div>
         )}
@@ -703,7 +703,7 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
       {/* Row summary */}
       <button
         onClick={onToggle}
-        className="w-full grid grid-cols-[72px_1fr_80px_120px_80px_32px] gap-3 px-4 py-3.5 items-center text-left"
+        className="w-full grid grid-cols-[72px_1fr_80px_120px_80px_32px] gap-3 px-4 py-3.5 items-center text-left cursor-pointer"
       >
         <span className="min-w-0">
           <span className="block font-black text-sm text-indigo-600 dark:text-indigo-400 truncate">#{receiptLabel(order)}</span>

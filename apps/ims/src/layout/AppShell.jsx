@@ -70,7 +70,7 @@ export default function AppShell() {
             <ThemeToggle theme={theme} onChange={setTheme} />
             <button
               onClick={logout}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
               Sign out
             </button>

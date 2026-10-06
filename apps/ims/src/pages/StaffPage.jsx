@@ -88,7 +88,7 @@ export default function StaffPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Staff</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
         >
           Add staff
         </button>
@@ -151,11 +151,11 @@ export default function StaffPage() {
                         setPinTarget(row);
                         setPinValue('');
                       }}
-                      className="text-[var(--accent)] font-medium"
+                      className="text-[var(--accent)] font-medium cursor-pointer"
                     >
                       Reset PIN
                     </button>
-                    <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium">
+                    <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
                       {row.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </td>
@@ -202,7 +202,7 @@ export default function StaffPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -237,10 +237,10 @@ export default function StaffPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowCreate(false)} className="text-sm px-3 py-1.5">
+              <button type="button" onClick={() => setShowCreate(false)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Create
               </button>
             </div>
@@ -265,10 +265,10 @@ export default function StaffPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setPinTarget(null)} className="text-sm px-3 py-1.5">
+              <button type="button" onClick={() => setPinTarget(null)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Save PIN
               </button>
             </div>

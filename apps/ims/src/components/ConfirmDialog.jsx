@@ -42,7 +42,7 @@ export function ConfirmProvider({ children }) {
             <button
               type="button"
               onClick={() => settle(false)}
-              className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent"
+              className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer"
             >
               Cancel
             </button>
@@ -50,7 +50,7 @@ export function ConfirmProvider({ children }) {
               type="button"
               onClick={() => settle(true)}
               autoFocus
-              className={`text-sm font-medium text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent ${
+              className={`text-sm font-medium text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer ${
                 request.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-[var(--accent)]'
               }`}
             >

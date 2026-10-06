@@ -246,13 +246,13 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportExport(true)}
-            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
           >
             Import / Export
           </button>
           <button
             onClick={openCreate}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
           >
             Add product
           </button>
@@ -272,7 +272,7 @@ export default function ProductsPage() {
           {visible.length === products.length ? `${products.length} products` : `${visible.length} of ${products.length} products`}
         </span>
         {(filterCount > 0 || filters.search) && (
-          <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium">
+          <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
             Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
           </button>
         )}
@@ -284,11 +284,11 @@ export default function ProductsPage() {
           <button
             onClick={handleBulkArchive}
             disabled={bulkDeleting}
-            className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             {bulkDeleting ? 'Archiving…' : 'Archive selected'}
           </button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto">
+          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto cursor-pointer">
             Clear selection
           </button>
         </div>
@@ -425,7 +425,7 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-4 py-2">
                     {p.supplierName ? (
-                      <button onClick={() => setViewingSupplierFor(p)} className="text-[var(--accent)] hover:underline">
+                      <button onClick={() => setViewingSupplierFor(p)} className="text-[var(--accent)] hover:underline cursor-pointer">
                         {p.supplierName}
                       </button>
                     ) : (
@@ -441,15 +441,15 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-4 py-2 text-right">
                     {p.isDeleted ? (
-                      <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium">
+                      <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
                         Restore
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3">
+                        <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
                           Edit
                         </button>
-                        <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium">
+                        <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
                           Archive
                         </button>
                       </>
@@ -468,9 +468,9 @@ export default function ProductsPage() {
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} of {visible.length}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Prev</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
             <span>Page {page} / {pageCount}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Next</button>
+            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
           </div>
         </div>
       )}
@@ -587,10 +587,10 @@ export default function ProductsPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 py-1.5">
+              <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Save
               </button>
             </div>
@@ -644,7 +644,7 @@ export default function ProductsPage() {
             <Link to="/suppliers" className="text-sm text-[var(--accent)] font-medium">
               Manage suppliers
             </Link>
-            <button onClick={() => setViewingSupplierFor(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent">
+            <button onClick={() => setViewingSupplierFor(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
               Close
             </button>
           </div>

@@ -81,7 +81,7 @@ export default function TerminalsPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Terminals</h1>
         <button
           onClick={() => setShowPair(true)}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
         >
           Pair new terminal
         </button>
@@ -135,10 +135,10 @@ export default function TerminalsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right space-x-3">
-                    <button onClick={() => handleRotate(t)} className="text-[var(--accent)] font-medium">
+                    <button onClick={() => handleRotate(t)} className="text-[var(--accent)] font-medium cursor-pointer">
                       Rotate secret
                     </button>
-                    <button onClick={() => handleToggleActive(t)} className="text-red-600 dark:text-red-400 font-medium">
+                    <button onClick={() => handleToggleActive(t)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
                       {t.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
                   </td>
@@ -164,10 +164,10 @@ export default function TerminalsPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowPair(false)} className="text-sm px-3 py-1.5">
+              <button type="button" onClick={() => setShowPair(false)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Pair
               </button>
             </div>
@@ -191,7 +191,7 @@ export default function TerminalsPage() {
           <div className="flex justify-end">
             <button
               onClick={() => setRevealedSecret(null)}
-              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+              className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
               I've saved it
             </button>

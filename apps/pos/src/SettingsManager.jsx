@@ -746,7 +746,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                             onChange={(e) => setSettings({ ...settings, sync_device_secret: e.target.value })}
                             className={`${inputNormal} pr-10`} placeholder="Shown once when the terminal was paired in IMS" />
                           <button type="button" onClick={() => setShowDeviceSecret((v) => !v)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">
                             {showDeviceSecret ? <EyeOff size={16} /> : <Eye size={16} />}
                           </button>
                         </div>

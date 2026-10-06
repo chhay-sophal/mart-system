@@ -205,7 +205,7 @@ export default function SuppliersPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Suppliers</h1>
         <button
           onClick={openCreate}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
+          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
         >
           Add supplier
         </button>
@@ -223,7 +223,7 @@ export default function SuppliersPage() {
           {visible.length === suppliers.length ? `${suppliers.length} suppliers` : `${visible.length} of ${suppliers.length} suppliers`}
         </span>
         {(filterCount > 0 || filters.search) && (
-          <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium">
+          <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
             Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
           </button>
         )}
@@ -353,17 +353,17 @@ export default function SuppliersPage() {
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {s.isDeleted ? (
-                      <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium">
+                      <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium cursor-pointer">
                         Restore
                       </button>
                     ) : (
                       <>
-                        <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3">
+                        <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(s)}
-                          className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-300 font-medium'}
+                          className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
                         >
                           {s.productCount === 0 ? 'Delete' : 'Archive'}
                         </button>
@@ -383,9 +383,9 @@ export default function SuppliersPage() {
             {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} of {visible.length}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Prev</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
             <span>Page {page} / {pageCount}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40">Next</button>
+            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
           </div>
         </div>
       )}
@@ -439,10 +439,10 @@ export default function SuppliersPage() {
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent">
+              <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
                 Cancel
               </button>
-              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent">
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
                 Save
               </button>
             </div>
