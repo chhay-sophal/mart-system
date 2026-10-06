@@ -117,6 +117,15 @@ export default function SuppliersPage() {
     }
   }
 
+  async function handleRestore(supplier) {
+    try {
+      await apiClient.post(`/api/stores/${storeId}/suppliers/${supplier.id}/restore`);
+      await load();
+    } catch {
+      setError('Failed to restore supplier.');
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -197,7 +206,9 @@ export default function SuppliersPage() {
                   )}
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {s.isDeleted ? (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium">
+                        Restore
+                      </button>
                     ) : (
                       <>
                         <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3">

@@ -86,6 +86,33 @@ describe("supplier CRUD", () => {
     expect(readAfterDelete.status).toBe(404);
   });
 
+  it("restores an archived supplier", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const supplier = await prisma.supplier.create({ data: { name: "Acme Distribution", phone1: "012345678" } });
+    await addProduct(store.id, { name: "Widget", price: 1, stock: 1, supplierId: supplier.id });
+    await request(app)
+      .delete(`/api/stores/${store.id}/suppliers/${supplier.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const restore = await request(app)
+      .post(`/api/stores/${store.id}/suppliers/${supplier.id}/restore`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(restore.status).toBe(200);
+    expect(restore.body).toMatchObject({ id: supplier.id, isDeleted: false });
+
+    const read = await request(app)
+      .get(`/api/stores/${store.id}/suppliers/${supplier.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(read.status).toBe(200);
+
+    const list = await request(app)
+      .get(`/api/stores/${store.id}/suppliers`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(list.body).toMatchObject([{ id: supplier.id }]);
+  });
+
   it("only surfaces archived suppliers when includeDeleted=true is passed", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();

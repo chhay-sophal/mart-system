@@ -92,3 +92,14 @@ export async function deleteSupplier(supplierId: string) {
     await prisma.supplier.update({ where: { id: supplierId }, data: { isDeleted: true } });
   }
 }
+
+export async function restoreSupplier(supplierId: string) {
+  const existing = await prisma.supplier.findUnique({ where: { id: supplierId } });
+  if (!existing) throw notFound("Supplier not found");
+  const row = await prisma.supplier.update({
+    where: { id: supplierId },
+    data: { isDeleted: false },
+    include: PRODUCT_COUNT_INCLUDE,
+  });
+  return toSupplierView(row);
+}

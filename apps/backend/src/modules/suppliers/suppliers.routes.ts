@@ -3,7 +3,7 @@ import { asyncHandler } from "../../middleware/asyncHandler";
 import { requireAccessToken } from "../../middleware/requireAccessToken";
 import { requireRole } from "../../middleware/requireRole";
 import { createSupplierSchema, updateSupplierSchema } from "./suppliers.schema";
-import { createSupplier, deleteSupplier, getSupplier, listSuppliers, updateSupplier } from "./suppliers.service";
+import { createSupplier, deleteSupplier, getSupplier, listSuppliers, restoreSupplier, updateSupplier } from "./suppliers.service";
 
 export const suppliersRouter: Router = Router();
 
@@ -58,5 +58,14 @@ suppliersRouter.delete(
   asyncHandler(async (req, res) => {
     await deleteSupplier(req.params.supplierId!);
     res.status(204).end();
+  })
+);
+
+suppliersRouter.post(
+  "/stores/:storeId/suppliers/:supplierId/restore",
+  requireAccessToken,
+  requireRole([...MANAGE_ROLES]),
+  asyncHandler(async (req, res) => {
+    res.json(await restoreSupplier(req.params.supplierId!));
   })
 );
