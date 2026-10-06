@@ -4,19 +4,23 @@ import { useReactToPrint } from 'react-to-print';
 import { ArrowLeft, ChevronLeft, ChevronRight, Printer, WifiOff } from 'lucide-react';
 import { translations as t } from './locales';
 import { useBackend } from './BackendContext';
+import { useToast } from './Toast';
 import { usdToKhr } from './khr';
 import { useShortcuts } from './hooks/useShortcuts';
 import { queryKeys } from './queryClient';
 import { PRINT_WIDTH_MM } from './receipt/raster';
-import { printerConfig } from './receipt/thermalPrinter';
+import { printBlocksDirect, printerConfig } from './receipt/thermalPrinter';
+import { buildDailySummary } from './receipt/dailySummaryModel';
 
 const pad = n => String(n).padStart(2, '0');
+const errorText = (err) => (typeof err === 'string' ? err : err?.message) || String(err);
 
 const toSqliteDate = (d) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} 00:00:00`;
 
 export default function DailySummary({ onBackToRegister, currentLocale, dynamicRate, mainCurrency, shop = {}, printer: printerProp }) {
   const client = useBackend();
+  const notify = useToast();
   // Same default-if-unset pattern as Invoice.jsx, and the same mechanism
   // (react-to-print, not window.print()/webview.print()) -- that ad-hoc pair
   // blanks the app inside the Tauri window (issue #9), which is exactly why
@@ -97,6 +101,30 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
 
   const hasData = summary && summary.order_count > 0;
 
+  // Mirrors Invoice.jsx: a thermal printer set up for direct printing
+  // (Settings > Printer) gets the report as raw ESC/POS, bypassing the
+  // system print dialog entirely; otherwise it prints the same way it
+  // already did, through the hidden copy below and react-to-print.
+  async function handlePrintClick() {
+    if (!hasData || !printer.direct) return handlePrint();
+    try {
+      await printBlocksDirect(
+        buildDailySummary({
+          summary,
+          shop,
+          title: s.title || 'Daily Sales Summary',
+          dateLabel: formatDisplayDate(selectedDate),
+          fmt,
+          methodLabel,
+          s,
+        }),
+        printer
+      );
+    } catch (err) {
+      notify((s.printFailedReason || "Couldn't print the report: {error}").replace('{error}', errorText(err)));
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-white antialiased">
 
@@ -117,7 +145,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
           </p>
         </div>
         <button
-          onClick={handlePrint}
+          onClick={handlePrintClick}
           className="px-4 py-2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors cursor-pointer"
         >
           <Printer size={13} />{s.print || 'Print'}

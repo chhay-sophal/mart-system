@@ -53,15 +53,20 @@ export const thermalImage = (invoiceData, locale, config) =>
     darkness: config.receipt.darkness,
   });
 
-/** Renders the receipt and sends it straight to the thermal printer. Rejects with the reason. */
-export async function printReceiptDirect(invoiceData, locale, config) {
-  const image = await thermalImage(invoiceData, locale, config);
-  await send(config.name, receiptJob(image, { cut: config.cut, feedLines: config.receipt.feedLines, copies: config.receipt.copies }));
+/** Renders arbitrary receipt blocks (receiptModel.js/dailySummaryModel.js shape) and sends them straight to the thermal printer. Rejects with the reason. */
+export async function printBlocksDirect(blocks, config, { copies } = {}) {
+  const image = await renderReceipt(blocks, {
+    paper: config.paper,
+    textSize: config.receipt.textSize,
+    fontWeight: config.receipt.fontWeight,
+    darkness: config.receipt.darkness,
+  });
+  await send(config.name, receiptJob(image, { cut: config.cut, feedLines: config.receipt.feedLines, copies: copies ?? config.receipt.copies }));
 }
 
-/** The same receipt as a sharp greyscale image (data URL), for the system print dialog. */
-export async function receiptImageUrl(invoiceData, locale, config) {
-  const canvas = await drawReceipt(blocksFor(invoiceData, locale, config), {
+/** The same blocks as a sharp greyscale image (data URL), for the system print dialog. */
+export async function blocksImageUrl(blocks, config) {
+  const canvas = await drawReceipt(blocks, {
     paper: config.paper,
     textSize: config.receipt.textSize,
     fontWeight: config.receipt.fontWeight,
@@ -69,6 +74,16 @@ export async function receiptImageUrl(invoiceData, locale, config) {
     scale: 3,
   });
   return canvas.toDataURL('image/png');
+}
+
+/** Renders the receipt and sends it straight to the thermal printer. Rejects with the reason. */
+export async function printReceiptDirect(invoiceData, locale, config) {
+  await printBlocksDirect(blocksFor(invoiceData, locale, config), config);
+}
+
+/** The same receipt as a sharp greyscale image (data URL), for the system print dialog. */
+export async function receiptImageUrl(invoiceData, locale, config) {
+  return blocksImageUrl(blocksFor(invoiceData, locale, config), config);
 }
 
 export const openCashDrawer = (config) => send(config.name, drawerJob());
