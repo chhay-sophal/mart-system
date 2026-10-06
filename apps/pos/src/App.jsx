@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors, PauseCircle, FileClock } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors, PauseCircle, FileClock, Inbox } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -684,6 +684,15 @@ export default function App() {
     }
   };
 
+  // Manual open, for making change or at open/close -- same call and error
+  // reporting as the automatic open-on-cash-sale above.
+  const handleOpenDrawer = () => {
+    if (!printer.direct) return;
+    openCashDrawer(printer).catch((err) =>
+      notify((t[locale].settingsPage?.printerSection?.failed || 'Printer problem: {error}').replace('{error}', err?.message || String(err))),
+    );
+  };
+
   // ── Keyboard shortcuts (issue #7). The keys are fixed in shortcuts.js;
   // this is what each action does. Daily Summary's day actions live in
   // DailySummary.jsx.
@@ -729,6 +738,7 @@ export default function App() {
       clearCart: { when: () => onRegister && cart.length > 0, run: () => setClearCartPrompt(true) },
       saveDraft: { when: () => onRegister && cart.length > 0, run: () => saveDraft() },
       drafts: { when: () => onRegister, run: () => setShowDrafts(true) },
+      openDrawer: { when: () => onRegister && printer.direct, run: () => handleOpenDrawer() },
     },
     Boolean(session)
   );
@@ -918,6 +928,14 @@ export default function App() {
             title={`${sc.title || 'Keyboard Shortcuts'}${keyHint('help')}`}
           >
             <KeyboardIcon size={16} />
+          </button>
+          <button
+            onClick={handleOpenDrawer}
+            disabled={!printer.direct}
+            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            title={`${sc.openDrawer || 'Open cash drawer'}${keyHint('openDrawer')}`}
+          >
+            <Inbox size={16} />
           </button>
           <button
             onClick={toggleDark}
