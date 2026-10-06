@@ -60,12 +60,23 @@ function generateUuid() {
  * Appends one outbox row. Called from inside the same transaction as the
  * order/void write it records, so a sale is never persisted without its sync
  * event also being queued (or vice versa) — they commit or roll back together.
+ *
+ * This row's created_at (unlike every other table's, which use localNow())
+ * is a proper UTC ISO string: it's read back as the event envelope's
+ * `createdAt` (sync.js) and sent to the backend, which does
+ * `new Date(event.createdAt)` to set the resulting Order's own createdAt.
+ * A naive "YYYY-MM-DD HH:mm:ss" string with no offset is parsed as *the
+ * parser's own* local time -- correct when read back on this same terminal,
+ * but wrong once it crosses the network to a backend server that isn't in
+ * the terminal's timezone (a backend on UTC would read, say, this
+ * register's 12:41 PM Phnom Penh wall clock as 12:41 UTC, silently losing
+ * the +7h conversion and making every synced sale's time 7 hours off).
  */
 function enqueueOutboxEvent(eventType, payload) {
   const nextSeq = (query('SELECT COALESCE(MAX(sequence_no), 0) + 1 as n FROM outbox_events')[0]?.n) ?? 1;
   run(
     'INSERT INTO outbox_events (event_id, terminal_id, sequence_no, event_type, payload, status, retry_count, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
-    [generateUuid(), getSyncSetting('sync_terminal_id'), nextSeq, eventType, JSON.stringify(payload), 'PENDING', localNow()]
+    [generateUuid(), getSyncSetting('sync_terminal_id'), nextSeq, eventType, JSON.stringify(payload), 'PENDING', new Date().toISOString()]
   );
 }
 
