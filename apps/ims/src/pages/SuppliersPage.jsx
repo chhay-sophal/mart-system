@@ -38,7 +38,10 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null); // null | 'new' | supplier object
   const [form, setForm] = useState(EMPTY_FORM);
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('active'); // active | archived | all
+  // Anything but the default "active" needs archived rows included in what
+  // the backend returns at all.
+  const includeDeleted = statusFilter !== 'active';
 
   const queryClient = useQueryClient();
   const suppliersQuery = useQuery({
@@ -52,7 +55,7 @@ export default function SuppliersPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search, sort, storeId, includeDeleted]);
+  }, [search, sort, storeId, statusFilter]);
 
   const toggleSort = (col) =>
     setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
@@ -63,6 +66,7 @@ export default function SuppliersPage() {
 
   const q = search.trim().toLowerCase();
   const visible = suppliers
+    .filter((s) => (statusFilter === 'all' ? true : statusFilter === 'archived' ? s.isDeleted : !s.isDeleted))
     .filter((s) => !q || s.name.toLowerCase().includes(q) || s.phone1.includes(q) || (s.phone2 ?? '').includes(q) || (s.email ?? '').toLowerCase().includes(q))
     .sort((a, b) => {
       const dir = sort.dir === 'asc' ? 1 : -1;
@@ -149,10 +153,6 @@ export default function SuppliersPage() {
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {visible.length === suppliers.length ? `${suppliers.length} suppliers` : `${visible.length} of ${suppliers.length} suppliers`}
         </span>
-        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
-          <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
-          Show archived
-        </label>
       </div>
 
       {(error || suppliersQuery.isError) && (
@@ -169,20 +169,33 @@ export default function SuppliersPage() {
               <SortTh col="email" sort={sort} onSort={toggleSort}>Email</SortTh>
               <th className="px-4 py-2 font-medium">Address</th>
               <SortTh col="products" sort={sort} onSort={toggleSort} className="text-center">Products</SortTh>
-              {includeDeleted && <th className="px-4 py-2 font-medium">Status</th>}
+              <th className="px-4 py-2 font-medium">
+                <div className="flex items-center gap-2">
+                  <span>Status</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border border-[var(--border)] rounded-md px-1.5 py-0.5 text-xs font-normal bg-white dark:bg-slate-800"
+                  >
+                    <option value="active">Active</option>
+                    <option value="archived">Archived</option>
+                    <option value="all">All</option>
+                  </select>
+                </div>
+              </th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
                   {suppliers.length === 0 ? 'No suppliers yet.' : 'No suppliers match the search.'}
                 </td>
               </tr>
@@ -195,15 +208,13 @@ export default function SuppliersPage() {
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{s.email ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{s.address ?? '—'}</td>
                   <td className="px-4 py-2 text-center">{s.productCount}</td>
-                  {includeDeleted && (
-                    <td className="px-4 py-2">
-                      {s.isDeleted ? (
-                        <span className="text-slate-500 dark:text-slate-400">Archived</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
-                      )}
-                    </td>
-                  )}
+                  <td className="px-4 py-2">
+                    {s.isDeleted ? (
+                      <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {s.isDeleted ? (
                       <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium">

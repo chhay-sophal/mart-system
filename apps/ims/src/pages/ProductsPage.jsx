@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
-import { EMPTY_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
+import { EMPTY_FILTERS, STATUS_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
 import Modal from '../components/Modal.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
@@ -80,7 +80,9 @@ export default function ProductsPage() {
   // selection isn't silently dropped), but reset when switching stores.
   const [selected, setSelected] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [includeDeleted, setIncludeDeleted] = useState(false);
+  // The status column's own filter drives this -- anything but the default
+  // "active" needs archived rows included in what the backend returns at all.
+  const includeDeleted = filters.status !== 'active';
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -129,7 +131,7 @@ export default function ProductsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [filters, sort, storeId, includeDeleted]);
+  }, [filters, sort, storeId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -293,10 +295,6 @@ export default function ProductsPage() {
             Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
           </button>
         )}
-        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
-          <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
-          Show archived
-        </label>
       </div>
 
       {selected.size > 0 && (
@@ -391,20 +389,30 @@ export default function ProductsPage() {
                 </select>
               </FilterableHeader>
               <th className="px-4 py-2 font-medium">Supplier</th>
-              {includeDeleted && <th className="px-4 py-2 font-medium">Status</th>}
+              <FilterableHeader
+                col="status" label="Status" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
+              >
+                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
+                  {STATUS_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
@@ -443,15 +451,13 @@ export default function ProductsPage() {
                       <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
-                  {includeDeleted && (
-                    <td className="px-4 py-2">
-                      {p.isDeleted ? (
-                        <span className="text-slate-500 dark:text-slate-400">Archived</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
-                      )}
-                    </td>
-                  )}
+                  <td className="px-4 py-2">
+                    {p.isDeleted ? (
+                      <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-right">
                     {p.isDeleted ? (
                       <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium">

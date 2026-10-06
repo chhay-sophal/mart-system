@@ -10,6 +10,7 @@ export const EMPTY_FILTERS = {
   priceMin: '',
   priceMax: '',
   stock: 'all', // all | low | out | negative | in
+  status: 'active', // active | archived | all
 };
 
 export const STOCK_FILTERS = [
@@ -18,6 +19,12 @@ export const STOCK_FILTERS = [
   { value: 'out', label: 'Out (0 or less)' },
   { value: 'negative', label: 'Negative' },
   { value: 'in', label: 'In stock' },
+];
+
+export const STATUS_FILTERS = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'all', label: 'All' },
 ];
 
 /** The price a register sells at: the store's override if set, else the default. */
@@ -40,6 +47,17 @@ function matchesStock(p, mode) {
   }
 }
 
+function matchesStatus(p, mode) {
+  switch (mode) {
+    case 'archived':
+      return p.isDeleted;
+    case 'all':
+      return true;
+    default: // 'active'
+      return !p.isDeleted;
+  }
+}
+
 export function filterProducts(products, f) {
   const search = norm(f.search);
   const name = norm(f.name);
@@ -56,6 +74,7 @@ export function filterProducts(products, f) {
     const price = effectivePrice(p);
     if (min !== null && !(price >= min)) return false;
     if (max !== null && !(price <= max)) return false;
+    if (!matchesStatus(p, f.status)) return false;
     return matchesStock(p, f.stock);
   });
 }
@@ -67,6 +86,7 @@ const COMPARE = {
   barcode: (a, b) => (a.barcode ?? '').localeCompare(b.barcode ?? ''),
   price: (a, b) => a.currency.localeCompare(b.currency) * -1 || effectivePrice(a) - effectivePrice(b),
   stock: (a, b) => a.stock - b.stock,
+  status: (a, b) => Number(a.isDeleted) - Number(b.isDeleted),
 };
 
 export function sortProducts(products, { col, dir }) {
