@@ -186,7 +186,11 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
     ws['!cols'] = activeCols.map((c) => ({ wch: c.wch }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
-    const dateStr = new Date().toISOString().slice(0, 10);
+    // Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts
+    // to UTC first, so anywhere east of UTC the filename shows yesterday's
+    // date for the first few hours of the day.
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     XLSX.writeFile(wb, `inventory-${dateStr}.xlsx`);
   }
 

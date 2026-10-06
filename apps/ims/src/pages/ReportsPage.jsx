@@ -5,8 +5,12 @@ import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 
+// Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
+// UTC first, so anywhere east of UTC it silently returns yesterday's date for
+// the first few hours of the day.
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Revenue comes summed in both currencies (riel exact for riel sales). Other
