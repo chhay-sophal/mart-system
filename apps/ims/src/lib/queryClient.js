@@ -22,7 +22,7 @@ export const queryClient = new QueryClient({
 // always agree. Everything per store includes the storeId, so switching
 // stores never shows another store's data.
 export const queryKeys = {
-  products: (storeId) => ['products', storeId],
+  products: (storeId, includeDeleted = false) => ['products', storeId, includeDeleted],
   suppliers: (storeId, includeDeleted = false) => ['suppliers', storeId, includeDeleted],
   staff: (storeId) => ['staff', storeId],
   terminals: (storeId) => ['terminals', storeId],

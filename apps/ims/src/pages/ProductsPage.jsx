@@ -80,14 +80,15 @@ export default function ProductsPage() {
   // selection isn't silently dropped), but reset when switching stores.
   const [selected, setSelected] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
   const queryClient = useQueryClient();
   const productsQuery = useQuery({
-    queryKey: queryKeys.products(storeId),
+    queryKey: queryKeys.products(storeId, includeDeleted),
     queryFn: async () => {
-      const data = await apiClient.get(`/api/stores/${storeId}/products`);
+      const data = await apiClient.get(`/api/stores/${storeId}/products${includeDeleted ? '?includeDeleted=true' : ''}`);
       return Array.isArray(data) ? data : [];
     },
     enabled: Boolean(storeId),
@@ -118,7 +119,9 @@ export default function ProductsPage() {
   );
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const pageIds = pageRows.map((p) => p.id);
+  // Archived rows aren't selectable (their own checkbox is disabled), so
+  // "select all" shouldn't try to select them either.
+  const pageIds = pageRows.filter((p) => !p.isDeleted).map((p) => p.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = !allPageSelected && pageIds.some((id) => selected.has(id));
   const filterCount = activeFilterCount(filters);
@@ -126,7 +129,7 @@ export default function ProductsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [filters, sort, storeId]);
+  }, [filters, sort, storeId, includeDeleted]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -165,10 +168,12 @@ export default function ProductsPage() {
   const toggleSort = (col) =>
     setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
   // After a save: refresh this store's product lists (full and low-stock),
-  // and reports, whose negative-stock list depends on stock.
+  // and reports, whose negative-stock list depends on stock. Prefix match (no
+  // includeDeleted in the key here) invalidates both the plain and the
+  // show-archived variant, since either one can change a save.
   const load = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.products(storeId) }),
+      queryClient.invalidateQueries({ queryKey: ['products', storeId] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
     ]);
 
@@ -198,13 +203,22 @@ export default function ProductsPage() {
     }
   }
 
-  async function handleDelete(product) {
-    if (!(await confirm(`Remove "${product.name}"?`, { confirmLabel: 'Remove', danger: true }))) return;
+  async function handleArchive(product) {
+    if (!(await confirm(`Archive "${product.name}"? It'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
     try {
       await apiClient.delete(`/api/stores/${storeId}/products/${product.id}`);
       await load();
     } catch {
-      setError('Failed to remove product.');
+      setError('Failed to archive product.');
+    }
+  }
+
+  async function handleRestore(product) {
+    try {
+      await apiClient.post(`/api/stores/${storeId}/products/${product.id}/restore`);
+      await load();
+    } catch {
+      setError('Failed to restore product.');
     }
   }
 
@@ -227,16 +241,16 @@ export default function ProductsPage() {
     });
   }
 
-  async function handleBulkDelete() {
+  async function handleBulkArchive() {
     if (selected.size === 0) return;
-    if (!(await confirm(`Remove ${selected.size} selected product${selected.size === 1 ? '' : 's'}?`, { confirmLabel: 'Remove', danger: true }))) return;
+    if (!(await confirm(`Archive ${selected.size} selected product${selected.size === 1 ? '' : 's'}? They'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
     setBulkDeleting(true);
     try {
       await apiClient.post(`/api/stores/${storeId}/products/bulk-delete`, { productIds: Array.from(selected) });
       setSelected(new Set());
       await load();
     } catch {
-      setError('Failed to remove the selected products.');
+      setError('Failed to archive the selected products.');
     } finally {
       setBulkDeleting(false);
     }
@@ -279,17 +293,21 @@ export default function ProductsPage() {
             Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
           </button>
         )}
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
+          Show archived
+        </label>
       </div>
 
       {selected.size > 0 && (
         <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg">
           <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{selected.size} selected</span>
           <button
-            onClick={handleBulkDelete}
+            onClick={handleBulkArchive}
             disabled={bulkDeleting}
             className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {bulkDeleting ? 'Removing…' : 'Delete selected'}
+            {bulkDeleting ? 'Archiving…' : 'Archive selected'}
           </button>
           <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto">
             Clear selection
@@ -373,19 +391,20 @@ export default function ProductsPage() {
                 </select>
               </FilterableHeader>
               <th className="px-4 py-2 font-medium">Supplier</th>
+              {includeDeleted && <th className="px-4 py-2 font-medium">Status</th>}
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
@@ -397,7 +416,8 @@ export default function ProductsPage() {
                       type="checkbox"
                       checked={selected.has(p.id)}
                       onChange={() => toggleSelected(p.id)}
-                      className="accent-indigo-600 cursor-pointer"
+                      disabled={p.isDeleted}
+                      className="accent-indigo-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">{p.name}</td>
@@ -423,13 +443,30 @@ export default function ProductsPage() {
                       <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
+                  {includeDeleted && (
+                    <td className="px-4 py-2">
+                      {p.isDeleted ? (
+                        <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-2 text-right">
-                    <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(p)} className="text-red-600 dark:text-red-400 font-medium">
-                      Remove
-                    </button>
+                    {p.isDeleted ? (
+                      <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium">
+                        Restore
+                      </button>
+                    ) : (
+                      <>
+                        <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3">
+                          Edit
+                        </button>
+                        <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium">
+                          Archive
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

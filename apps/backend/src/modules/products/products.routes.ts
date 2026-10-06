@@ -12,6 +12,7 @@ import {
   getProduct,
   listLowStock,
   listProducts,
+  restoreProduct,
   updateProduct,
 } from "./products.service";
 
@@ -25,7 +26,7 @@ productsRouter.get(
   requireAccessToken,
   requireRole([...ANY_ROLE]),
   asyncHandler(async (req, res) => {
-    res.json(await listProducts(req.params.storeId!));
+    res.json(await listProducts(req.params.storeId!, req.query.includeDeleted === "true"));
   })
 );
 
@@ -95,6 +96,15 @@ productsRouter.delete(
   asyncHandler(async (req, res) => {
     await deleteProduct(req.params.storeId!, req.params.productId!);
     res.status(204).end();
+  })
+);
+
+productsRouter.post(
+  "/stores/:storeId/products/:productId/restore",
+  requireAccessToken,
+  requireRole([...MANAGE_ROLES]),
+  asyncHandler(async (req, res) => {
+    res.json(await restoreProduct(req.params.storeId!, req.params.productId!));
   })
 );
 

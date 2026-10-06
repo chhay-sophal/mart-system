@@ -39,9 +39,9 @@ function toProductView(row: StoreProductWithProduct) {
 
 const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true } } } as const;
 
-export async function listProducts(storeId: string) {
+export async function listProducts(storeId: string, includeDeleted = false) {
   const rows = await prisma.storeProduct.findMany({
-    where: { storeId, product: { isDeleted: false } },
+    where: { storeId, product: includeDeleted ? {} : { isDeleted: false } },
     include: STORE_PRODUCT_INCLUDE,
     orderBy: { product: { name: "asc" } },
   });
@@ -160,6 +160,17 @@ export async function updateProduct(storeId: string, productId: string, input: U
 export async function deleteProduct(storeId: string, productId: string) {
   await getStoreProductOrThrow(storeId, productId);
   await prisma.product.update({ where: { id: productId }, data: { isDeleted: true } });
+}
+
+export async function restoreProduct(storeId: string, productId: string) {
+  const existing = await prisma.storeProduct.findUnique({ where: { storeId_productId: { storeId, productId } } });
+  if (!existing) throw notFound("Product not found");
+  await prisma.product.update({ where: { id: productId }, data: { isDeleted: false } });
+  const row = await prisma.storeProduct.findUniqueOrThrow({
+    where: { storeId_productId: { storeId, productId } },
+    include: STORE_PRODUCT_INCLUDE,
+  });
+  return toProductView(row);
 }
 
 /**

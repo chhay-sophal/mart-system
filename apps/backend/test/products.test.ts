@@ -63,6 +63,37 @@ describe("product CRUD", () => {
     expect(readAfterDelete.status).toBe(404);
   });
 
+  it("restores an archived product, and only lists it when includeDeleted=true is passed", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1, stock: 5 });
+    await request(app)
+      .delete(`/api/stores/${store.id}/products/${product.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const withoutFlag = await request(app)
+      .get(`/api/stores/${store.id}/products`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(withoutFlag.body).toEqual([]);
+
+    const withFlag = await request(app)
+      .get(`/api/stores/${store.id}/products?includeDeleted=true`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(withFlag.body).toMatchObject([{ id: product.id, name: "Widget", isDeleted: true }]);
+
+    const restore = await request(app)
+      .post(`/api/stores/${store.id}/products/${product.id}/restore`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(restore.status).toBe(200);
+    expect(restore.body).toMatchObject({ id: product.id, isDeleted: false });
+
+    const readAfterRestore = await request(app)
+      .get(`/api/stores/${store.id}/products/${product.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(readAfterRestore.status).toBe(200);
+  });
+
   it("bulk-deletes only the products that actually belong to this store", async () => {
     const { store } = await seedFixtures();
     const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
