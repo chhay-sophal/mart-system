@@ -11,7 +11,7 @@ import type { Prisma } from "@prisma/client";
 type CreateProductInput = z.infer<typeof createProductSchema>;
 type UpdateProductInput = z.infer<typeof updateProductSchema>;
 
-type StoreProductWithProduct = Prisma.StoreProductGetPayload<{ include: { product: true } }>;
+type StoreProductWithProduct = Prisma.StoreProductGetPayload<{ include: { product: { include: { supplier: true } } } }>;
 
 function toProductView(row: StoreProductWithProduct) {
   return {
@@ -26,13 +26,18 @@ function toProductView(row: StoreProductWithProduct) {
     costPrice: fromMinorUnits(row.costPriceMinor, row.currency),
     stock: row.stock,
     lowStockThreshold: row.lowStockThreshold,
+    // The supplier relation is kept even once soft-deleted (isDeleted:true)
+    // so an already-linked product still shows who used to supply it; only
+    // the create/edit picker (listSuppliers) hides deleted ones as an option.
+    supplierId: row.product.supplierId,
+    supplierName: row.product.supplier?.name ?? null,
     isDeleted: row.product.isDeleted,
     createdAt: row.product.createdAt,
     updatedAt: row.product.updatedAt,
   };
 }
 
-const STORE_PRODUCT_INCLUDE = { product: true } as const;
+const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true } } } as const;
 
 export async function listProducts(storeId: string) {
   const rows = await prisma.storeProduct.findMany({
@@ -73,6 +78,7 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
         category: input.category ?? null,
         defaultPriceMinor: toMinorUnits(input.price, input.currency as Currency),
         currency: input.currency as Currency,
+        supplierId: input.supplierId ?? null,
       },
     });
 
@@ -107,7 +113,8 @@ export async function updateProduct(storeId: string, productId: string, input: U
       input.barcode !== undefined ||
       input.category !== undefined ||
       input.price !== undefined ||
-      input.currency !== undefined
+      input.currency !== undefined ||
+      input.supplierId !== undefined
     ) {
       await tx.product.update({
         where: { id: productId },
@@ -117,6 +124,7 @@ export async function updateProduct(storeId: string, productId: string, input: U
           category: input.category,
           defaultPriceMinor: input.price !== undefined ? toMinorUnits(input.price, effectiveCurrency) : undefined,
           currency: input.currency as Currency | undefined,
+          supplierId: input.supplierId,
         },
       });
     }

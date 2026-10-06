@@ -12,6 +12,7 @@ export const createProductSchema = z.object({
   costPrice: z.number().nonnegative().default(0),
   stock: z.number().int().default(0),
   lowStockThreshold: z.number().int().nonnegative().default(5),
+  supplierId: z.string().min(1).nullable().optional(),
 });
 
 export const updateProductSchema = z.object({
@@ -24,6 +25,7 @@ export const updateProductSchema = z.object({
   costPrice: z.number().nonnegative().optional(),
   stock: z.number().int().optional(),
   lowStockThreshold: z.number().int().nonnegative().optional(),
+  supplierId: z.string().min(1).nullable().optional(),
 });
 
 /** Mirrors the loosely-typed rows online-pos accepted from Excel/CSV import — validated/coerced row by row, not rejected as a batch. */

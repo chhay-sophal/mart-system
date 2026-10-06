@@ -23,6 +23,7 @@ export const queryClient = new QueryClient({
 // stores never shows another store's data.
 export const queryKeys = {
   products: (storeId) => ['products', storeId],
+  suppliers: (storeId) => ['suppliers', storeId],
   staff: (storeId) => ['staff', storeId],
   terminals: (storeId) => ['terminals', storeId],
   transfers: () => ['transfers'],

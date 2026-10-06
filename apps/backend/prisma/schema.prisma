@@ -154,13 +154,33 @@ model Product {
   category          String?
   defaultPriceMinor Int
   currency          Currency @default(USD)
+  supplierId        String?
   isDeleted         Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   storeProducts  StoreProduct[]
   orderItems     OrderItem[]
   stockMovements StockMovement[]
+
+  @@index([supplierId])
+}
+
+// Global, like Product -- not store-scoped (the same vendor can supply
+// products shared across every store's catalog).
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone1    String
+  phone2    String?
+  email     String?
+  address   String?
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
 }
 
 model StoreProduct {

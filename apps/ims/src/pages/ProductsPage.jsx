@@ -1,11 +1,12 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { EMPTY_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
 import Modal from '../components/Modal.jsx';
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 
 const EMPTY_FORM = {
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
   costPrice: '',
   stock: '',
   lowStockThreshold: '5',
+  supplierId: '',
 };
 
 function toFormState(product) {
@@ -31,6 +33,7 @@ function toFormState(product) {
     costPrice: String(product.costPrice ?? ''),
     stock: String(product.stock ?? ''),
     lowStockThreshold: String(product.lowStockThreshold ?? '5'),
+    supplierId: product.supplierId ?? '',
   };
 }
 
@@ -45,6 +48,7 @@ function toRequestBody(form) {
     costPrice: Number(form.costPrice) || 0,
     stock: Number(form.stock) || 0,
     lowStockThreshold: Number(form.lowStockThreshold) || 5,
+    supplierId: form.supplierId || null,
   };
 }
 
@@ -69,6 +73,7 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
+  const [viewingSupplierFor, setViewingSupplierFor] = useState(null); // the clicked product, or null
   // Bulk delete: ids persist across filter/sort/page changes (so a multi-page
   // selection isn't silently dropped), but reset when switching stores.
   const [selected, setSelected] = useState(() => new Set());
@@ -87,6 +92,21 @@ export default function ProductsPage() {
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const loading = productsQuery.isPending;
+
+  // Also backs the read-only supplier-details popup (click a product's
+  // supplier name) -- reuses this instead of a separate fetch per click.
+  const suppliersQuery = useQuery({
+    queryKey: queryKeys.suppliers(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/suppliers`),
+    enabled: Boolean(storeId),
+  });
+  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  // A soft-deleted supplier drops out of the list above (and its own GET
+  // 404s), so fall back to the name already cached on the product itself --
+  // the only thing still available once a supplier's been removed.
+  const viewingSupplier = viewingSupplierFor
+    ? (suppliers.find((s) => s.id === viewingSupplierFor.supplierId) ?? { name: viewingSupplierFor.supplierName, deleted: true })
+    : null;
 
   // Deferred, so typing stays responsive while a long list re-filters.
   const deferredFilters = useDeferredValue(filters);
@@ -350,19 +370,20 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </FilterableHeader>
+              <th className="px-4 py-2 font-medium">Supplier</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
@@ -389,6 +410,15 @@ export default function ProductsPage() {
                     {p.stock}
                     {p.stock <= p.lowStockThreshold && (
                       <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">low</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">
+                    {p.supplierName ? (
+                      <button onClick={() => setViewingSupplierFor(p)} className="text-[var(--accent)] hover:underline">
+                        {p.supplierName}
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right">
@@ -521,6 +551,15 @@ export default function ProductsPage() {
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Supplier</label>
+              <SearchableSelect
+                value={form.supplierId}
+                onChange={(supplierId) => setForm({ ...form, supplierId })}
+                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                emptyLabel="No supplier"
+              />
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 py-1.5">
                 Cancel
@@ -540,6 +579,50 @@ export default function ProductsPage() {
           onClose={() => setShowImportExport(false)}
           onImported={load}
         />
+      )}
+
+      {viewingSupplierFor && (
+        <Modal title="Supplier" onClose={() => setViewingSupplierFor(null)}>
+          {viewingSupplier?.deleted ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-[var(--text-h)]">{viewingSupplier.name}</span> has been removed, so its contact details
+              are no longer available.
+            </p>
+          ) : (
+            <dl className="space-y-3 text-sm">
+              <div>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Name</dt>
+                <dd className="text-[var(--text-h)]">{viewingSupplier?.name}</dd>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Phone 1</dt>
+                  <dd>{viewingSupplier?.phone1}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Phone 2</dt>
+                  <dd>{viewingSupplier?.phone2 ?? '—'}</dd>
+                </div>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Email</dt>
+                <dd>{viewingSupplier?.email ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Address</dt>
+                <dd>{viewingSupplier?.address ?? '—'}</dd>
+              </div>
+            </dl>
+          )}
+          <div className="flex justify-between items-center pt-4 mt-1">
+            <Link to="/suppliers" className="text-sm text-[var(--accent)] font-medium">
+              Manage suppliers
+            </Link>
+            <button onClick={() => setViewingSupplierFor(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent">
+              Close
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

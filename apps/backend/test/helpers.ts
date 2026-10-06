@@ -12,6 +12,7 @@ const TABLES = [
   "Terminal",
   "StoreProduct",
   "Product",
+  "Supplier",
   "StockTransferItem",
   "StockTransfer",
   "SyncEvent",
@@ -67,9 +68,9 @@ export async function seedFixtures() {
   return { store, admin, terminal };
 }
 
-export async function addProduct(storeId: string, opts: { name: string; price: number; stock: number }) {
+export async function addProduct(storeId: string, opts: { name: string; price: number; stock: number; supplierId?: string }) {
   const product = await prisma.product.create({
-    data: { name: opts.name, defaultPriceMinor: toMinorUnits(opts.price, "USD"), currency: "USD" },
+    data: { name: opts.name, defaultPriceMinor: toMinorUnits(opts.price, "USD"), currency: "USD", supplierId: opts.supplierId ?? null },
   });
   const storeProduct = await prisma.storeProduct.create({
     data: { storeId, productId: product.id, stock: opts.stock, currency: "USD" },
