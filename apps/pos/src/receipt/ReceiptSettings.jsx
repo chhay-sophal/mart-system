@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { translations as t } from '../locales';
 import { PAPER_DOTS, bitsToCanvas } from './raster';
 import { printerConfig, receiptImageUrl, receiptLocale, sampleInvoice, sampleShop, thermalImage } from './thermalPrinter';
-import { FONT_WEIGHTS, MAX_COPIES, MAX_FEED_LINES, TEXT_SIZES } from './receiptOptions';
+import { FONT_WEIGHTS, MAX_COPIES, MAX_FEED_LINES, STORE_NAME_SIZES, TEXT_SIZES } from './receiptOptions';
 
 const PREVIEW_DELAY_MS = 250;
 
@@ -83,6 +83,18 @@ export default function ReceiptSettings({ settings, setSettings, p, locale, Togg
       <ToggleRow label={r.showLogo || 'Store logo'} help={settings.store_icon ? r.logoHelp : r.noLogo} {...flag('receipt_show_logo')} />
       <ToggleRow label={r.showAddress || 'Address'} {...flag('receipt_show_address')} />
       <ToggleRow label={r.showPhone || 'Phone number'} {...flag('receipt_show_phone')} />
+      <div>
+        {label(r.storeNameSize || 'Store name size')}
+        <div className="mt-2">
+          {choices('receipt_store_name_size', STORE_NAME_SIZES, (v) => ({
+            normal: r.sizeNormal || 'Normal',
+            large: r.sizeLarge || 'Large',
+            xlarge: r.sizeXLarge || 'XL',
+            xxlarge: r.sizeXXLarge || '2XL',
+            xxxlarge: r.sizeXXXLarge || '3XL',
+          })[v])}
+        </div>
+      </div>
       <label className="block">
         {label(r.headerText || 'Extra lines under the shop details', r.headerTextHelp)}
         <textarea rows={3} value={settings.receipt_header_text || ''} onChange={(e) => set('receipt_header_text', e.target.value)}

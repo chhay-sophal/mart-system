@@ -75,7 +75,7 @@ export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
   const add = (block) => blocks.push(block);
 
   if (o.showLogo && storeIcon) add({ type: 'image', src: storeIcon });
-  add({ type: 'text', text: storeName || t[locale].shopName, align: 'center', size: 'lg', bold: true });
+  add({ type: 'text', text: storeName || t[locale].shopName, align: 'center', size: o.storeNameSize, bold: true });
   if (o.showAddress && storeAddress) add({ type: 'text', text: storeAddress, align: 'center', size: 'sm' });
   if (o.showPhone && storePhone) add({ type: 'text', text: `${inv.tel} ${storePhone}`, align: 'center', size: 'sm' });
   o.headerLines.forEach((text) => add({ type: 'text', text, align: 'center', size: 'sm' }));

@@ -6,6 +6,7 @@ export const RECEIPT_DEFAULTS = {
   receipt_show_logo: 'false',
   receipt_show_address: 'true',
   receipt_show_phone: 'true',
+  receipt_store_name_size: 'large', // normal | large | xlarge -- just the store name, independent of the overall text size
   receipt_header_text: '', // up to MAX_HEADER_LINES lines under the shop details
   receipt_title: '', // '' = the standard title in the receipt's language
   receipt_show_date: 'true',
@@ -32,6 +33,9 @@ export const MAX_COPIES = 3;
 export const MAX_FEED_LINES = 10;
 export const TEXT_SIZES = ['small', 'normal', 'large'];
 export const FONT_WEIGHTS = ['light', 'normal', 'bold'];
+export const STORE_NAME_SIZES = ['normal', 'large', 'xlarge', 'xxlarge', 'xxxlarge'];
+// raster.js's block-level size tokens (SIZE_SCALE) these map onto.
+const STORE_NAME_SIZE_MAP = { normal: 'md', large: 'lg', xlarge: 'xl', xxlarge: 'xxl', xxxlarge: 'xxxl' };
 
 const on = (value) => value === 'true';
 const clamp = (value, min, max, fallback) => {
@@ -52,6 +56,7 @@ export function receiptOptions(settings = {}) {
     showLogo: on(s.receipt_show_logo),
     showAddress: on(s.receipt_show_address),
     showPhone: on(s.receipt_show_phone),
+    storeNameSize: STORE_NAME_SIZE_MAP[s.receipt_store_name_size] || STORE_NAME_SIZE_MAP.large,
     headerLines: lines(s.receipt_header_text, MAX_HEADER_LINES),
     title: String(s.receipt_title || '').trim(),
     showDate: on(s.receipt_show_date),
