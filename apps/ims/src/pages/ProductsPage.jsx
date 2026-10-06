@@ -57,6 +57,7 @@ function toRequestBody(form) {
 const PAGE_SIZE = 50;
 const fmtPrice = (amount, currency) =>
   currency === 'KHR' ? `${Math.round(Number(amount)).toLocaleString()} ៛` : `${Number(amount).toFixed(2)}`;
+const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—');
 
 export default function ProductsPage() {
   const { storeId } = useOutletContext();
@@ -299,6 +300,7 @@ export default function ProductsPage() {
       )}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
@@ -381,19 +383,51 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </FilterableHeader>
+              <FilterableHeader
+                col="createdAt" label="Created" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'createdAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.createdFrom !== EMPTY_FILTERS.createdFrom || filters.createdTo !== EMPTY_FILTERS.createdTo}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    From
+                    <input type="date" value={filters.createdFrom} onChange={(e) => setFilter('createdFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    To
+                    <input type="date" value={filters.createdTo} onChange={(e) => setFilter('createdTo', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="updatedAt" label="Updated" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'updatedAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.updatedFrom !== EMPTY_FILTERS.updatedFrom || filters.updatedTo !== EMPTY_FILTERS.updatedTo}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    From
+                    <input type="date" value={filters.updatedFrom} onChange={(e) => setFilter('updatedFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    To
+                    <input type="date" value={filters.updatedTo} onChange={(e) => setFilter('updatedTo', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                </div>
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={10}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={10}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
@@ -439,6 +473,8 @@ export default function ProductsPage() {
                       <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
                     )}
                   </td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(p.createdAt)}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(p.updatedAt)}</td>
                   <td className="px-4 py-2 text-right">
                     {p.isDeleted ? (
                       <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
@@ -460,6 +496,7 @@ export default function ProductsPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {pageCount > 1 && (

@@ -11,6 +11,10 @@ export const EMPTY_FILTERS = {
   priceMax: '',
   stock: 'all', // all | low | out | negative | in
   status: 'active', // active | archived | all
+  createdFrom: '', // 'YYYY-MM-DD', local, inclusive
+  createdTo: '',   // 'YYYY-MM-DD', local, inclusive
+  updatedFrom: '',
+  updatedTo: '',
 };
 
 export const STOCK_FILTERS = [
@@ -58,6 +62,20 @@ function matchesStatus(p, mode) {
   }
 }
 
+// from/to are 'YYYY-MM-DD' (<input type="date"> values, local time, no
+// timezone) -- both bounds inclusive of the whole selected day.
+function inDateRange(value, fromStr, toStr) {
+  if (!fromStr && !toStr) return true;
+  const d = new Date(value);
+  if (fromStr && d < new Date(`${fromStr}T00:00:00`)) return false;
+  if (toStr) {
+    const to = new Date(`${toStr}T00:00:00`);
+    to.setDate(to.getDate() + 1); // exclusive upper bound -- through the end of the selected day
+    if (d >= to) return false;
+  }
+  return true;
+}
+
 export function filterProducts(products, f) {
   const search = norm(f.search);
   const name = norm(f.name);
@@ -75,6 +93,8 @@ export function filterProducts(products, f) {
     if (min !== null && !(price >= min)) return false;
     if (max !== null && !(price <= max)) return false;
     if (!matchesStatus(p, f.status)) return false;
+    if (!inDateRange(p.createdAt, f.createdFrom, f.createdTo)) return false;
+    if (!inDateRange(p.updatedAt, f.updatedFrom, f.updatedTo)) return false;
     return matchesStock(p, f.stock);
   });
 }
@@ -87,6 +107,8 @@ const COMPARE = {
   price: (a, b) => a.currency.localeCompare(b.currency) * -1 || effectivePrice(a) - effectivePrice(b),
   stock: (a, b) => a.stock - b.stock,
   status: (a, b) => Number(a.isDeleted) - Number(b.isDeleted),
+  createdAt: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+  updatedAt: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt),
 };
 
 export function sortProducts(products, { col, dir }) {
