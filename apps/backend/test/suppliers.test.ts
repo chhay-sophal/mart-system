@@ -18,7 +18,7 @@ async function loginAsAdmin() {
 }
 
 describe("supplier CRUD", () => {
-  it("creates, reads, updates, and soft-deletes a supplier", async () => {
+  it("creates, reads, updates, and hard-deletes an unlinked supplier", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
@@ -48,6 +48,10 @@ describe("supplier CRUD", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(del.status).toBe(204);
 
+    // Nothing points at it, so it's gone from the table entirely, not just
+    // soft-deleted -- confirms the no-products branch takes the hard-delete path.
+    expect(await prisma.supplier.findUnique({ where: { id: supplierId } })).toBeNull();
+
     const readAfterDelete = await request(app)
       .get(`/api/stores/${store.id}/suppliers/${supplierId}`)
       .set("Authorization", `Bearer ${token}`);
@@ -58,6 +62,49 @@ describe("supplier CRUD", () => {
       .set("Authorization", `Bearer ${token}`);
     expect(list.status).toBe(200);
     expect(list.body).toEqual([]);
+  });
+
+  it("archives (soft-deletes) a supplier that still has linked products, instead of hard-deleting it", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const supplier = await prisma.supplier.create({ data: { name: "Acme Distribution", phone1: "012345678" } });
+    await addProduct(store.id, { name: "Widget", price: 1, stock: 1, supplierId: supplier.id });
+
+    const del = await request(app)
+      .delete(`/api/stores/${store.id}/suppliers/${supplier.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(del.status).toBe(204);
+
+    const row = await prisma.supplier.findUnique({ where: { id: supplier.id } });
+    expect(row).not.toBeNull();
+    expect(row?.isDeleted).toBe(true);
+
+    const readAfterDelete = await request(app)
+      .get(`/api/stores/${store.id}/suppliers/${supplier.id}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(readAfterDelete.status).toBe(404);
+  });
+
+  it("only surfaces archived suppliers when includeDeleted=true is passed", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const supplier = await prisma.supplier.create({ data: { name: "Acme Distribution", phone1: "012345678" } });
+    await addProduct(store.id, { name: "Widget", price: 1, stock: 1, supplierId: supplier.id });
+    await request(app)
+      .delete(`/api/stores/${store.id}/suppliers/${supplier.id}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const withoutFlag = await request(app)
+      .get(`/api/stores/${store.id}/suppliers`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(withoutFlag.body).toEqual([]);
+
+    const withFlag = await request(app)
+      .get(`/api/stores/${store.id}/suppliers?includeDeleted=true`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(withFlag.body).toMatchObject([{ id: supplier.id, name: "Acme Distribution", isDeleted: true }]);
   });
 
   it("requires a name and phone1 to create a supplier", async () => {

@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
+import { useConfirm } from '../components/ConfirmDialog.jsx';
 
 function formatDate(value) {
   if (!value) return 'Never';
@@ -20,6 +21,7 @@ function isOnline(terminal) {
 
 export default function TerminalsPage() {
   const { storeId } = useOutletContext();
+  const confirm = useConfirm();
   const [error, setError] = useState('');
   const [showPair, setShowPair] = useState(false);
   const [pairName, setPairName] = useState('');
@@ -52,7 +54,7 @@ export default function TerminalsPage() {
   }
 
   async function handleRotate(terminal) {
-    if (!window.confirm(`Rotate the device secret for "${terminal.name}"? The old secret stops working immediately.`)) {
+    if (!(await confirm(`Rotate the device secret for "${terminal.name}"? The old secret stops working immediately.`, { confirmLabel: 'Rotate', danger: true }))) {
       return;
     }
     try {

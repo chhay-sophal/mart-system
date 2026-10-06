@@ -20,14 +20,15 @@ function toSupplierView(row: SupplierWithCount) {
     email: row.email,
     address: row.address,
     productCount: row._count.products,
+    isDeleted: row.isDeleted,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
 }
 
-export async function listSuppliers() {
+export async function listSuppliers(includeDeleted = false) {
   const rows = await prisma.supplier.findMany({
-    where: { isDeleted: false },
+    where: includeDeleted ? {} : { isDeleted: false },
     include: PRODUCT_COUNT_INCLUDE,
     orderBy: { name: "asc" },
   });
@@ -76,10 +77,18 @@ export async function updateSupplier(supplierId: string, input: UpdateSupplierIn
   return toSupplierView(row);
 }
 
-/** Soft-delete, like Product. Products pointing at it keep their supplierId
- * (an already-deleted supplier still identifies who used to supply something),
- * but listSuppliers/getSupplier hide it and the create/edit picker won't offer it. */
+/** A supplier with no linked products can be removed outright -- nothing
+ * references it, so there's no history to preserve. Once a product points at
+ * it, a hard delete would either orphan that link or cascade into deleting
+ * the product, so it's archived (soft-deleted) instead: products keep their
+ * supplierId (an archived supplier still identifies who used to supply
+ * something), while listSuppliers/getSupplier hide it and the create/edit
+ * picker won't offer it. */
 export async function deleteSupplier(supplierId: string) {
-  await getSupplierOrThrow(supplierId);
-  await prisma.supplier.update({ where: { id: supplierId }, data: { isDeleted: true } });
+  const row = await getSupplierOrThrow(supplierId);
+  if (row._count.products === 0) {
+    await prisma.supplier.delete({ where: { id: supplierId } });
+  } else {
+    await prisma.supplier.update({ where: { id: supplierId }, data: { isDeleted: true } });
+  }
 }

@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import Modal from '../components/Modal.jsx';
+import { useConfirm } from '../components/ConfirmDialog.jsx';
 
 const EMPTY_FORM = { name: '', phone1: '', phone2: '', email: '', address: '' };
 const PAGE_SIZE = 50;
@@ -30,17 +31,19 @@ function toRequestBody(form) {
 
 export default function SuppliersPage() {
   const { storeId } = useOutletContext();
+  const confirm = useConfirm();
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null); // null | 'new' | supplier object
   const [form, setForm] = useState(EMPTY_FORM);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
 
   const queryClient = useQueryClient();
   const suppliersQuery = useQuery({
-    queryKey: queryKeys.suppliers(storeId),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/suppliers`),
+    queryKey: queryKeys.suppliers(storeId, includeDeleted),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/suppliers${includeDeleted ? '?includeDeleted=true' : ''}`),
     enabled: Boolean(storeId),
   });
   const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
@@ -49,12 +52,14 @@ export default function SuppliersPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search, sort, storeId]);
+  }, [search, sort, storeId, includeDeleted]);
 
   const toggleSort = (col) =>
     setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
 
-  const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.suppliers(storeId) });
+  // Prefix match (no includeDeleted in the key here) invalidates both the
+  // plain and the show-archived variant, since either one can change a save.
+  const load = () => queryClient.invalidateQueries({ queryKey: ['suppliers', storeId] });
 
   const q = search.trim().toLowerCase();
   const visible = suppliers
@@ -99,7 +104,11 @@ export default function SuppliersPage() {
   }
 
   async function handleDelete(supplier) {
-    if (!window.confirm(`Remove "${supplier.name}"? Products already linked to it keep the link, but it won't be offered for new ones.`)) return;
+    const message = supplier.productCount === 0
+      ? `Delete "${supplier.name}"? This can't be undone.`
+      : `Archive "${supplier.name}"? It's linked to ${supplier.productCount} product${supplier.productCount === 1 ? '' : 's'}, which will keep their reference to it, but it'll be hidden from the list and the product picker.`;
+    const confirmLabel = supplier.productCount === 0 ? 'Delete' : 'Archive';
+    if (!(await confirm(message, { confirmLabel, danger: supplier.productCount === 0 }))) return;
     try {
       await apiClient.delete(`/api/stores/${storeId}/suppliers/${supplier.id}`);
       await load();
@@ -114,7 +123,7 @@ export default function SuppliersPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Suppliers</h1>
         <button
           onClick={openCreate}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent"
+          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5"
         >
           Add supplier
         </button>
@@ -131,6 +140,10 @@ export default function SuppliersPage() {
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {visible.length === suppliers.length ? `${suppliers.length} suppliers` : `${visible.length} of ${suppliers.length} suppliers`}
         </span>
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+          <input type="checkbox" checked={includeDeleted} onChange={(e) => setIncludeDeleted(e.target.checked)} />
+          Show archived
+        </label>
       </div>
 
       {(error || suppliersQuery.isError) && (
@@ -147,19 +160,20 @@ export default function SuppliersPage() {
               <SortTh col="email" sort={sort} onSort={toggleSort}>Email</SortTh>
               <th className="px-4 py-2 font-medium">Address</th>
               <SortTh col="products" sort={sort} onSort={toggleSort} className="text-center">Products</SortTh>
+              {includeDeleted && <th className="px-4 py-2 font-medium">Status</th>}
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={includeDeleted ? 8 : 7}>
                   {suppliers.length === 0 ? 'No suppliers yet.' : 'No suppliers match the search.'}
                 </td>
               </tr>
@@ -172,13 +186,31 @@ export default function SuppliersPage() {
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{s.email ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{s.address ?? '—'}</td>
                   <td className="px-4 py-2 text-center">{s.productCount}</td>
+                  {includeDeleted && (
+                    <td className="px-4 py-2">
+                      {s.isDeleted ? (
+                        <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-2 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(s)} className="text-red-600 dark:text-red-400 font-medium">
-                      Remove
-                    </button>
+                    {s.isDeleted ? (
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                    ) : (
+                      <>
+                        <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3">
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s)}
+                          className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-300 font-medium'}
+                        >
+                          {s.productCount === 0 ? 'Delete' : 'Archive'}
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

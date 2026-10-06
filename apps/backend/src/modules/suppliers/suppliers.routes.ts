@@ -18,7 +18,7 @@ suppliersRouter.get(
   requireAccessToken,
   requireRole([...ANY_ROLE]),
   asyncHandler(async (req, res) => {
-    res.json(await listSuppliers());
+    res.json(await listSuppliers(req.query.includeDeleted === "true"));
   })
 );
 

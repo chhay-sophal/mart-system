@@ -7,6 +7,7 @@ import { queryKeys } from '../lib/queryClient';
 import { EMPTY_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
 import Modal from '../components/Modal.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
+import { useConfirm } from '../components/ConfirmDialog.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 
 const EMPTY_FORM = {
@@ -58,6 +59,7 @@ const fmtPrice = (amount, currency) =>
 
 export default function ProductsPage() {
   const { storeId } = useOutletContext();
+  const confirm = useConfirm();
   const [error, setError] = useState(''); // save/delete errors
   // Search, per-column filters and sort (issue #8), applied in the browser.
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -197,7 +199,7 @@ export default function ProductsPage() {
   }
 
   async function handleDelete(product) {
-    if (!window.confirm(`Remove "${product.name}"?`)) return;
+    if (!(await confirm(`Remove "${product.name}"?`, { confirmLabel: 'Remove', danger: true }))) return;
     try {
       await apiClient.delete(`/api/stores/${storeId}/products/${product.id}`);
       await load();
@@ -227,7 +229,7 @@ export default function ProductsPage() {
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!window.confirm(`Remove ${selected.size} selected product${selected.size === 1 ? '' : 's'}?`)) return;
+    if (!(await confirm(`Remove ${selected.size} selected product${selected.size === 1 ? '' : 's'}?`, { confirmLabel: 'Remove', danger: true }))) return;
     setBulkDeleting(true);
     try {
       await apiClient.post(`/api/stores/${storeId}/products/bulk-delete`, { productIds: Array.from(selected) });
