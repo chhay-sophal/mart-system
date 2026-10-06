@@ -130,7 +130,7 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                     <tr key={p.id} data-row={i} onMouseEnter={() => setActive(i)}
                       className={`border-t border-slate-100 dark:border-slate-700/60 ${i === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : ''}`}>
                       <td className="px-4 py-2.5 font-semibold">{p.name}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400">{p.barcode || '—'}</td>
+                      <td className="px-4 py-2.5 font-bold">{p.barcode || '—'}</td>
                       <td className="px-4 py-2.5 text-right whitespace-nowrap">
                         <span className="font-bold">{fmtPrice(p.price, p.currency)}</span>
                         {converted(p) && <span className="block text-[11px] text-slate-400">{converted(p)}</span>}
