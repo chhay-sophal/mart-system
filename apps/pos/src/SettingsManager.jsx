@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBackend } from './BackendContext';
 import { ApiError } from '@mart-system/api-client';
-import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard, SlidersHorizontal, Printer } from 'lucide-react';
+import { ArrowLeft, Store, CheckCircle2, AlertTriangle, AlertOctagon, HardDrive, RotateCcw, Download, FolderOpen, X, RefreshCw, Info, Cloud, Eye, EyeOff, Monitor, ImagePlus, Trash2, Smartphone, Keyboard, SlidersHorizontal, Printer, Inbox } from 'lucide-react';
 import { translations as t } from './locales';
 import { DEFAULT_SYNC_BACKEND_URL } from './syncConfig';
 import { STANDBY_IMAGE_KEY, imageFileToDataUrl } from './standbyImage';
@@ -12,6 +12,7 @@ import Flag from './Flag';
 import { useToast } from './Toast';
 import { invalidateSales } from './queryClient';
 import PrinterSettings from './receipt/PrinterSettings';
+import CashDrawerSettings from './receipt/CashDrawerSettings';
 import ReceiptSettings from './receipt/ReceiptSettings';
 import BankQrSettings from './BankQrSettings';
 import { STATIC_QR_KEY } from './staticQr';
@@ -329,6 +330,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
     { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
     { id: 'printer',  icon: Printer,   label: s.printerSection?.header || 'Printer' },
+    { id: 'drawer',   icon: Inbox,     label: s.drawerSection?.header || 'Drawer' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
     { id: 'shortcuts', icon: Keyboard, label: currentTranslations.shortcuts?.sectionHeader || 'Shortcuts' },
     { id: 'backup',   icon: HardDrive, label: s.backupSection?.header || 'Backup' },
@@ -651,6 +653,18 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                       <ReceiptSettings settings={settings} setSettings={setSettings} p={s.printerSection || {}} locale={currentLocale}
                         ToggleRow={ToggleRow} inputClass={inputNormal} />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── CASH DRAWER ── */}
+                {activeSection === 'drawer' && (
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">{s.drawerSection?.header || 'Cash Drawer'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
+                      <CashDrawerSettings settings={settings} setSettings={setSettings} p={s.printerSection || {}} locale={currentLocale}
+                        ToggleRow={ToggleRow} inputClass={inputNormal} />
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
                     </div>
                   </div>
                 )}

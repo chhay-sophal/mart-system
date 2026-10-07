@@ -18,6 +18,14 @@ export const translations = {
       wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
     },
 
+    // DRAWER PIN PROMPT (Settings > Drawer > Require a PIN to open the drawer)
+    drawerPinPrompt: {
+      title: 'បញ្ចូលលេខកូដសម្ងាត់ថតលុយ',
+      wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
+      cancel: 'បោះបង់',
+      confirm: 'បើក',
+    },
+
     // CUSTOMER DISPLAY LABELS
     customerDisplay: {
       welcome: 'សូមស្វាគមន៍',
@@ -366,6 +374,9 @@ export const translations = {
         openDrawerHelp: "ថតប្រាក់ត្រូវភ្ជាប់ទៅម៉ាស៊ីនបោះពុម្ព (ច្រក RJ-11)។",
         testPrint: "បោះពុម្ពសាកល្បង",
         testDrawer: "បើកថតប្រាក់",
+        requireDrawerPin: "តម្រូវលេខកូដសម្ងាត់ដើម្បីបើកថតលុយ",
+        requireDrawerPinHelp: "ស្នើសុំលេខកូដសម្ងាត់នេះមុនពេលម៉ាស៊ីនបើកថតលុយ ក្រៅពីការលក់ជាសាច់ប្រាក់។",
+        drawerPin: "លេខកូដសម្ងាត់ថតលុយ (៤ខ្ទង់)",
         testSent: "បានផ្ញើទៅម៉ាស៊ីនបោះពុម្ព។",
         failed: "ម៉ាស៊ីនបោះពុម្ពមិនដំណើរការ៖ {error}",
         desktopOnly: "ការបោះពុម្ពផ្ទាល់ ដំណើរការតែក្នុងកម្មវិធីកុំព្យូទ័រប៉ុណ្ណោះ។",
@@ -417,6 +428,9 @@ export const translations = {
           language: "ភាសាវិក្កយបត្រ",
           languageFollow: "ដូចអេក្រង់",
         },
+      },
+      drawerSection: {
+        header: 'ថតប្រាក់',
       },
       standbySection: {
         header: 'អេក្រង់អតិថិជន',
@@ -488,6 +502,14 @@ export const translations = {
       subtitle: 'Enter your PIN to continue',
       unlockBtn: 'Unlock',
       wrongPin: 'Incorrect PIN',
+    },
+
+    // DRAWER PIN PROMPT (Settings > Drawer > Require a PIN to open the drawer)
+    drawerPinPrompt: {
+      title: 'Enter drawer PIN',
+      wrongPin: 'Incorrect PIN',
+      cancel: 'Cancel',
+      confirm: 'Open',
     },
 
     // CUSTOMER DISPLAY LABELS
@@ -838,6 +860,9 @@ export const translations = {
         openDrawerHelp: "The drawer must be plugged into the printer (RJ-11 port).",
         testPrint: "Test print",
         testDrawer: "Open drawer",
+        requireDrawerPin: "Require a PIN to open the drawer",
+        requireDrawerPinHelp: "Asks for this PIN before the register opens the drawer outside of a cash sale.",
+        drawerPin: "Drawer PIN (4 digits)",
         testSent: "Sent to the printer.",
         failed: "Printer problem: {error}",
         desktopOnly: "Direct printing only works in the desktop app.",
@@ -889,6 +914,9 @@ export const translations = {
           language: "Receipt language",
           languageFollow: "Same as the screen",
         },
+      },
+      drawerSection: {
+        header: "Cash Drawer",
       },
       standbySection: {
         header: 'Customer Display',

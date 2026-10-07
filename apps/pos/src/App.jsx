@@ -25,6 +25,7 @@ import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
+import DrawerPinPrompt from './DrawerPinPrompt';
 import { useToast } from './Toast';
 import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
@@ -52,6 +53,7 @@ export default function App() {
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [clearCartPrompt, setClearCartPrompt] = useState(false);
+  const [showDrawerPinPrompt, setShowDrawerPinPrompt] = useState(false);
   // Locking the register (button or shortcut) drops cached sales data, so the
   // next cashier starts fresh.
   useEffect(() => {
@@ -686,11 +688,16 @@ export default function App() {
 
   // Manual open, for making change or at open/close -- same call and error
   // reporting as the automatic open-on-cash-sale above.
-  const handleOpenDrawer = () => {
-    if (!printer.direct) return;
+  const openDrawerNow = () => {
     openCashDrawer(printer).catch((err) =>
       notify((t[locale].settingsPage?.printerSection?.failed || 'Printer problem: {error}').replace('{error}', err?.message || String(err))),
     );
+  };
+  const handleOpenDrawer = () => {
+    if (!printer.direct) return;
+    // Settings > Drawer > Require a PIN to open the drawer.
+    if (printer.requireDrawerPin) { setShowDrawerPinPrompt(true); return; }
+    openDrawerNow();
   };
 
   // ── Keyboard shortcuts (issue #7). The keys are fixed in shortcuts.js;
@@ -858,6 +865,17 @@ export default function App() {
         onCancel={() => setDraftToDelete(null)}
         onConfirm={() => deleteDraft(draftToDelete)}
         danger
+      />
+    )}
+    {showDrawerPinPrompt && (
+      <DrawerPinPrompt
+        pin={printer.drawerPin}
+        t={t[locale]?.drawerPinPrompt}
+        onCancel={() => setShowDrawerPinPrompt(false)}
+        onConfirm={() => {
+          setShowDrawerPinPrompt(false);
+          openDrawerNow();
+        }}
       />
     )}
     {clearCartPrompt && (

@@ -14,6 +14,8 @@ export const PRINTER_DEFAULTS = {
   receipt_paper_width: '58', // 58 | 80 (mm)
   receipt_auto_cut: 'true',
   cash_drawer_on_cash: 'false', // open the drawer after each cash sale
+  cash_drawer_pin_enabled: 'false', // require a PIN before a manual drawer open (admin-set, Settings > Drawer)
+  cash_drawer_pin: '', // 4 digits
   ...RECEIPT_DEFAULTS,
 };
 
@@ -30,6 +32,11 @@ export function printerConfig(settings = {}) {
     paper: Number(s.receipt_paper_width) === 80 ? 80 : 58,
     cut: s.receipt_auto_cut !== 'false',
     openDrawerOnCash: s.cash_drawer_on_cash === 'true',
+    // Only actually gates anything if a real 4-digit PIN is set -- a stray
+    // "enabled" with no (or a malformed) PIN opens the drawer freely rather
+    // than silently locking the till over a misconfigured setting.
+    requireDrawerPin: s.cash_drawer_pin_enabled === 'true' && /^[0-9]{4}$/.test(s.cash_drawer_pin || ''),
+    drawerPin: s.cash_drawer_pin || '',
     receipt: receiptOptions(s),
   };
 }
