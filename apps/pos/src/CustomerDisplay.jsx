@@ -11,6 +11,8 @@ export default function CustomerDisplay() {
   // Picked in POS Settings (issue #4); sent on its own event, see App.jsx.
   const [standbyImage, setStandbyImage] = useState('');
   const doneTimerRef = useRef(null);
+  const listContainerRef = useRef(null);
+  const [itemsPerColumn, setItemsPerColumn] = useState(1);
 
   useEffect(() => {
     const stored = localStorage.getItem('darkMode');
@@ -76,6 +78,53 @@ export default function CustomerDisplay() {
     return base * (1 - item.discount / 100);
   };
 
+  useEffect(() => {
+    if (displayState === 'idle' || displayState === 'done' || !payload) {
+      return;
+    }
+
+    const container = listContainerRef.current;
+    if (!container) return;
+
+    const calculateRows = () => {
+      // clientHeight includes this container's own padding (p-5): the table
+      // only gets to use the space inside that, not the padding itself.
+      const style = window.getComputedStyle(container);
+      const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const height = container.clientHeight - paddingY;
+
+      // Worst case, not the common case: a discounted item's Amount cell
+      // stacks two lines (the struck-through original price above the
+      // discounted one) instead of one, making that row taller than a plain
+      // row. Sizing every row for the common (shorter) case would make a
+      // discounted row near the bottom of a column spill past the visible
+      // area and get clipped by this container's overflow-hidden, instead of
+      // simply not fitting and starting the next column -- using the tallest
+      // possible row height here means a column only ever claims rows it can
+      // show in full.
+      const rowHeight = 31.5;
+      const headerHeight = 30;
+      const safetyMargin = 8;
+
+      const availableHeight =
+        height - headerHeight - safetyMargin;
+
+      const rows = Math.max(
+        1,
+        Math.floor(availableHeight / rowHeight)
+      );
+
+      setItemsPerColumn(rows);
+    };
+
+    calculateRows();
+
+    const observer = new ResizeObserver(calculateRows);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [displayState, cart.length, payload]);
+
   /* ── IDLE ───────────────────────────────────────────────── */
   if (displayState === 'idle' || !payload) {
     if (standbyImage) {
@@ -126,6 +175,13 @@ export default function CustomerDisplay() {
   const showKhqr     = paymentMethod === 'KHQR' && qrString;
   const showStaticQr = paymentMethod === 'STATIC_QR' && staticQrImage;
 
+  const cartColumns = [];
+  const reversedCart = [...cart].reverse();
+
+  for (let i = 0; i < reversedCart.length; i += itemsPerColumn) {
+    cartColumns.push(reversedCart.slice(i, i + itemsPerColumn));
+  }
+
   return (
     <div className="h-screen w-screen bg-slate-50 dark:bg-slate-900 flex flex-col overflow-hidden select-none">
       {/* Top bar */}
@@ -142,63 +198,109 @@ export default function CustomerDisplay() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* LEFT — 70% — item list */}
-        <div className="flex-[7] overflow-y-auto p-5 border-r border-slate-200 dark:border-slate-800">
-          <table className="min-w-full border-separate border-spacing-y-2">
-            <thead>
-              <tr className="text-slate-500 dark:text-slate-300 text-[11px] font-bold uppercase tracking-widest">
-                <th className="w-6 pr-2 text-right">{cd.no}</th>
-                <th className="text-left">{cd.item}</th>
-                <th className="w-28 text-center">{cd.unitPrice}</th>
-                <th className="w-28 text-center">{cd.discount}</th>
-                <th className="w-14 text-center">{cd.qty}</th>
-                <th className="w-30 text-center">{cd.amount}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cart.length === 0 ? (
+        {/* LEFT - 70% — item list */}
+        <div
+          ref={listContainerRef}
+          className="flex-[7] overflow-hidden p-5 border-r border-slate-200 dark:border-slate-800"
+        >
+          {cart.length === 0 ? (
+            <table className="min-w-full border-separate border-spacing-y-2">
+              <tbody>
                 <tr>
-                  <td colSpan="6" className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest">
+                  <td
+                    colSpan="5"
+                    className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest"
+                  >
                     {cd.welcome}
                   </td>
                 </tr>
-              ) : cart.map((item, idx) => (
-                <tr key={item.lineId ?? item.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/40 overflow-hidden">
-                  <td className="px-6 py-4 text-right text-slate-900 dark:text-white font-bold">{idx + 1}</td>
-                  <td className="px-0 py-4 text-slate-900 dark:text-white font-bold truncate">{item.name}</td>
-                  <td className="px-6 py-4 text-right w-24 font-bold text-slate-900 dark:text-white">
-                    {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `$${Number(item.price).toFixed(2)}`}
-                  </td>
-                  <td className="px-4 py-4 text-right w-20 text-amber-600 dark:text-amber-400 font-bold">
-                    {item.discount > 0
-                      ? item.discountType === 'fixed'
-                        ? item.currency === 'KHR'
-                          ? `-${Math.round(item.discount).toLocaleString()} ៛`
-                          : `-$${Number(item.discount).toFixed(2)}`
-                        : `-${item.discount}%`
-                      : ''}
-                  </td>
-                  <td className="px-4 py-4 text-center text-slate-500 dark:text-slate-300 font-bold w-14">×{item.quantity}</td>
-                  <td className="px-6 py-4 text-right">
-                    {item.discount > 0 && (
-                      <p className="text-sm text-slate-400 line-through">
-                        {item.currency === 'KHR'
-                          ? `${Math.round(item.price * item.quantity).toLocaleString()} ៛`
-                          : `${(Number(item.price) * item.quantity).toFixed(2)}`
-                        }
-                      </p>
-                    )}
-                    <p className="font-bold text-sm text-slate-900 dark:text-white">
-                      {item.currency === 'KHR'
-                        ? `${Math.round(discountedUnitPrice(item) * item.quantity).toLocaleString()} ៛`
-                        : `$${(discountedUnitPrice(item) * item.quantity).toFixed(2)}`
-                      }
-                    </p>
-                  </td>
-                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex gap-6 h-full">
+              {cartColumns.map((columnItems, columnIndex) => (
+                <div
+                  key={columnIndex}
+                  className="flex-1 min-w-0 overflow-hidden"
+                >
+                  <table className="w-full border-separate border-spacing-y-1">
+                    <thead>
+                      <tr className="text-slate-500 dark:text-slate-300 text-[11px] font-bold uppercase tracking-widest">
+                        <th className="w-6 pr-2 text-right">
+                          {cd.no}
+                        </th>
+
+                        <th className="text-left">
+                          {cd.item}
+                        </th>
+
+                        <th className="w-14 text-center">
+                          {cd.qty}
+                        </th>
+
+                        <th className="w-30 text-center">
+                          {cd.amount}
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {columnItems.map((item, localIdx) => {
+                        const globalIdx =
+                          columnIndex * itemsPerColumn + localIdx;
+
+                        return (
+                          <tr
+                            key={item.lineId ?? item.id}
+                            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700/40 overflow-hidden"
+                          >
+                            <td className="px-6 py-1 text-right text-slate-900 dark:text-white font-bold">
+                              {globalIdx + 1}
+                            </td>
+
+                            <td className="px-0 py-1 text-slate-900 dark:text-white font-bold truncate">
+                              {item.name}
+                            </td>
+
+                            <td className="px-4 py-1 text-center text-slate-500 dark:text-slate-300 font-bold">
+                              ×{item.quantity}
+                            </td>
+
+                            <td className="px-6 py-1 text-right">
+                              {item.discount > 0 && (
+                                <p className="text-sm text-slate-400 line-through">
+                                  {item.currency === 'KHR'
+                                    ? `${Math.round(
+                                        item.price * item.quantity
+                                      ).toLocaleString()} ៛`
+                                    : `${(
+                                        Number(item.price) *
+                                        item.quantity
+                                      ).toFixed(2)}`}
+                                </p>
+                              )}
+
+                              <p className="font-bold text-sm text-slate-900 dark:text-white">
+                                {item.currency === 'KHR'
+                                  ? `${Math.round(
+                                      discountedUnitPrice(item) *
+                                        item.quantity
+                                    ).toLocaleString()} ៛`
+                                  : `$${(
+                                      discountedUnitPrice(item) *
+                                      item.quantity
+                                    ).toFixed(2)}`}
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
 
         {/* RIGHT — 30% — total + payment info */}
