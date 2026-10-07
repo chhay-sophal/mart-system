@@ -11,6 +11,17 @@ const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
 
 const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
+// A cashier only ever logs in with a PIN at the till, never an email/password
+// in IMS -- but User.email/passwordHash are required, unique columns, so
+// something has to go there. These are never shown to anyone and never need
+// to be typed; if the cashier is later promoted to a role that does use IMS,
+// a real email/password can be set from the edit form.
+function randomCashierEmail(name) {
+  const slug = (name || 'cashier').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'cashier';
+  return `${slug}-${crypto.randomUUID().slice(0, 8)}@pos.local`;
+}
+const randomPassword = () => crypto.randomUUID() + crypto.randomUUID();
+
 export default function StaffPage() {
   const { storeId } = useOutletContext();
   const [error, setError] = useState('');
@@ -38,9 +49,12 @@ export default function StaffPage() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    const isCashier = createForm.role === 'CASHIER';
     try {
       await apiClient.post(`/api/stores/${storeId}/staff`, {
         ...createForm,
+        email: isCashier ? randomCashierEmail(createForm.name) : createForm.email,
+        password: isCashier ? randomPassword() : createForm.password,
         pin: createForm.pin || undefined,
       });
       setShowCreate(false);
@@ -200,14 +214,18 @@ export default function StaffPage() {
         <Modal title="Add staff" onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
-              <input
-                required
-                type="email"
-                value={createForm.email}
-                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
-              />
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
+              <select
+                value={createForm.role}
+                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value, pin: e.target.value === 'INVENTORY' ? '' : createForm.pin })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm h-9"
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
@@ -218,44 +236,47 @@ export default function StaffPage() {
                 className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Initial password</label>
-              <div className="relative">
-                <input
-                  required
-                  minLength={8}
-                  type={showPassword ? 'text' : 'password'}
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-14 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            {createForm.role !== 'CASHIER' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+                  <input
+                    required
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                    className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Initial password</label>
+                  <div className="relative">
+                    <input
+                      required
+                      minLength={8}
+                      type={showPassword ? 'text' : 'password'}
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                      className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-14 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      {showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            {createForm.role !== 'INVENTORY' && (
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
-                <select
-                  value={createForm.role}
-                  onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">PIN (optional, 4 digits)</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                  PIN {createForm.role === 'CASHIER' ? '(4 digits)' : '(optional, 4 digits)'}
+                </label>
                 <input
+                  required={createForm.role === 'CASHIER'}
                   inputMode="numeric"
                   pattern="[0-9]{4}"
                   title="Exactly 4 digits"
@@ -265,7 +286,7 @@ export default function StaffPage() {
                   className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
                 />
               </div>
-            </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="text-sm px-3 py-1.5 cursor-pointer">
                 Cancel
@@ -332,7 +353,7 @@ export default function StaffPage() {
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
               <select
                 value={editForm.role}
-                onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value, pin: e.target.value === 'INVENTORY' ? '' : editForm.pin })}
                 className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               >
                 {ROLES.map((r) => (
@@ -363,20 +384,22 @@ export default function StaffPage() {
                 </button>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                New PIN <span className="text-slate-400 dark:text-slate-500">(optional, leave blank to keep the current one)</span>
-              </label>
-              <input
-                inputMode="numeric"
-                pattern="[0-9]{4}"
-                title="Exactly 4 digits"
-                maxLength={4}
-                value={editForm.pin}
-                onChange={(e) => setEditForm({ ...editForm, pin: onlyDigits(e.target.value) })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-              />
-            </div>
+            {editForm.role !== 'INVENTORY' && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                  New PIN <span className="text-slate-400 dark:text-slate-500">(optional, leave blank to keep the current one)</span>
+                </label>
+                <input
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  title="Exactly 4 digits"
+                  maxLength={4}
+                  value={editForm.pin}
+                  onChange={(e) => setEditForm({ ...editForm, pin: onlyDigits(e.target.value) })}
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                />
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
                 Cancel
