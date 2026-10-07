@@ -19,6 +19,9 @@ export default function StaffPage() {
   const [pinTarget, setPinTarget] = useState(null); // staff row being reset
   const [pinValue, setPinValue] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [editing, setEditing] = useState(null); // staff row being edited
+  const [editForm, setEditForm] = useState(null);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -48,14 +51,14 @@ export default function StaffPage() {
     }
   }
 
-  async function handleRoleChange(row, role) {
-    try {
-      await apiClient.patch(`/api/stores/${storeId}/staff/${row.userId}`, { role });
-      await load();
-    } catch {
-      setError('Failed to update role.');
-    }
-  }
+  // async function handleRoleChange(row, role) {
+  //   try {
+  //     await apiClient.patch(`/api/stores/${storeId}/staff/${row.userId}`, { role });
+  //     await load();
+  //   } catch {
+  //     setError('Failed to update role.');
+  //   }
+  // }
 
   async function handleToggleActive(row) {
     try {
@@ -67,6 +70,29 @@ export default function StaffPage() {
       await load();
     } catch {
       setError('Failed to update status.');
+    }
+  }
+
+  function openEdit(row) {
+    setEditForm({ name: row.name, email: row.email, role: row.role, password: '', pin: '' });
+    setShowEditPassword(false);
+    setEditing(row);
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    try {
+      await apiClient.patch(`/api/stores/${storeId}/staff/${editing.userId}`, {
+        name: editForm.name,
+        email: editForm.email,
+        role: editForm.role,
+        ...(editForm.password ? { password: editForm.password } : {}),
+        ...(editForm.pin ? { pin: editForm.pin } : {}),
+      });
+      setEditing(null);
+      await load();
+    } catch (err) {
+      setError(err?.body?.error ?? 'Failed to update staff member.');
     }
   }
 
@@ -126,7 +152,8 @@ export default function StaffPage() {
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.role}</td>
+                  {/* <td className="px-4 py-2">
                     <select
                       value={row.role}
                       onChange={(e) => handleRoleChange(row, e.target.value)}
@@ -138,7 +165,7 @@ export default function StaffPage() {
                         </option>
                       ))}
                     </select>
-                  </td>
+                  </td> */}
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.hasPinSet ? 'Set' : 'Not set'}</td>
                   <td className="px-4 py-2">
                     <span className={row.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
@@ -146,7 +173,10 @@ export default function StaffPage() {
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right space-x-3">
-                    <button
+                    <button onClick={() => openEdit(row)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
+                      Edit
+                    </button>
+                    {/* <button
                       onClick={() => {
                         setPinTarget(row);
                         setPinValue('');
@@ -154,7 +184,7 @@ export default function StaffPage() {
                       className="text-[var(--accent)] font-medium cursor-pointer"
                     >
                       Reset PIN
-                    </button>
+                    </button> */}
                     <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
                       {row.isActive ? 'Deactivate' : 'Reactivate'}
                     </button>
@@ -270,6 +300,89 @@ export default function StaffPage() {
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
                 Save PIN
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {editing && (
+        <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <input
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+              <input
+                required
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
+              <select
+                value={editForm.role}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                New password <span className="text-slate-400 dark:text-slate-500">(leave blank to keep the current one)</span>
+              </label>
+              <div className="relative">
+                <input
+                  minLength={8}
+                  type={showEditPassword ? 'text' : 'password'}
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 pr-14 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {showEditPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                New PIN <span className="text-slate-400 dark:text-slate-500">(optional, leave blank to keep the current one)</span>
+              </label>
+              <input
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                title="Exactly 4 digits"
+                maxLength={4}
+                value={editForm.pin}
+                onChange={(e) => setEditForm({ ...editForm, pin: onlyDigits(e.target.value) })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
+                Cancel
+              </button>
+              <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
+                Save
               </button>
             </div>
           </form>

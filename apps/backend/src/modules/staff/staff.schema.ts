@@ -14,8 +14,12 @@ export const createStaffSchema = z.object({
 });
 
 export const updateStaffSchema = z.object({
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  password: z.string().min(8).optional(),
   role: roleSchema.optional(),
   isActive: z.boolean().optional(),
+  pin: pinSchema.optional(),
 });
 
 export const resetPinSchema = z.object({

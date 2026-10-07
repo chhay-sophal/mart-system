@@ -128,6 +128,53 @@ describe("staff management", () => {
     expect(reset.body.hasPinSet).toBe(true);
   });
 
+  it("updates name, email, password and PIN together through the one edit endpoint", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const cashier = await addCashier(store.id, "5555");
+
+    const update = await request(app)
+      .patch(`/api/stores/${store.id}/staff/${cashier.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "Renamed Cashier", email: "renamed@test.local", password: "NewPassw0rd!!", pin: "4242" });
+    expect(update.status).toBe(200);
+    expect(update.body).toMatchObject({ name: "Renamed Cashier", email: "renamed@test.local", hasPinSet: true });
+
+    // The new password actually works, and the new PIN collision-checks like
+    // any other (excluding this same staff member's own current PIN).
+    const login = await request(app)
+      .post("/api/auth/login")
+      .send({ email: "renamed@test.local", password: "NewPassw0rd!!" });
+    expect(login.status).toBe(200);
+  });
+
+  it("rejects editing a staff member's email to one already used by another account", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const cashier = await addCashier(store.id, "1111");
+
+    const update = await request(app)
+      .patch(`/api/stores/${store.id}/staff/${cashier.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "admin@test.local" }); // seedFixtures' own admin account
+
+    expect(update.status).toBe(409);
+  });
+
+  it("rejects editing a staff member's PIN to one already used by another active staff member", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    await addCashier(store.id, "9999");
+    const cashier = await addCashier(store.id, "1234");
+
+    const update = await request(app)
+      .patch(`/api/stores/${store.id}/staff/${cashier.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ pin: "9999" });
+
+    expect(update.status).toBe(409);
+  });
+
   it("deactivates a staff member without deleting the user", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
