@@ -324,25 +324,6 @@ export default function StaffPage() {
         <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}>
           <form onSubmit={handleEditSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
-              <input
-                required
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
-              <input
-                required
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-              />
-            </div>
-            <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
               <select
                 value={editForm.role}
@@ -357,26 +338,50 @@ export default function StaffPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                New password <span className="text-slate-400 dark:text-slate-500">(leave blank to keep the current one)</span>
-              </label>
-              <div className="relative">
-                <input
-                  minLength={8}
-                  type={showEditPassword ? 'text' : 'password'}
-                  value={editForm.password}
-                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 pr-14 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowEditPassword((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                >
-                  {showEditPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <input
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+              />
             </div>
+            {editForm.role !== 'CASHIER' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+                  <input
+                    required
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
+                    New password <span className="text-slate-400 dark:text-slate-500">(leave blank to keep the current one)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      minLength={8}
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editForm.password}
+                      onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                      className="w-full border border-[var(--border)] rounded-lg px-3 h-9 pr-14 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      {showEditPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+            
             {editForm.role !== 'INVENTORY' && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
