@@ -36,6 +36,13 @@ jobs:
     needs: create-release
     strategy:
       fail-fast: false
+      # Both platforms upload to the one shared draft release and merge into
+      # the same `latest.json` updater manifest there. Running them in
+      # parallel races two jobs' asset-update calls against each other --
+      # one looks up the existing latest.json asset id, another deletes and
+      # recreates it first, and the first job's update then 404s ("Not
+      # Found" on update-a-release-asset). Serializing avoids that race.
+      max-parallel: 1
       matrix:
         include:
           - platform: macos-latest
@@ -48,11 +55,6 @@ jobs:
             sidecar-name: backend-server-x86_64-pc-windows-msvc.exe
             rust-target: ''
             args: --bundles nsis
-          - platform: ubuntu-latest
-            pkg-target: node20-linux-x64
-            sidecar-name: backend-server-x86_64-unknown-linux-gnu
-            rust-target: ''
-            args: --bundles appimage,deb
 
     runs-on: ${{ matrix.platform }}
 
@@ -79,12 +81,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-target }}
-
-      - name: Install Linux system dependencies for Tauri
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libayatana-appindicator3-dev libxdo-dev
 
       - run: pnpm install --frozen-lockfile
 
