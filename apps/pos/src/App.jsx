@@ -233,7 +233,7 @@ export default function App() {
       try {
         const product = await client.get(`/api/products/barcode/${scannedBarcode}`);
 
-        setCart((prevCart) => addProduct(prevCart, product, { atEnd: true }));
+        setCart((prevCart) => addProduct(prevCart, product));
 
         setCheckoutResult(null);
       } catch (err) {
