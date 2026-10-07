@@ -129,21 +129,11 @@ export default function PrinterSettings({ settings, setSettings, p, locale, Togg
             checked={settings.receipt_auto_cut !== 'false'}
             onChange={(on) => set('receipt_auto_cut', on ? 'true' : 'false')}
           />
-          <ToggleRow
-            label={p.openDrawer || 'Open the cash drawer after cash sales'}
-            help={p.openDrawerHelp}
-            checked={settings.cash_drawer_on_cash === 'true'}
-            onChange={(on) => set('cash_drawer_on_cash', on ? 'true' : 'false')}
-          />
 
           <div className="flex items-center gap-2">
             <button type="button" onClick={testPrint} disabled={busy || !printerConfig(settings).direct}
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
               <Printer size={12} /> {p.testPrint || 'Test print'}
-            </button>
-            <button type="button" onClick={() => run(openCashDrawer)} disabled={busy || !printerConfig(settings).direct}
-              className="px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              <Inbox size={12} /> {p.testDrawer || 'Open drawer'}
             </button>
           </div>
         </>
