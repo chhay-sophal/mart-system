@@ -1043,123 +1043,132 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 content-start">
+            <div className="flex-1 overflow-y-auto content-start">
               {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-400 gap-3 py-12">
                   <div className="w-16 h-16 bg-slate-50 dark:bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-100 dark:border-slate-700 text-slate-300 dark:text-slate-400"><ShoppingCart size={28} /></div>
                   <p className="text-sm font-semibold text-slate-400 dark:text-slate-400 font-display">{t[locale].basketEmpty}</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {cart.map((item) => (
-                    <div key={item.lineId} className="p-3.5 bg-slate-50/60 dark:bg-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-700/70 rounded-xl border border-slate-100/80 dark:border-slate-700 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0 pr-4">
-                          <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{item.name}</h3>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-400 tracking-wider mt-0.5">#{item.barcode}</p>
-                        </div>
-                        <div className="flex items-stretch gap-5">
-                          {/* Price Per Unit */}
-                          <div className="text-right w-24 flex flex-col justify-center">
-                            {/* The original price is struck through only when the item is discounted. */}
-                            {item.discount > 0 && (
-                              <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
-                                {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `${Number(item.price).toFixed(2)}`}
-                              </p>
-                            )}
-                            <p className="font-bold text-sm text-slate-900 dark:text-white">
-                              {item.discountType === 'fixed'
-                                ? item.currency === 'KHR'
-                                  ? `${Math.round(Math.max(0, item.price - item.discount)).toLocaleString()} ៛`
-                                  : `$${Math.max(0, Number(item.price) - item.discount).toFixed(2)}`
-                                : item.currency === 'KHR'
-                                  ? `${Math.round(item.price * (1 - (item.discount || 0) / 100)).toLocaleString()} ៛`
-                                  : `$${(Number(item.price) * (1 - (item.discount || 0) / 100)).toFixed(2)}`
-                              }
-                            </p>
-                          </div>
+                <div>
+                  {cart.map((item, index) => {
+                    const isLast = index === cart.length - 1;
 
-                          {/* Discount controls */}
-                          <div className="flex items-stretch gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.discountType !== 'fixed' ? '100' : undefined}
-                              value={item.discount || ''}
-                              onChange={e => {
-                                let v = parseFloat(e.target.value);
-                                if (isNaN(v) || v < 0) v = 0;
-                                if ((item.discountType || 'pct') === 'pct' && v > 100) v = 100;
-                                setItemDiscount(item.lineId, v === 0 && e.target.value === '' ? 0 : v);
-                              }}
-                              className="w-30 h-full text-center text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-1 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-900/30 focus:border-amber-400 dark:focus:border-amber-600"
-                              placeholder="0"
-                            />
-                            <div className="flex w-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                              <button
-                                onClick={() => setItemDiscount(item.lineId, undefined, 'pct')}
-                                className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all cursor-pointer ${
-                                  (item.discountType || 'pct') === 'pct'
-                                    ? 'bg-amber-500 text-white'
-                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                }`}
-                              >%</button>
-                              <button
-                                onClick={() => setItemDiscount(item.lineId, undefined, 'fixed')}
-                                className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all cursor-pointer ${
-                                  item.discountType === 'fixed'
-                                    ? 'bg-amber-500 text-white border-amber-500'
-                                    : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                }`}
-                              >{item.currency === 'KHR' ? '៛' : '$'}</button>
-                            </div>
+                    return (
+                      <div
+                        key={item.lineId}
+                        className={`py-1 px-3 hover:bg-slate-200 dark:hover:bg-slate-700/90 transition-colors ${
+                          isLast ? '' : 'border-b border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0 pr-4">
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{item.name}</h3>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-400 tracking-wider mt-0.5">#{item.barcode}</p>
                           </div>
-                          
-                          {/* Qty stepper */}
-                          <div className="flex items-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 rounded-xl p-0.5 shadow-2xs">
-                            <button onClick={() => updateQuantity(item.lineId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">&minus;</button>
-                            <span className="w-9 text-center font-bold text-sm text-slate-800 dark:text-slate-100">{item.quantity}</span>
-                            <button onClick={() => updateQuantity(item.lineId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">+</button>
-                          </div>
-
-                          {/* Split one unit onto its own line, to discount just that one. Kept
-                              in place (invisible) at quantity 1 so the columns stay aligned. */}
-                          <button onClick={() => splitItem(item.lineId)} disabled={item.quantity < 2}
-                            title={t[locale].splitLine} aria-label={t[locale].splitLine}
-                            className={`self-center w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer ${item.quantity < 2 ? 'invisible' : ''}`}>
-                            <Scissors size={14} />
-                          </button>
-
-                          {/* Line total */}
-                          <div className="text-right w-24 flex flex-col justify-center">
-                            {item.discount > 0 ? (() => {
-                              const base = item.price * item.quantity;
-                              const discounted = item.discountType === 'fixed'
-                                ? Math.max(0, item.price - item.discount) * item.quantity
-                                : item.price * item.quantity * (1 - item.discount / 100);
-                              return (
-                                <>
-                                  <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
-                                    {item.currency === 'KHR' ? `${Math.round(base).toLocaleString()} ៛` : `$${Number(base).toFixed(2)}`}
-                                  </p>
-                                  <p className="font-bold text-sm text-amber-600 dark:text-amber-400">
-                                    {item.currency === 'KHR' ? `${Math.round(discounted).toLocaleString()} ៛` : `$${discounted.toFixed(2)}`}
-                                  </p>
-                                </>
-                              );
-                            })() : (
+                          <div className="flex items-stretch gap-5">
+                            {/* Price Per Unit */}
+                            <div className="text-right w-24 flex flex-col justify-center">
+                              {/* The original price is struck through only when the item is discounted. */}
+                              {item.discount > 0 && (
+                                <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
+                                  {item.currency === 'KHR' ? `${Math.round(item.price).toLocaleString()} ៛` : `${Number(item.price).toFixed(2)}`}
+                                </p>
+                              )}
                               <p className="font-bold text-sm text-slate-900 dark:text-white">
-                                {item.currency === 'KHR'
-                                  ? `${(item.price * item.quantity).toLocaleString()} ៛`
-                                  : `$${(Number(item.price) * item.quantity).toFixed(2)}`}
+                                {item.discountType === 'fixed'
+                                  ? item.currency === 'KHR'
+                                    ? `${Math.round(Math.max(0, item.price - item.discount)).toLocaleString()} ៛`
+                                    : `$${Math.max(0, Number(item.price) - item.discount).toFixed(2)}`
+                                  : item.currency === 'KHR'
+                                    ? `${Math.round(item.price * (1 - (item.discount || 0) / 100)).toLocaleString()} ៛`
+                                    : `$${(Number(item.price) * (1 - (item.discount || 0) / 100)).toFixed(2)}`
+                                }
                               </p>
-                            )}
+                            </div>
+
+                            {/* Discount controls */}
+                            <div className="flex items-stretch gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                max={item.discountType !== 'fixed' ? '100' : undefined}
+                                value={item.discount || ''}
+                                onChange={e => {
+                                  let v = parseFloat(e.target.value);
+                                  if (isNaN(v) || v < 0) v = 0;
+                                  if ((item.discountType || 'pct') === 'pct' && v > 100) v = 100;
+                                  setItemDiscount(item.lineId, v === 0 && e.target.value === '' ? 0 : v);
+                                }}
+                                className="w-30 h-full text-center text-xs font-bold border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 py-1 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-900/30 focus:border-amber-400 dark:focus:border-amber-600"
+                                placeholder="0"
+                              />
+                              <div className="flex w-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                                <button
+                                  onClick={() => setItemDiscount(item.lineId, undefined, 'pct')}
+                                  className={`flex-1 px-0 py-1 text-[10px] font-bold transition-all cursor-pointer ${
+                                    (item.discountType || 'pct') === 'pct'
+                                      ? 'bg-amber-500 text-white'
+                                      : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                  }`}
+                                >%</button>
+                                <button
+                                  onClick={() => setItemDiscount(item.lineId, undefined, 'fixed')}
+                                  className={`flex-1 px-0 py-1 text-[10px] font-bold border-l border-slate-200 dark:border-slate-700 transition-all cursor-pointer ${
+                                    item.discountType === 'fixed'
+                                      ? 'bg-amber-500 text-white border-amber-500'
+                                      : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                  }`}
+                                >{item.currency === 'KHR' ? '៛' : '$'}</button>
+                              </div>
+                            </div>
+                            
+                            {/* Qty stepper */}
+                            <div className="flex items-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 rounded-xl p-0.5 shadow-2xs">
+                              <button onClick={() => updateQuantity(item.lineId, -1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">&minus;</button>
+                              <span className="w-9 text-center font-bold text-sm text-slate-800 dark:text-slate-100">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.lineId, 1)} className="w-8 h-8 flex items-center justify-center font-bold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer">+</button>
+                            </div>
+
+                            {/* Split one unit onto its own line, to discount just that one. Kept
+                                in place (invisible) at quantity 1 so the columns stay aligned. */}
+                            <button onClick={() => splitItem(item.lineId)} disabled={item.quantity < 2}
+                              title={t[locale].splitLine} aria-label={t[locale].splitLine}
+                              className={`self-center w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all cursor-pointer ${item.quantity < 2 ? 'invisible' : ''}`}>
+                              <Scissors size={14} />
+                            </button>
+
+                            {/* Line total */}
+                            <div className="text-right w-24 flex flex-col justify-center">
+                              {item.discount > 0 ? (() => {
+                                const base = item.price * item.quantity;
+                                const discounted = item.discountType === 'fixed'
+                                  ? Math.max(0, item.price - item.discount) * item.quantity
+                                  : item.price * item.quantity * (1 - item.discount / 100);
+                                return (
+                                  <>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-400 line-through">
+                                      {item.currency === 'KHR' ? `${Math.round(base).toLocaleString()} ៛` : `$${Number(base).toFixed(2)}`}
+                                    </p>
+                                    <p className="font-bold text-sm text-amber-600 dark:text-amber-400">
+                                      {item.currency === 'KHR' ? `${Math.round(discounted).toLocaleString()} ៛` : `$${discounted.toFixed(2)}`}
+                                    </p>
+                                  </>
+                                );
+                              })() : (
+                                <p className="font-bold text-sm text-slate-900 dark:text-white">
+                                  {item.currency === 'KHR'
+                                    ? `${(item.price * item.quantity).toLocaleString()} ៛`
+                                    : `$${(Number(item.price) * item.quantity).toFixed(2)}`}
+                                </p>
+                              )}
+                            </div>
+                            <button onClick={() => removeItem(item.lineId)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center cursor-pointer"><X size={14} /></button>
                           </div>
-                          <button onClick={() => removeItem(item.lineId)} className="text-slate-300 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 w-8 h-8 rounded-lg transition-all flex items-center justify-center cursor-pointer"><X size={14} /></button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
