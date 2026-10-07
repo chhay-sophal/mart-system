@@ -6,7 +6,7 @@ declare global {
       /** Set by requireAccessToken: the back-office (IMS) user making this request. */
       user?: {
         id: string;
-        email: string;
+        email: string | null;
         isSuperAdmin: boolean;
       };
       /** Set by requireTerminal: the paired POS terminal presenting a device credential. */

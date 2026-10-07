@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { UserRole } from "@mart-system/shared-types";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../prisma";
@@ -9,7 +10,7 @@ import type { z } from "zod";
 type CreateStaffInput = z.infer<typeof createStaffSchema>;
 type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 
-function toStaffView(row: { userId: string; role: UserRole; isActive: boolean; pinHash: string | null; user: { email: string; name: string } }) {
+function toStaffView(row: { userId: string; role: UserRole; isActive: boolean; pinHash: string | null; user: { email: string | null; name: string } }) {
   return {
     userId: row.userId,
     email: row.user.email,
@@ -50,7 +51,10 @@ async function assertPinAvailable(storeId: string, pin: string, excludeUserId?: 
 export async function createStaff(storeId: string, input: CreateStaffInput) {
   if (input.pin) await assertPinAvailable(storeId, input.pin);
 
-  const existingUser = await prisma.user.findUnique({ where: { email: input.email } });
+  // Only CASHIER may omit email (enforced by createStaffSchema). They never
+  // log into IMS, so nothing needs to find or reuse an existing account by
+  // email, and a random, never-used password is generated in its place.
+  const existingUser = input.email ? await prisma.user.findUnique({ where: { email: input.email } }) : null;
 
   if (existingUser) {
     const existingRole = await prisma.userStoreRole.findUnique({
@@ -70,12 +74,12 @@ export async function createStaff(storeId: string, input: CreateStaffInput) {
     return toStaffView(role);
   }
 
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = await hashPassword(input.password ?? randomUUID());
   const pinHash = input.pin ? await hashPin(input.pin) : null;
 
   const role = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
-      data: { email: input.email, name: input.name, passwordHash },
+      data: { email: input.email ?? null, name: input.name, passwordHash },
     });
     return tx.userStoreRole.create({
       data: { userId: user.id, storeId, role: input.role, pinHash },

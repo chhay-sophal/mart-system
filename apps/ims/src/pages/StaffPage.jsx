@@ -11,17 +11,6 @@ const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
 
 const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
-// A cashier only ever logs in with a PIN at the till, never an email/password
-// in IMS -- but User.email/passwordHash are required, unique columns, so
-// something has to go there. These are never shown to anyone and never need
-// to be typed; if the cashier is later promoted to a role that does use IMS,
-// a real email/password can be set from the edit form.
-function randomCashierEmail(name) {
-  const slug = (name || 'cashier').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'cashier';
-  return `${slug}-${crypto.randomUUID().slice(0, 8)}@pos.local`;
-}
-const randomPassword = () => crypto.randomUUID() + crypto.randomUUID();
-
 export default function StaffPage() {
   const { storeId } = useOutletContext();
   const [error, setError] = useState('');
@@ -53,8 +42,10 @@ export default function StaffPage() {
     try {
       await apiClient.post(`/api/stores/${storeId}/staff`, {
         ...createForm,
-        email: isCashier ? randomCashierEmail(createForm.name) : createForm.email,
-        password: isCashier ? randomPassword() : createForm.password,
+        // A cashier only ever logs in with a PIN at the till, never an
+        // email/password in IMS -- the backend generates a placeholder.
+        email: isCashier ? undefined : createForm.email,
+        password: isCashier ? undefined : createForm.password,
         pin: createForm.pin || undefined,
       });
       setShowCreate(false);
@@ -88,7 +79,7 @@ export default function StaffPage() {
   }
 
   function openEdit(row) {
-    setEditForm({ name: row.name, email: row.email, role: row.role, password: '', pin: '' });
+    setEditForm({ name: row.name, email: row.email ?? '', role: row.role, password: '', pin: '' });
     setShowEditPassword(false);
     setEditing(row);
   }
@@ -98,8 +89,10 @@ export default function StaffPage() {
     try {
       await apiClient.patch(`/api/stores/${storeId}/staff/${editing.userId}`, {
         name: editForm.name,
-        email: editForm.email,
         role: editForm.role,
+        // A cashier may have no email on file yet; leave it alone unless the
+        // admin actually typed one (e.g. to set one up ahead of a promotion).
+        ...(editForm.email ? { email: editForm.email } : {}),
         ...(editForm.password ? { password: editForm.password } : {}),
         ...(editForm.pin ? { pin: editForm.pin } : {}),
       });
@@ -165,7 +158,7 @@ export default function StaffPage() {
               staff.map((row) => (
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.role}</td>
                   {/* <td className="px-4 py-2">
                     <select

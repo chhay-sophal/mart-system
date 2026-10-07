@@ -18,7 +18,7 @@ export interface TokenPair {
   refreshToken: string;
 }
 
-async function issueTokenPair(user: { id: string; email: string; isSuperAdmin: boolean }): Promise<TokenPair> {
+async function issueTokenPair(user: { id: string; email: string | null; isSuperAdmin: boolean }): Promise<TokenPair> {
   const accessToken = signAccessToken({ sub: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
 
   const refreshRow = await prisma.refreshToken.create({

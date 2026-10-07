@@ -8,7 +8,7 @@ export type TokenType = "access" | "refresh" | "cashier-session";
 export interface AccessTokenPayload {
   typ: "access";
   sub: string;
-  email: string;
+  email: string | null;
   isSuperAdmin: boolean;
 }
 

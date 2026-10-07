@@ -36,6 +36,35 @@ describe("staff management", () => {
     expect(list.body.map((s: { email: string }) => s.email)).toContain("cashier1@test.local");
   });
 
+  it("creates a cashier with no email or password, generating a placeholder account", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/staff`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "No Email Cashier", role: "CASHIER", pin: "4321" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ email: null, name: "No Email Cashier", role: "CASHIER", hasPinSet: true });
+
+    const user = await prisma.user.findUnique({ where: { id: res.body.userId } });
+    expect(user?.email).toBeNull();
+    expect(user?.passwordHash).toBeTruthy();
+  });
+
+  it("rejects creating an INVENTORY or ADMIN staff member with no email or password", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/staff`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ name: "No Email Inventory", role: "INVENTORY" });
+
+    expect(res.status).toBe(400);
+  });
+
   it("attaches a new role to an existing user instead of duplicating the account", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
