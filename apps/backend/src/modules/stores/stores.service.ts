@@ -3,15 +3,24 @@ import { notFound } from "../../lib/httpError";
 import type { updateStoreSchema } from "./stores.schema";
 import type { z } from "zod";
 
+// Each store comes back with `role`: this user's role there, so the IMS
+// frontend can gate role-specific UI (e.g. the Settings nav item) without a
+// separate request. A super admin has no UserStoreRole row anywhere (their
+// access isn't store-scoped) but acts as ADMIN everywhere, so that's what's
+// reported for every store.
 export async function listStoresForUser(user: { id: string; isSuperAdmin: boolean }) {
   if (user.isSuperAdmin) {
-    return prisma.store.findMany({ orderBy: { name: "asc" } });
+    const stores = await prisma.store.findMany({ orderBy: { name: "asc" } });
+    return stores.map((store) => ({ ...store, role: "ADMIN" as const }));
   }
 
-  return prisma.store.findMany({
+  const stores = await prisma.store.findMany({
     where: { userRoles: { some: { userId: user.id, isActive: true } } },
+    include: { userRoles: { where: { userId: user.id, isActive: true }, select: { role: true } } },
     orderBy: { name: "asc" },
   });
+
+  return stores.map(({ userRoles, ...store }) => ({ ...store, role: userRoles[0]?.role ?? null }));
 }
 
 export async function getStoreOrThrow(storeId: string) {

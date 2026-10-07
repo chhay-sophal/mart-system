@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { to: '/sales', label: 'Sales' },
   { to: '/reports', label: 'Reports' },
   { to: '/reconciliation', label: 'Reconciliation' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/settings', label: 'Settings', adminOnly: true },
 ];
 
 function navLinkClass({ isActive }) {
@@ -29,6 +29,8 @@ export default function AppShell() {
   const headerRef = useRef(null);
   const { hidden, show } = useHeadroom(headerRef);
   const [theme, setTheme] = useTheme();
+  const isAdmin = stores.find((s) => s.id === currentStoreId)?.role === 'ADMIN';
+  const navItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -44,7 +46,7 @@ export default function AppShell() {
           <div className="flex items-center gap-6">
             <span className="font-semibold text-[var(--text-h)]">Mart System IMS</span>
             <nav className="flex gap-1">
-              {NAV_ITEMS.map((item) => (
+              {navItems.map((item) => (
                 <NavLink key={item.to} to={item.to} className={navLinkClass}>
                   {item.label}
                 </NavLink>

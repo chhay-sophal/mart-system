@@ -13,7 +13,8 @@ import ReportsPage from './pages/ReportsPage.jsx';
 import SalesHistoryPage from './pages/SalesHistoryPage.jsx';
 
 export default function App() {
-  const { status } = useAuth();
+  const { status, stores, currentStoreId } = useAuth();
+  const isAdmin = stores.find((s) => s.id === currentStoreId)?.role === 'ADMIN';
 
   if (status === 'loading') {
     return (
@@ -40,7 +41,7 @@ export default function App() {
         <Route path="/transfers" element={<TransfersPage />} />
         <Route path="/sales" element={<SalesHistoryPage />} />
         <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={isAdmin ? <SettingsPage /> : <Navigate to="/products" replace />} />
         <Route path="*" element={<Navigate to="/products" replace />} />
       </Route>
     </Routes>
