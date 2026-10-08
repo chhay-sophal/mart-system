@@ -9,7 +9,11 @@ export const EMPTY_FILTERS = {
   currency: 'all', // all | USD | KHR
   priceMin: '',
   priceMax: '',
+  costPriceMin: '',
+  costPriceMax: '',
   stock: 'all', // all | low | out | negative | in
+  supplier: '',
+  supplierMode: 'any', // any | missing
   status: 'active', // active | archived | all
   createdFrom: '', // 'YYYY-MM-DD', local, inclusive
   createdTo: '',   // 'YYYY-MM-DD', local, inclusive
@@ -82,9 +86,13 @@ export function filterProducts(products, f) {
   const barcode = norm(f.barcode);
   const min = f.priceMin === '' ? null : Number(f.priceMin);
   const max = f.priceMax === '' ? null : Number(f.priceMax);
+  const costMin = f.costPriceMin === '' ? null : Number(f.costPriceMin);
+  const costMax = f.costPriceMax === '' ? null : Number(f.costPriceMax);
+  const supplier = norm(f.supplier);
   return products.filter((p) => {
     const pName = norm(p.name);
     const pBarcode = norm(p.barcode);
+    const pSupplier = norm(p.supplierName);
     if (search && !pName.includes(search) && !pBarcode.includes(search)) return false;
     if (name && !pName.includes(name)) return false;
     if (f.barcodeMode === 'missing' ? pBarcode !== '' : barcode && !pBarcode.includes(barcode)) return false;
@@ -92,6 +100,10 @@ export function filterProducts(products, f) {
     const price = effectivePrice(p);
     if (min !== null && !(price >= min)) return false;
     if (max !== null && !(price <= max)) return false;
+    const costPrice = Number(p.costPrice);
+    if (costMin !== null && !(costPrice >= costMin)) return false;
+    if (costMax !== null && !(costPrice <= costMax)) return false;
+    if (f.supplierMode === 'missing' ? pSupplier !== '' : supplier && !pSupplier.includes(supplier)) return false;
     if (!matchesStatus(p, f.status)) return false;
     if (!inDateRange(p.createdAt, f.createdFrom, f.createdTo)) return false;
     if (!inDateRange(p.updatedAt, f.updatedFrom, f.updatedTo)) return false;
@@ -105,7 +117,11 @@ const COMPARE = {
   name: (a, b) => a.name.localeCompare(b.name),
   barcode: (a, b) => (a.barcode ?? '').localeCompare(b.barcode ?? ''),
   price: (a, b) => a.currency.localeCompare(b.currency) * -1 || effectivePrice(a) - effectivePrice(b),
+  // Same per-currency ordering as price above -- cost price is stored in the
+  // product's own currency, and $1 vs 4,100 ៛ can't be ranked without a rate.
+  costPrice: (a, b) => a.currency.localeCompare(b.currency) * -1 || Number(a.costPrice) - Number(b.costPrice),
   stock: (a, b) => a.stock - b.stock,
+  supplier: (a, b) => (a.supplierName ?? '').localeCompare(b.supplierName ?? ''),
   status: (a, b) => Number(a.isDeleted) - Number(b.isDeleted),
   createdAt: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
   updatedAt: (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt),

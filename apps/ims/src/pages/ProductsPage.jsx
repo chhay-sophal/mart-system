@@ -339,7 +339,16 @@ export default function ProductsPage() {
                   )}
                 </div>
               </FilterableHeader>
-              <th className="px-4 py-2 font-medium">Cost price</th>
+              <FilterableHeader
+                col="costPrice" label="Cost price" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'costPrice'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.costPriceMin !== EMPTY_FILTERS.costPriceMin || filters.costPriceMax !== EMPTY_FILTERS.costPriceMax}
+              >
+                <div className="flex gap-1">
+                  <input type="number" value={filters.costPriceMin} onChange={(e) => setFilter('costPriceMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.costPriceMax} onChange={(e) => setFilter('costPriceMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                </div>
+              </FilterableHeader>
               <FilterableHeader
                 col="price" label="Price" sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'price'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
@@ -372,7 +381,21 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </FilterableHeader>
-              <th className="px-4 py-2 font-medium">Supplier</th>
+              <FilterableHeader
+                col="supplier" label="Supplier" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'supplier'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.supplierMode !== EMPTY_FILTERS.supplierMode || filters.supplier !== EMPTY_FILTERS.supplier}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <select value={filters.supplierMode} onChange={(e) => setFilter('supplierMode', e.target.value)} className={filterInput}>
+                    <option value="any">Any</option>
+                    <option value="missing">No supplier</option>
+                  </select>
+                  {filters.supplierMode === 'any' && (
+                    <input value={filters.supplier} onChange={(e) => setFilter('supplier', e.target.value)} placeholder="Contains" className={filterInput} />
+                  )}
+                </div>
+              </FilterableHeader>
               <FilterableHeader
                 col="status" label="Status" sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
