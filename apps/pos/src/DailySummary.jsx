@@ -30,6 +30,10 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
   const printRef = useRef(null);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
+  // Print Options: whether the printed report includes the Products Sold
+  // list, or just the summary/payment breakdown -- the on-screen view always
+  // shows it regardless, this only affects what gets printed.
+  const [includeItemsInPrint, setIncludeItemsInPrint] = useState(true);
 
   const s = (t[currentLocale] || {}).dailySummary || {};
 
@@ -117,6 +121,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
           fmt,
           methodLabel,
           s,
+          includeProducts: includeItemsInPrint,
         }),
         printer
       );
@@ -144,6 +149,15 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
             {s.subtitle || 'End of Day Report'}
           </p>
         </div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeItemsInPrint}
+            onChange={(e) => setIncludeItemsInPrint(e.target.checked)}
+            className="accent-indigo-600"
+          />
+          {s.includeItemsInPrint || 'Include items sold'}
+        </label>
         <button
           onClick={handlePrintClick}
           className="px-4 py-2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold flex items-center gap-1.5 hover:bg-slate-700 dark:hover:bg-slate-100 transition-colors cursor-pointer"
@@ -332,25 +346,29 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               </>
             )}
 
-            <hr className="border-dashed border-black my-1" />
-            <p className="font-bold uppercase">{s.productsSold || 'Products Sold'}</p>
-            <div className="flex gap-1 font-bold border-b border-black pb-0.5 mb-0.5">
-              <span className="flex-1">{s.topProducts || 'Product'}</span>
-              <span className="w-6 text-right shrink-0">{s.colQty || 'Qty'}</span>
-              <span className="w-12 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
-              <span className="w-12 text-right shrink-0">{s.colProfit || 'Profit'}</span>
-            </div>
-            {/* all_products: every product sold that day, not just the top 5
-                shown on screen above -- falls back to top_products against an
-                older paired backend that hasn't picked up all_products yet. */}
-            {(summary.all_products ?? summary.top_products ?? []).map((p, i) => (
-              <div key={i} className="flex gap-1">
-                <span className="flex-1 truncate">{p.name}</span>
-                <span className="w-6 text-right shrink-0">{p.total_qty}</span>
-                <span className="w-12 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
-                <span className="w-12 text-right shrink-0">{fmt(p.profit, p.profit_khr)}</span>
-              </div>
-            ))}
+            {includeItemsInPrint && (
+              <>
+                <hr className="border-dashed border-black my-1" />
+                <p className="font-bold uppercase">{s.productsSold || 'Products Sold'}</p>
+                <div className="flex gap-1 font-bold border-b border-black pb-0.5 mb-0.5">
+                  <span className="flex-1">{s.topProducts || 'Product'}</span>
+                  <span className="w-6 text-right shrink-0">{s.colQty || 'Qty'}</span>
+                  <span className="w-12 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
+                  <span className="w-12 text-right shrink-0">{s.colProfit || 'Profit'}</span>
+                </div>
+                {/* all_products: every product sold that day, not just the top 5
+                    shown on screen above -- falls back to top_products against an
+                    older paired backend that hasn't picked up all_products yet. */}
+                {(summary.all_products ?? summary.top_products ?? []).map((p, i) => (
+                  <div key={i} className="flex gap-1">
+                    <span className="flex-1 truncate">{p.name}</span>
+                    <span className="w-6 text-right shrink-0">{p.total_qty}</span>
+                    <span className="w-12 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
+                    <span className="w-12 text-right shrink-0">{fmt(p.profit, p.profit_khr)}</span>
+                  </div>
+                ))}
+              </>
+            )}
 
             <hr className="border-dashed border-black my-1" />
             <p className="text-center text-[9px]">{new Date().toLocaleString()}</p>

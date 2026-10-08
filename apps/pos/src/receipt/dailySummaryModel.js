@@ -10,8 +10,9 @@
  * @param {(n: number, khr?: number) => string} fmt
  * @param {(method: string) => string} methodLabel
  * @param {object} s - the dailySummary locale strings
+ * @param {boolean} [includeProducts] - false skips the Products Sold section entirely (just the summary/payment breakdown)
  */
-export function buildDailySummary({ summary, shop, title, dateLabel, fmt, methodLabel, s }) {
+export function buildDailySummary({ summary, shop, title, dateLabel, fmt, methodLabel, s, includeProducts = true }) {
   const blocks = [];
   const add = (block) => blocks.push(block);
 
@@ -39,18 +40,20 @@ export function buildDailySummary({ summary, shop, title, dateLabel, fmt, method
     });
   }
 
-  add({ type: 'rule' });
-  add({ type: 'text', text: s.productsSold || 'Products Sold', bold: true });
-  (summary.all_products ?? summary.top_products ?? []).forEach((p, i) => {
-    add({
-      type: 'item',
-      no: `${i + 1}.`,
-      name: p.name,
-      detail: `${p.total_qty} ${s.colQty || 'Qty'}`,
-      amount: fmt(p.revenue, p.revenue_khr),
-      note: `${s.colProfit || 'Profit'}: ${fmt(p.profit, p.profit_khr)}`,
+  if (includeProducts) {
+    add({ type: 'rule' });
+    add({ type: 'text', text: s.productsSold || 'Products Sold', bold: true });
+    (summary.all_products ?? summary.top_products ?? []).forEach((p, i) => {
+      add({
+        type: 'item',
+        no: `${i + 1}.`,
+        name: p.name,
+        detail: `${p.total_qty} ${s.colQty || 'Qty'}`,
+        amount: fmt(p.revenue, p.revenue_khr),
+        note: `${s.colProfit || 'Profit'}: ${fmt(p.profit, p.profit_khr)}`,
+      });
     });
-  });
+  }
 
   add({ type: 'rule' });
   add({ type: 'text', text: new Date().toLocaleString(), align: 'center', size: 'sm' });
