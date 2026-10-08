@@ -90,11 +90,13 @@ async function main() {
         barcode: item.barcode,
         name: item.name,
         defaultPriceMinor: toMinorUnits(item.price, item.currency),
+        defaultCostPriceMinor: toMinorUnits(item.costPrice, item.currency),
         currency: item.currency,
       },
       update: {
         name: item.name,
         defaultPriceMinor: toMinorUnits(item.price, item.currency),
+        defaultCostPriceMinor: toMinorUnits(item.costPrice, item.currency),
         currency: item.currency,
       },
     });

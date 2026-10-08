@@ -6,6 +6,7 @@ export interface Product {
   name: string;
   category: string | null;
   defaultPrice: number;
+  defaultCostPrice: number;
   currency: Currency;
   isDeleted: boolean;
   createdAt: string;

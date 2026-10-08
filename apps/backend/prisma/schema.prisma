@@ -150,16 +150,20 @@ model Terminal {
 }
 
 model Product {
-  id                String   @id @default(cuid())
-  barcode           String?  @unique
-  name              String
-  category          String?
-  defaultPriceMinor Int
-  currency          Currency @default(USD)
-  supplierId        String?
-  isDeleted         Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  barcode               String?  @unique
+  name                  String
+  category              String?
+  defaultPriceMinor     Int
+  // Mirrors StoreProduct.costPriceMinor the same way defaultPriceMinor mirrors
+  // priceOverrideMinor: the catalog-wide starting cost, which a store can
+  // still override on its own StoreProduct row.
+  defaultCostPriceMinor Int      @default(0)
+  currency              Currency @default(USD)
+  supplierId            String?
+  isDeleted             Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   supplier       Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   storeProducts  StoreProduct[]
