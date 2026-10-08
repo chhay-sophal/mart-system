@@ -339,6 +339,7 @@ export default function ProductsPage() {
                   )}
                 </div>
               </FilterableHeader>
+              <th className="px-4 py-2 font-medium">Cost price</th>
               <FilterableHeader
                 col="price" label="Price" sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'price'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
@@ -421,13 +422,13 @@ export default function ProductsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={10}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={11}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={10}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={11}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
@@ -445,6 +446,7 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-4 py-2">{p.name}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.barcode ?? '—'}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{fmtPrice(p.costPrice, p.currency)}</td>
                   <td className="px-4 py-2">
                     {fmtPrice(effectivePrice(p), p.currency)}
                     {p.priceOverride != null && (
@@ -544,18 +546,6 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Price</label>
-                <input
-                  required
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-                />
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Currency</label>
                 <select
                   value={form.currency}
@@ -574,6 +564,18 @@ export default function ProductsPage() {
                   min="0"
                   value={form.costPrice}
                   onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Price</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
                   className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
