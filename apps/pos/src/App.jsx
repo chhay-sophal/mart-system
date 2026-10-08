@@ -31,6 +31,44 @@ import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
+// A scanner (or someone typing) emits the physical key regardless of layout,
+// but the OS still maps it through whatever input language is active --
+// e.g. Khmer keyboard layouts remap the whole key row (letters and symbols,
+// not just digits) to Khmer script. Barcodes (Code 128/39, not just numeric
+// EAN/UPC ones) can contain letters and punctuation, so reversing individual
+// mapped characters after the fact isn't reliable in general. Instead, read
+// KeyboardEvent.code -- the physical key pressed, independent of the active
+// layout/input language -- and map it through a fixed US-QWERTY table, the
+// same fix used for "barcode scanner garbled under a non-Latin layout" in
+// general, not just Khmer.
+const KEYCODE_CHARS = (() => {
+  const map = {};
+  for (let i = 0; i < 26; i++) {
+    const letter = String.fromCharCode(65 + i); // A-Z
+    map[`Key${letter}`] = [letter.toLowerCase(), letter];
+  }
+  const DIGIT_SHIFTED = [')', '!', '@', '#', '$', '%', '^', '&', '*', '('];
+  for (let i = 0; i <= 9; i++) {
+    map[`Digit${i}`] = [String(i), DIGIT_SHIFTED[i]];
+    // Some scanners are configured to emit numpad keycodes instead of the
+    // top digit row -- always a plain digit, no shifted/symbol variant.
+    map[`Numpad${i}`] = [String(i), String(i)];
+  }
+  Object.assign(map, {
+    Minus: ['-', '_'], Equal: ['=', '+'],
+    BracketLeft: ['[', '{'], BracketRight: [']', '}'],
+    Semicolon: [';', ':'], Quote: ["'", '"'], Backslash: ['\\', '|'],
+    Comma: [',', '<'], Period: ['.', '>'], Slash: ['/', '?'],
+    Backquote: ['`', '~'], Space: [' ', ' '],
+  });
+  return map;
+})();
+/** The ASCII character `e.code` would produce on a plain US keyboard, or null for a key this map doesn't cover (arrows, Enter, Backspace, modifiers, ...). */
+function physicalKeyChar(e) {
+  const pair = KEYCODE_CHARS[e.code];
+  return pair ? pair[e.shiftKey ? 1 : 0] : null;
+}
+
 export default function App() {
   const [cart, setCart] = useState([]);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -227,9 +265,8 @@ export default function App() {
         return;
       }
 
-      if (e.key.length === 1) {
-        keyBuffer += e.key;
-      }
+      const ch = physicalKeyChar(e);
+      if (ch !== null) keyBuffer += ch;
     };
 
     const executeDirectBarcodeLookup = async (scannedBarcode) => {
@@ -468,6 +505,19 @@ export default function App() {
       })
       .catch(err => console.error("Could not sync app settings configuration", err));
   }, [backendStatus, view, client]);
+
+  // Same physical-key interception as the global scan listener above, so a
+  // scan that lands on this field (it's open and focused) isn't garbled by
+  // an active non-Latin input language either -- preventDefault blocks the
+  // browser's own (layout-mapped) character insertion for any key this
+  // covers; anything else (Backspace, arrows, paste, Enter) passes through
+  // untouched.
+  const handleManualBarcodeKeyDown = (e) => {
+    const ch = physicalKeyChar(e);
+    if (ch === null) return;
+    e.preventDefault();
+    setBarcodeInput((prev) => prev + ch);
+  };
 
   const handleBarcodeSubmit = async (e) => {
     e.preventDefault();
@@ -1035,6 +1085,7 @@ export default function App() {
                   type="text"
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
+                  onKeyDown={handleManualBarcodeKeyDown}
                   placeholder={t[locale].placeholderManual}
                   ref={manualInputRef}
                   className="flex-1 h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl text-sm focus:outline-hidden focus:border-indigo-500 focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30"
