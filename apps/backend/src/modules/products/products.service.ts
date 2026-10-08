@@ -3,6 +3,7 @@ import { prisma } from "../../prisma";
 import { notFound } from "../../lib/httpError";
 import { fromMinorUnits, toMinorUnits } from "../../lib/money";
 import { logger } from "../../lib/logger";
+import { resolveAccessibleStoreIds, type ReportUser } from "../reports/reports.service";
 import type { BulkImportRow } from "./products.schema";
 import type { createProductSchema, updateProductSchema } from "./products.schema";
 import type { z } from "zod";
@@ -11,12 +12,16 @@ import type { Prisma } from "@prisma/client";
 type CreateProductInput = z.infer<typeof createProductSchema>;
 type UpdateProductInput = z.infer<typeof updateProductSchema>;
 
-type StoreProductWithProduct = Prisma.StoreProductGetPayload<{ include: { product: { include: { supplier: true } } } }>;
+type StoreProductWithProduct = Prisma.StoreProductGetPayload<{
+  include: { product: { include: { supplier: true } }; store: { select: { name: true } } };
+}>;
 
 function toProductView(row: StoreProductWithProduct) {
   return {
     id: row.product.id,
     storeProductId: row.id,
+    storeId: row.storeId,
+    storeName: row.store.name,
     barcode: row.product.barcode,
     name: row.product.name,
     category: row.product.category,
@@ -37,15 +42,25 @@ function toProductView(row: StoreProductWithProduct) {
   };
 }
 
-const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true } } } as const;
+const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true } }, store: { select: { name: true } } } as const;
 
-export async function listProducts(storeId: string, includeDeleted = false) {
+async function listProductsByStoreIds(storeIds: string[], includeDeleted: boolean) {
   const rows = await prisma.storeProduct.findMany({
-    where: { storeId, product: includeDeleted ? {} : { isDeleted: false } },
+    where: { storeId: { in: storeIds }, product: includeDeleted ? {} : { isDeleted: false } },
     include: STORE_PRODUCT_INCLUDE,
     orderBy: { product: { name: "asc" } },
   });
   return rows.map(toProductView);
+}
+
+export async function listProducts(storeId: string, includeDeleted = false) {
+  return listProductsByStoreIds([storeId], includeDeleted);
+}
+
+/** IMS Products page "All stores" view -- omitted storeId means every store the user can see. */
+export async function listProductsForUser(user: ReportUser, opts: { storeId?: string; includeDeleted?: boolean }) {
+  const storeIds = await resolveAccessibleStoreIds(user, opts.storeId);
+  return listProductsByStoreIds(storeIds, opts.includeDeleted ?? false);
 }
 
 export async function listLowStock(storeId: string) {

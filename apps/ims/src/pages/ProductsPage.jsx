@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useOutletContext } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { EMPTY_FILTERS, STATUS_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
@@ -61,8 +62,13 @@ const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—')
 
 export default function ProductsPage() {
   const { storeId } = useOutletContext();
+  const { stores } = useAuth();
   const confirm = useConfirm();
   const [error, setError] = useState(''); // save/delete errors
+  // This page's own store filter -- independent of the header's global store
+  // switcher. '' means "All stores"; null means "not initialized yet" (stores
+  // haven't loaded), which keeps the products query disabled below.
+  const [viewStoreId, setViewStoreId] = useState(null);
   // Search, per-column filters and sort (issue #8), applied in the browser.
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
@@ -74,27 +80,43 @@ export default function ProductsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
   const [viewingSupplierFor, setViewingSupplierFor] = useState(null); // the clicked product, or null
-  // Bulk delete: ids persist across filter/sort/page changes (so a multi-page
-  // selection isn't silently dropped), but reset when switching stores.
+  // Bulk delete: storeProductIds (not product ids -- the same product can
+  // appear from more than one store in the "All stores" view) persist across
+  // filter/sort/page changes (so a multi-page selection isn't silently
+  // dropped), but reset when the view's store filter changes.
   const [selected, setSelected] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   // The status column's own filter drives this -- anything but the default
   // "active" needs archived rows included in what the backend returns at all.
   const includeDeleted = filters.status !== 'active';
 
+  // Seeds the view filter from the header's current store the first time it's
+  // available, but never again -- once the user's picked a store (or "All
+  // stores") here, switching the header's store elsewhere shouldn't silently
+  // override this page's own choice.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (storeId && viewStoreId === null) setViewStoreId(storeId);
+  }, [storeId, viewStoreId]);
+
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
   const queryClient = useQueryClient();
   const productsQuery = useQuery({
-    queryKey: queryKeys.products(storeId, includeDeleted),
+    queryKey: queryKeys.products(viewStoreId, includeDeleted),
     queryFn: async () => {
-      const data = await apiClient.get(`/api/stores/${storeId}/products${includeDeleted ? '?includeDeleted=true' : ''}`);
+      const url = viewStoreId ? `/api/stores/${viewStoreId}/products` : '/api/products';
+      const data = await apiClient.get(`${url}${includeDeleted ? '?includeDeleted=true' : ''}`);
       return Array.isArray(data) ? data : [];
     },
-    enabled: Boolean(storeId),
+    enabled: viewStoreId != null,
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const loading = productsQuery.isPending;
+  // Which store "Add product" targets: the store currently being viewed, or
+  // (viewing "All stores") the header's active store -- there's no single
+  // store to default a new product into otherwise.
+  const createStoreId = viewStoreId || storeId;
 
   // Also backs the read-only supplier-details popup (click a product's
   // supplier name) -- reuses this instead of a separate fetch per click.
@@ -120,8 +142,10 @@ export default function ProductsPage() {
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   // Archived rows aren't selectable (their own checkbox is disabled), so
-  // "select all" shouldn't try to select them either.
-  const pageIds = pageRows.filter((p) => !p.isDeleted).map((p) => p.id);
+  // "select all" shouldn't try to select them either. Keyed by storeProductId,
+  // not product id -- the same product can appear once per store it's
+  // stocked at in the "All stores" view.
+  const pageIds = pageRows.filter((p) => !p.isDeleted).map((p) => p.storeProductId);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = !allPageSelected && pageIds.some((id) => selected.has(id));
   const filterCount = activeFilterCount(filters);
@@ -129,12 +153,12 @@ export default function ProductsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [filters, sort, storeId]);
+  }, [filters, sort, viewStoreId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(new Set());
-  }, [storeId]);
+  }, [viewStoreId]);
 
   // "/" jumps to the search box (unless already typing somewhere).
   useEffect(() => {
@@ -151,13 +175,14 @@ export default function ProductsPage() {
 
   const toggleSort = (col) =>
     setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
-  // After a save: refresh this store's product lists (full and low-stock),
-  // and reports, whose negative-stock list depends on stock. Prefix match (no
-  // includeDeleted in the key here) invalidates both the plain and the
-  // show-archived variant, since either one can change a save.
+  // After a save: refresh every product list (full, low-stock, every store
+  // and the "All stores" view alike) and reports, whose negative-stock list
+  // depends on stock. Prefix match (no storeId/includeDeleted in the key
+  // here) invalidates all of them, since a save made from one store's or
+  // "All stores"' view should be reflected in every other view too.
   const load = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['products', storeId] }),
+      queryClient.invalidateQueries({ queryKey: ['products'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
     ]);
 
@@ -176,9 +201,11 @@ export default function ProductsPage() {
     const body = toRequestBody(form);
     try {
       if (editing === 'new') {
-        await apiClient.post(`/api/stores/${storeId}/products`, body);
+        await apiClient.post(`/api/stores/${createStoreId}/products`, body);
       } else {
-        await apiClient.put(`/api/stores/${storeId}/products/${editing.id}`, body);
+        // The row's own store, not createStoreId/the view filter -- editing
+        // always targets wherever this particular product actually lives.
+        await apiClient.put(`/api/stores/${editing.storeId}/products/${editing.id}`, body);
       }
       setEditing(null);
       await load();
@@ -190,7 +217,7 @@ export default function ProductsPage() {
   async function handleArchive(product) {
     if (!(await confirm(`Archive "${product.name}"? It'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
     try {
-      await apiClient.delete(`/api/stores/${storeId}/products/${product.id}`);
+      await apiClient.delete(`/api/stores/${product.storeId}/products/${product.id}`);
       await load();
     } catch {
       setError('Failed to archive product.');
@@ -199,7 +226,7 @@ export default function ProductsPage() {
 
   async function handleRestore(product) {
     try {
-      await apiClient.post(`/api/stores/${storeId}/products/${product.id}/restore`);
+      await apiClient.post(`/api/stores/${product.storeId}/products/${product.id}/restore`);
       await load();
     } catch {
       setError('Failed to restore product.');
@@ -230,7 +257,18 @@ export default function ProductsPage() {
     if (!(await confirm(`Archive ${selected.size} selected product${selected.size === 1 ? '' : 's'}? They'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
     setBulkDeleting(true);
     try {
-      await apiClient.post(`/api/stores/${storeId}/products/bulk-delete`, { productIds: Array.from(selected) });
+      // Selection is by storeProductId, and in the "All stores" view can span
+      // several stores -- the bulk-delete endpoint is scoped to one store, so
+      // group into one request per store rather than assuming they're all here.
+      const byStore = new Map();
+      for (const p of products) {
+        if (!selected.has(p.storeProductId)) continue;
+        if (!byStore.has(p.storeId)) byStore.set(p.storeId, []);
+        byStore.get(p.storeId).push(p.id);
+      }
+      await Promise.all(
+        [...byStore.entries()].map(([sid, productIds]) => apiClient.post(`/api/stores/${sid}/products/bulk-delete`, { productIds }))
+      );
       setSelected(new Set());
       await load();
     } catch {
@@ -261,6 +299,18 @@ export default function ProductsPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
+        <select
+          value={viewStoreId ?? ''}
+          onChange={(e) => setViewStoreId(e.target.value)}
+          className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+        >
+          <option value="">All stores</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
         <input
           ref={searchRef}
           type="search"
@@ -324,6 +374,7 @@ export default function ProductsPage() {
                   autoFocus
                 />
               </FilterableHeader>
+              {viewStoreId === '' && <th className="px-4 py-2 font-medium">Store</th>}
               <FilterableHeader
                 col="barcode" label="Barcode" sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'barcode'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
@@ -445,29 +496,30 @@ export default function ProductsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={11}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
                   Loading…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={11}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
                   {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
                 </td>
               </tr>
             ) : (
               pageRows.map((p) => (
-                <tr key={p.id} className={`border-t border-[var(--border)] ${selected.has(p.id) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}>
+                <tr key={p.storeProductId} className={`border-t border-[var(--border)] ${selected.has(p.storeProductId) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}>
                   <td className="px-4 py-2">
                     <input
                       type="checkbox"
-                      checked={selected.has(p.id)}
-                      onChange={() => toggleSelected(p.id)}
+                      checked={selected.has(p.storeProductId)}
+                      onChange={() => toggleSelected(p.storeProductId)}
                       disabled={p.isDeleted}
                       className="accent-indigo-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     />
                   </td>
                   <td className="px-4 py-2">{p.name}</td>
+                  {viewStoreId === '' && <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.storeName}</td>}
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.barcode ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{fmtPrice(p.costPrice, p.currency)}</td>
                   <td className="px-4 py-2">
@@ -538,7 +590,14 @@ export default function ProductsPage() {
       )}
 
       {editing && (
-        <Modal title={editing === 'new' ? 'Add product' : 'Edit product'} onClose={() => setEditing(null)}>
+        <Modal
+          title={
+            editing === 'new'
+              ? `Add product${stores.find((s) => s.id === createStoreId) ? ` — ${stores.find((s) => s.id === createStoreId).name}` : ''}`
+              : `Edit product${editing.storeName ? ` — ${editing.storeName}` : ''}`
+          }
+          onClose={() => setEditing(null)}
+        >
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>

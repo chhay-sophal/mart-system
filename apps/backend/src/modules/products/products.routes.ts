@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { requireAccessToken } from "../../middleware/requireAccessToken";
 import { requireRole } from "../../middleware/requireRole";
@@ -12,6 +13,7 @@ import {
   getProduct,
   listLowStock,
   listProducts,
+  listProductsForUser,
   restoreProduct,
   updateProduct,
 } from "./products.service";
@@ -20,6 +22,24 @@ export const productsRouter: Router = Router();
 
 const ANY_ROLE = ["CASHIER", "INVENTORY", "ADMIN"] as const;
 const MANAGE_ROLES = ["INVENTORY", "ADMIN"] as const;
+
+const listAllQuerySchema = z.object({
+  // Omitted = every store the user can see ("All stores").
+  storeId: z.string().min(1).optional(),
+  includeDeleted: z.coerce.boolean().optional(),
+});
+
+// IMS Products page's "All stores" view. No requireRole -- like reports and
+// orders, a list can span several stores, so access is checked per store in
+// the service (resolveAccessibleStoreIds).
+productsRouter.get(
+  "/products",
+  requireAccessToken,
+  asyncHandler(async (req, res) => {
+    const { storeId, includeDeleted } = listAllQuerySchema.parse(req.query);
+    res.json(await listProductsForUser(req.user!, { storeId, includeDeleted }));
+  })
+);
 
 productsRouter.get(
   "/stores/:storeId/products",

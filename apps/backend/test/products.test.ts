@@ -394,3 +394,59 @@ describe("role gating", () => {
     expect(res.status).toBe(201);
   });
 });
+
+describe("GET /api/products (all stores)", () => {
+  it("lists products across every store the caller can see, each tagged with its store", async () => {
+    const { store, admin } = await seedFixtures();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    await prisma.userStoreRole.create({ data: { userId: admin.id, storeId: otherStore.id, role: "ADMIN" } });
+    await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await addProduct(otherStore.id, { name: "Gadget", price: 2.5, stock: 5 });
+    const token = await loginAsAdmin();
+
+    const res = await request(app).get("/api/products").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    const byName = new Map(res.body.map((p: { name: string; storeId: string; storeName: string }) => [p.name, p]));
+    expect(byName.get("Widget")).toMatchObject({ storeId: store.id, storeName: "Test Store" });
+    expect(byName.get("Gadget")).toMatchObject({ storeId: otherStore.id, storeName: "Other Store" });
+  });
+
+  it("narrows to one store when storeId is given, same as the per-store route", async () => {
+    const { store, admin } = await seedFixtures();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    await prisma.userStoreRole.create({ data: { userId: admin.id, storeId: otherStore.id, role: "ADMIN" } });
+    await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await addProduct(otherStore.id, { name: "Gadget", price: 2.5, stock: 5 });
+    const token = await loginAsAdmin();
+
+    const res = await request(app).get("/api/products").query({ storeId: store.id }).set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((p: { name: string }) => p.name)).toEqual(["Widget"]);
+  });
+
+  it("never includes a store the caller has no role at", async () => {
+    const { store } = await seedFixtures();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await addProduct(otherStore.id, { name: "Gadget", price: 2.5, stock: 5 });
+    const token = await loginAsAdmin();
+
+    const res = await request(app).get("/api/products").set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((p: { name: string }) => p.name)).toEqual(["Widget"]);
+  });
+
+  it("rejects an explicit storeId the caller has no role at", async () => {
+    await seedFixtures();
+    const otherStore = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    const token = await loginAsAdmin();
+
+    const res = await request(app).get("/api/products").query({ storeId: otherStore.id }).set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+});
