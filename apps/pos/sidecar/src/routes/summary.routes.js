@@ -1,22 +1,17 @@
 const express = require('express');
-const { query } = require('../db');
+const { query, toLocalSql } = require('../db');
 const { roundKhrToNote } = require('../money');
-const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
+const { parseRange } = require('../storeReports');
+const sync = require('../sync');
 
 const router = express.Router();
 
-// Paired and online: the whole store's day from the backend. Otherwise this
-// register's local sales, with `offline` set when the store-wide view was
-// expected but couldn't be fetched (see storeReports.js).
-router.get('/api/summary/daily', async (req, res) => {
+// The whole store's day, computed from this register's locally synced copy
+// of every terminal's orders (sync.js's background pull, same mirror Order
+// History reads) -- no live backend call on the request path.
+router.get('/api/summary/daily', (req, res) => {
   const range = parseRange(req.query);
   if (!range.from || !range.to) return res.status(400).json({ error: 'date_from and date_to required' });
-
-  const { config, data: remote } = await fetchStoreReport('/api/terminal/daily-summary', {
-    date_from: range.from.toISOString(),
-    date_to: range.to.toISOString(),
-  });
-  if (remote) return res.json({ ...remote, source: 'store', offline: false });
 
   const base = [toLocalSql(range.from), toLocalSql(range.to)];
 
@@ -81,8 +76,7 @@ router.get('/api/summary/daily', async (req, res) => {
     by_method: byMethod,
     top_products: topProducts,
     all_products: allProducts,
-    source: 'local',
-    offline: Boolean(config),
+    offline: sync.getStatus().offline,
   });
 });
 

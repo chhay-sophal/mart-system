@@ -240,6 +240,10 @@ model Order {
   status              OrderStatus   @default(COMPLETED)
   isDeleted           Boolean       @default(false)
   createdAt           DateTime
+  // Bumped on every update (e.g. a void, which only changes `status`) -- the
+  // delta cursor the POS sync pull filters on, so a void shows up in the next
+  // pull even though createdAt never changes.
+  updatedAt           DateTime      @updatedAt
   syncedAt            DateTime?
 
   store               Store                @relation(fields: [storeId], references: [id])
@@ -249,6 +253,7 @@ model Order {
   paymentTransactions PaymentTransaction[]
 
   @@index([storeId, createdAt])
+  @@index([storeId, updatedAt])
 }
 
 model OrderItem {

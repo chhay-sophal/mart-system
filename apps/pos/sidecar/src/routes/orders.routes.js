@@ -1,7 +1,8 @@
 const express = require('express');
-const { query, run, saveDb, localNow, begin, commit, rollback, generateUuid, enqueueOutboxEvent } = require('../db');
-const { parseRange, toLocalSql, fetchStoreReport } = require('../storeReports');
+const { query, run, saveDb, localNow, toLocalSql, begin, commit, rollback, generateUuid, enqueueOutboxEvent, getSyncConfig } = require('../db');
+const { parseRange } = require('../storeReports');
 const { roundUsd, roundAmount, roundKhrToNote } = require('../money');
+const sync = require('../sync');
 
 const router = express.Router();
 
@@ -62,8 +63,8 @@ router.post('/api/orders/checkout', (req, res) => {
 
     const orderId = run(
       `INSERT INTO orders
-        (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)`,
+        (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, terminal_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)`,
       [
         customer_id || null,
         cashier_user_id || null,
@@ -75,6 +76,7 @@ router.post('/api/orders/checkout', (req, res) => {
         paidKhr,
         changeGivenKhr,
         clientOrderUuid,
+        getSyncConfig()?.terminalId ?? null,
         localNow(),
       ]
     );
@@ -144,14 +146,35 @@ router.post('/api/orders/checkout', (req, res) => {
   }
 });
 
-const LOCAL_ORDER_LIMIT = 200;
+const LOCAL_ORDER_LIMIT = 1000;
 
 function receiptNoFor(localId) {
   return String(localId).padStart(4, '0');
 }
 
-/** This register's own orders in the range, newest first, in the shape the screen renders. */
+/**
+ * The backend's own receipt-number style (orders.service.ts's receiptNo()),
+ * for a pulled order this register didn't ring up itself -- it reads the
+ * same number here as it does in IMS or on the register that made the sale.
+ */
+function remoteReceiptNo(clientOrderUuid) {
+  if (clientOrderUuid.startsWith('online-pos:')) {
+    return `OP-${clientOrderUuid.split(':').pop().padStart(4, '0')}`;
+  }
+  return clientOrderUuid.replace(/-/g, '').slice(0, 6).toUpperCase();
+}
+
+/**
+ * The whole store's orders in the range, newest first, in the shape the
+ * screen renders. sync.js's background pull keeps this register's copy of
+ * every terminal's sales up to date (same as the product catalog already
+ * was), so this is a plain local read -- no live backend call on the request
+ * path. A sale this register rang up itself keeps its local receipt number
+ * and stays deletable (voiding it queues a sync event); one pulled in from
+ * another register or IMS is view-only.
+ */
 function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
+  const config = getSyncConfig();
   const conditions = ['is_deleted = 0'];
   const params = [];
   if (from) {
@@ -169,74 +192,53 @@ function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
   const rate = storeExchangeRate();
   // Same shape as the backend's orders: total + currency as stored,
   // total_amount in USD for sums and sorting.
-  return orders.map((order) => ({
-    ...order,
-    total: order.total_amount,
-    total_amount: order.currency === 'KHR' ? order.total_amount / rate : order.total_amount,
-    receipt_no: receiptNoFor(order.id),
-    can_delete: true,
-    items: query(
-      `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.discount, oi.currency
-       FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
-       WHERE oi.order_id = ?`,
-      [order.id]
-    ),
-  }));
+  return orders.map((order) => {
+    // NULL terminal_id predates this column and is always this register's
+    // own sale (db.js backfills every pre-existing row to match) -- otherwise
+    // compare to who we are now. Unpaired, every local order is this
+    // register's own by definition.
+    const isOwn = order.terminal_id == null || !config || order.terminal_id === config.terminalId;
+    return {
+      ...order,
+      total: order.total_amount,
+      total_amount: order.currency === 'KHR' ? order.total_amount / rate : order.total_amount,
+      receipt_no: isOwn ? receiptNoFor(order.id) : remoteReceiptNo(order.client_order_uuid),
+      terminal_name: isOwn ? null : order.terminal_name,
+      can_delete: isOwn,
+      items: query(
+        `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.discount, oi.currency
+         FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.order_id = ?`,
+        [order.id]
+      ),
+    };
+  });
 }
 
-// Paired and online: the whole store's orders from the backend. This
-// register's own sales keep their local number (and stay deletable, which
-// voids them through sync); other terminals' and imported sales are view-only.
-// Offline or unpaired: this register's local orders, with `offline` set when
-// the store-wide view was expected but couldn't be fetched.
-router.get('/api/orders', async (req, res) => {
+router.get('/api/orders', (req, res) => {
   const range = parseRange(req.query);
   const { payment_method } = req.query;
   const byPayment = (o) => !payment_method || payment_method === 'ALL' || o.payment_method === payment_method;
-
-  const { config, data: remote } = await fetchStoreReport('/api/terminal/orders', {
-    date_from: range.from?.toISOString(),
-    date_to: range.to?.toISOString(),
-  });
-
-  if (!Array.isArray(remote)) {
-    return res.json({ source: 'local', offline: Boolean(config), orders: localOrders(range).filter(byPayment) });
-  }
-
-  const local = localOrders(range, 1000);
-  const localByUuid = new Map(local.filter((o) => o.client_order_uuid).map((o) => [o.client_order_uuid, o]));
-  // Voided sales (on any register, or in IMS) come back with status VOIDED:
-  // hidden here, like this register's own voided sales are locally, but still
-  // counted in remoteUuids below so a local copy isn't re-added as "unsynced".
-  const merged = remote.filter((order) => order.status !== 'VOIDED').map((order) => {
-    const own = localByUuid.get(order.client_order_uuid);
-    return own
-      ? { ...order, id: own.id, receipt_no: own.receipt_no, terminal_name: null, can_delete: true }
-      : { ...order, can_delete: false };
-  });
-
-  // Own sales the backend doesn't have yet (still in the outbox). If the
-  // backend's list was cut off by its limit, only add ones newer than the
-  // oldest order it returned, so the list doesn't gain a stray older tail.
-  const remoteUuids = new Set(remote.map((o) => o.client_order_uuid));
-  const oldestRemote = remote.length >= 1000 ? new Date(remote[remote.length - 1].created_at) : null;
-  for (const order of local) {
-    if (remoteUuids.has(order.client_order_uuid)) continue;
-    if (oldestRemote && new Date(order.created_at.replace(' ', 'T')) < oldestRemote) continue;
-    merged.push(order);
-  }
-  merged.sort((a, b) => new Date(String(b.created_at).replace(' ', 'T')) - new Date(String(a.created_at).replace(' ', 'T')));
-
-  res.json({ source: 'store', offline: false, orders: merged.filter(byPayment) });
+  res.json({ offline: sync.getStatus().offline, orders: localOrders(range).filter(byPayment) });
 });
 
 router.delete('/api/orders/:id', (req, res) => {
   try {
+    const order = query('SELECT client_order_uuid, terminal_id FROM orders WHERE id = ?', [req.params.id])[0];
+    // Now that a pulled order (another register's sale) has a real local row
+    // and id (Phase 2), it needs its own guard here -- the UI already hides
+    // the void button for one (can_delete), but a locally-mutated row
+    // wouldn't be corrected by the next pull since this register still
+    // thinks it's the one with the "latest" local state for it.
+    const config = getSyncConfig();
+    if (!order || (order.terminal_id != null && config && order.terminal_id !== config.terminalId)) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
     begin();
-    const order = query('SELECT client_order_uuid FROM orders WHERE id = ?', [req.params.id])[0];
     run('UPDATE orders SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE id = ?', [localNow(), localNow(), req.params.id]);
 
-    if (order?.client_order_uuid) {
+    if (order.client_order_uuid) {
       enqueueOutboxEvent('SALE_VOIDED', { clientOrderUuid: order.client_order_uuid });
     }
 

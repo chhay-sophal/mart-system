@@ -375,4 +375,106 @@ describe("GET /api/sync/pull", () => {
     expect(afterDeactivate.body.staffRoster).toHaveLength(1);
     expect(afterDeactivate.body.staffRoster[0]).toMatchObject({ userId: cashier.id, isActive: false });
   });
+
+  it("includes a store's orders as deltas, and only changed rows since a given cursor", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    const clientOrderUuid = crypto.randomUUID();
+
+    const before = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    expect(before.body.orderUpserts).toHaveLength(0);
+    const cursor = before.body.cursor;
+
+    await request(app)
+      .post("/api/sync/push")
+      .set(terminalHeaders(terminal.id))
+      .send({
+        events: [
+          saleEvent({
+            terminalId: terminal.id,
+            payload: { ...saleEvent().payload, clientOrderUuid, items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }] },
+          }),
+        ],
+      });
+
+    const afterSale = await request(app).get("/api/sync/pull").query({ since: cursor }).set(terminalHeaders(terminal.id));
+    expect(afterSale.body.orderUpserts).toHaveLength(1);
+    expect(afterSale.body.orderUpserts[0]).toMatchObject({
+      clientOrderUuid,
+      terminalId: terminal.id,
+      status: "COMPLETED",
+      total: 3,
+      currency: "USD",
+      items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }],
+    });
+    const saleCursor = afterSale.body.cursor;
+
+    const unchanged = await request(app).get("/api/sync/pull").query({ since: saleCursor }).set(terminalHeaders(terminal.id));
+    expect(unchanged.body.orderUpserts).toHaveLength(0);
+  });
+
+  it("paginates a backlog larger than one batch instead of skipping it", async () => {
+    const { store, terminal } = await seedFixtures();
+    // Must match ORDER_PULL_BATCH_SIZE in sync.service.ts -- intentionally not
+    // exported just for this test, so this constant is kept in sync by hand.
+    const BATCH = 500;
+    const total = BATCH + 2;
+    const base = new Date("2026-01-01T00:00:00.000Z").getTime();
+
+    await prisma.$transaction(
+      Array.from({ length: total }, (_, i) =>
+        prisma.order.create({
+          data: {
+            storeId: store.id,
+            terminalId: terminal.id,
+            clientOrderUuid: crypto.randomUUID(),
+            totalAmountMinor: 100,
+            currency: "USD",
+            paymentMethod: "CASH",
+            createdAt: new Date(base + i * 1000),
+            updatedAt: new Date(base + i * 1000),
+          },
+        })
+      )
+    );
+
+    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    expect(first.body.orderUpserts).toHaveLength(BATCH);
+    // Truncated: the cursor must hold at the last order actually sent, not
+    // jump to "now" -- otherwise the next pull would skip the rest entirely.
+    expect(new Date(first.body.cursor).getTime()).toBe(base + (BATCH - 1) * 1000);
+
+    const second = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(second.body.orderUpserts).toHaveLength(total - BATCH);
+  });
+
+  it("shows a void as a delta even though the order's createdAt never changes", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    const clientOrderUuid = crypto.randomUUID();
+
+    await request(app)
+      .post("/api/sync/push")
+      .set(terminalHeaders(terminal.id))
+      .send({
+        events: [
+          saleEvent({
+            terminalId: terminal.id,
+            payload: { ...saleEvent().payload, clientOrderUuid, items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }] },
+          }),
+        ],
+      });
+
+    const afterSale = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    const saleCursor = afterSale.body.cursor;
+
+    await request(app)
+      .post("/api/sync/push")
+      .set(terminalHeaders(terminal.id))
+      .send({ events: [{ eventId: crypto.randomUUID(), terminalId: terminal.id, sequenceNo: 2, eventType: "SALE_VOIDED", createdAt: new Date().toISOString(), payload: { clientOrderUuid } }] });
+
+    const afterVoid = await request(app).get("/api/sync/pull").query({ since: saleCursor }).set(terminalHeaders(terminal.id));
+    expect(afterVoid.body.orderUpserts).toHaveLength(1);
+    expect(afterVoid.body.orderUpserts[0]).toMatchObject({ clientOrderUuid, status: "VOIDED" });
+  });
 });

@@ -223,6 +223,95 @@ export interface StaffRosterUpsert {
   isActive: boolean;
 }
 
+export interface OrderItemUpsert {
+  productId: string;
+  quantity: number;
+  priceAtSale: number;
+  /** Item discount for the whole line, in `currency`. */
+  discount: number;
+  currency: "USD" | "KHR";
+}
+
+export interface OrderUpsert {
+  clientOrderUuid: string;
+  terminalId: string;
+  /** For display on a register that didn't ring this sale up itself. */
+  terminalName: string;
+  cashierUserId: string | null;
+  paymentMethod: string;
+  bankName: string | null;
+  total: number;
+  currency: "USD" | "KHR";
+  amountPaidUsd: number;
+  amountPaidKhr: number;
+  changeGivenKhr: number;
+  status: string;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItemUpsert[];
+}
+
+// Caps a single pull response so a terminal catching up on months of history
+// (first pairing, or after being offline a long time) paginates across
+// several 20s ticks instead of one huge payload.
+const ORDER_PULL_BATCH_SIZE = 500;
+
+interface OrderUpsertPage {
+  orders: OrderUpsert[];
+  /**
+   * Set only when this page was truncated by the batch cap: the shared pull
+   * cursor (see pullCatalog below) must stop here, at the last order actually
+   * sent, rather than jumping to "now" -- otherwise the next pull's `since`
+   * would skip every order still waiting behind the cap. null means every
+   * matching order fit in this page, so the cursor is free to advance to now.
+   */
+  cursorCeiling: Date | null;
+}
+
+async function getOrderUpserts(storeId: string, sinceDate: Date | null): Promise<OrderUpsertPage> {
+  // One extra row, never sent, just to detect truncation.
+  const rows = await prisma.order.findMany({
+    where: {
+      storeId,
+      ...(sinceDate ? { updatedAt: { gt: sinceDate } } : {}),
+    },
+    include: { items: true, terminal: { select: { name: true } } },
+    orderBy: { updatedAt: "asc" },
+    take: ORDER_PULL_BATCH_SIZE + 1,
+  });
+
+  const truncated = rows.length > ORDER_PULL_BATCH_SIZE;
+  const page = truncated ? rows.slice(0, ORDER_PULL_BATCH_SIZE) : rows;
+
+  const orders = page.map((order) => ({
+    clientOrderUuid: order.clientOrderUuid,
+    terminalId: order.terminalId,
+    terminalName: order.terminal.name,
+    cashierUserId: order.cashierUserId,
+    paymentMethod: order.paymentMethod,
+    bankName: order.bankName,
+    total: fromMinorUnits(order.totalAmountMinor, order.currency),
+    currency: order.currency,
+    amountPaidUsd: fromMinorUnits(order.amountPaidUsdMinor, "USD"),
+    amountPaidKhr: fromMinorUnits(order.amountPaidKhrMinor, "KHR"),
+    changeGivenKhr: fromMinorUnits(order.changeGivenKhrMinor, "KHR"),
+    status: order.status,
+    isDeleted: order.isDeleted,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    items: order.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      priceAtSale: fromMinorUnits(item.priceAtSaleMinor, item.currency),
+      discount: fromMinorUnits(item.discountMinor, item.currency),
+      currency: item.currency,
+    })),
+  }));
+
+  return { orders, cursorCeiling: truncated ? page[page.length - 1]!.updatedAt : null };
+}
+
 /**
  * Store-wide settings managed in IMS, sent in full on every pull (a handful
  * of fields). null = never set in IMS, and the terminal keeps its local value.
@@ -255,8 +344,11 @@ export async function pullCatalog(
   productUpserts: ProductUpsert[];
   staffRoster: StaffRosterUpsert[];
   storeSettings: StoreSettingsSnapshot;
+  orderUpserts: OrderUpsert[];
 }> {
-  const cursor = new Date().toISOString();
+  // The cursor this pull hands back for next time -- normally "now", but see
+  // the orderUpserts/cursorCeiling handling below, which can hold it back.
+  const now = new Date();
   const sinceDate = since ? new Date(since) : null;
 
   const rows = await prisma.storeProduct.findMany({
@@ -304,6 +396,11 @@ export async function pullCatalog(
   }));
 
   const storeSettings = await getStoreSettingsSnapshot(storeId);
+  const { orders: orderUpserts, cursorCeiling } = await getOrderUpserts(storeId, sinceDate);
+  // A truncated order page holds the shared cursor at the last order actually
+  // sent, not "now" -- otherwise the next pull's `since` would skip every
+  // order still waiting behind the batch cap (see getOrderUpserts above).
+  const cursor = (cursorCeiling ?? now).toISOString();
 
-  return { cursor, productUpserts, staffRoster, storeSettings };
+  return { cursor, productUpserts, staffRoster, storeSettings, orderUpserts };
 }

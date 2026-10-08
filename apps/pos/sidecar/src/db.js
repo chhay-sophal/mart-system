@@ -11,10 +11,21 @@ if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 let db;
 let SQL;
 
-function localNow() {
-  const d = new Date();
+/**
+ * Formats a Date as the shop-local "YYYY-MM-DD HH:mm:ss" string every table
+ * here stores its timestamps as (local machine time, no timezone suffix) --
+ * shared so a timestamp parsed from elsewhere (e.g. a pulled order's UTC
+ * createdAt) sorts and range-filters correctly next to rows written via
+ * localNow() below. Lives in db.js (not storeReports.js, which needs it too)
+ * to avoid storeReports.js <-> sync.js needing to require each other.
+ */
+function toLocalSql(date) {
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function localNow() {
+  return toLocalSql(new Date());
 }
 
 function query(sql, params = []) {
@@ -231,6 +242,19 @@ function runMigrations() {
   // Which unlocked cashier session rang this sale up — null for orders that
   // predate the PIN-gate, or a checkout made before anything ever unlocked.
   if (!orderCols.includes('cashier_user_id')) db.run('ALTER TABLE orders ADD COLUMN cashier_user_id TEXT');
+  // Which register rang this sale up. Every row here used to mean "this
+  // register" implicitly; now that sync.js also pulls the whole store's
+  // orders in (not just this register's own), a row needs to say whose sale
+  // it is. NULL means "this register, from before this column existed" --
+  // backfilled below -- never "unknown".
+  if (!orderCols.includes('terminal_id')) {
+    db.run('ALTER TABLE orders ADD COLUMN terminal_id TEXT');
+    const config = getSyncConfig();
+    if (config) db.run('UPDATE orders SET terminal_id = ? WHERE terminal_id IS NULL', [config.terminalId]);
+  }
+  // Only set for a pulled order from another register -- this register's own
+  // sales never show their own name (see localOrders() below).
+  if (!orderCols.includes('terminal_name')) db.run('ALTER TABLE orders ADD COLUMN terminal_name TEXT');
 
   const itemCols = cols('order_items');
   if (!itemCols.includes('created_at')) db.run('ALTER TABLE order_items ADD COLUMN created_at TEXT');
@@ -429,6 +453,7 @@ async function init() {
 module.exports = {
   DB_PATH,
   localNow,
+  toLocalSql,
   query,
   run,
   saveDb,

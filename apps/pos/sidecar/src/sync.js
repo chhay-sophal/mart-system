@@ -104,6 +104,64 @@ function upsertProduct(item) {
   }
 }
 
+/**
+ * Pulled orders mirror the whole store, not just this register's own sales --
+ * matched by client_order_uuid, the same idempotency key push already uses,
+ * so a sale this register rang up itself (already inserted at checkout) is
+ * updated in place (picking up e.g. a void from another register or IMS)
+ * instead of being duplicated.
+ */
+function upsertOrder(config, item) {
+  const existing = db.query('SELECT id FROM orders WHERE client_order_uuid = ?', [item.clientOrderUuid])[0];
+  // The backend's `status`/`isDeleted` both mean "hide this from the list" --
+  // mapped onto the one flag the existing local queries already filter on.
+  const isDeleted = item.isDeleted || item.status === 'VOIDED' ? 1 : 0;
+  const isOwn = item.terminalId === config.terminalId;
+  const createdAt = db.toLocalSql(new Date(item.createdAt));
+  const updatedAt = db.toLocalSql(new Date(item.updatedAt));
+
+  if (existing) {
+    db.run(
+      'UPDATE orders SET status = ?, is_deleted = ?, cashier_user_id = ?, terminal_id = ?, terminal_name = ?, updated_at = ? WHERE id = ?',
+      [item.status, isDeleted, item.cashierUserId, item.terminalId, isOwn ? null : item.terminalName, updatedAt, existing.id]
+    );
+    return;
+  }
+
+  const orderId = db.run(
+    `INSERT INTO orders
+      (cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, is_deleted, client_order_uuid, terminal_id, terminal_name, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      item.cashierUserId,
+      item.total,
+      item.currency,
+      item.paymentMethod,
+      item.bankName,
+      item.amountPaidUsd,
+      item.amountPaidKhr,
+      item.changeGivenKhr,
+      item.status,
+      isDeleted,
+      item.clientOrderUuid,
+      item.terminalId,
+      isOwn ? null : item.terminalName,
+      createdAt,
+      updatedAt,
+    ]
+  );
+
+  for (const line of item.items) {
+    // Pulled items reference the backend's product id -- resolve to this
+    // register's local row the same way a sale's own items do at checkout.
+    const product = db.query('SELECT id FROM products WHERE backend_product_id = ?', [line.productId])[0];
+    db.run(
+      'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [orderId, product?.id ?? null, line.quantity, line.priceAtSale, line.discount, line.currency, createdAt, updatedAt]
+    );
+  }
+}
+
 // Products synced before the backend sent each price's currency were stored
 // with the local default, USD -- so a 3,000 ៛ product sold as $3,000. Sync
 // only re-sends changed products, so those rows never got corrected. Once,
@@ -118,7 +176,7 @@ let currencyResyncTriedThisRun = false;
  * and pulls everything (Settings > Backend Sync > Resync everything).
  * Returns how many products came down.
  */
-async function pullCatalog(config, { full = false } = {}) {
+async function pullCatalogImpl(config, { full = false } = {}) {
   const cursor = db.query("SELECT value FROM sync_state WHERE key = 'pull_cursor'")[0]?.value;
   const currencyResync =
     !currencyResyncTriedThisRun && !db.query('SELECT 1 FROM sync_state WHERE key = ?', [CURRENCY_RESYNC_MARKER]).length;
@@ -147,7 +205,7 @@ async function pullCatalog(config, { full = false } = {}) {
     throw new Error(`Backend rejected the request (status ${response.status}).`);
   }
 
-  const { cursor: newCursor, productUpserts, staffRoster, storeSettings } = await response.json();
+  const { cursor: newCursor, productUpserts, staffRoster, storeSettings, orderUpserts } = await response.json();
 
   // One product failing (it used to abort the whole pull) mustn't block the
   // rest, staff, or store settings. Failures keep the cursor where it is so
@@ -158,6 +216,16 @@ async function pullCatalog(config, { full = false } = {}) {
       upsertProduct(item);
     } catch (err) {
       productErrors.push(`${item.barcode || item.name}: ${err.message}`);
+    }
+  }
+
+  // Same "don't let one bad row block the cursor" treatment as products.
+  const orderErrors = [];
+  for (const item of orderUpserts ?? []) {
+    try {
+      upsertOrder(config, item);
+    } catch (err) {
+      orderErrors.push(`${item.clientOrderUuid}: ${err.message}`);
     }
   }
 
@@ -190,7 +258,7 @@ async function pullCatalog(config, { full = false } = {}) {
     );
   }
 
-  if (productErrors.length === 0) {
+  if (productErrors.length === 0 && orderErrors.length === 0) {
     db.run(
       "INSERT INTO sync_state (key, value) VALUES ('pull_cursor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       [newCursor]
@@ -198,8 +266,11 @@ async function pullCatalog(config, { full = false } = {}) {
   }
   db.saveDb();
 
-  if (productErrors.length > 0) {
-    throw new Error(`${productErrors.length} product(s) couldn't be saved and will be retried: ${productErrors[0]}`);
+  if (productErrors.length > 0 || orderErrors.length > 0) {
+    const parts = [];
+    if (productErrors.length > 0) parts.push(`${productErrors.length} product(s): ${productErrors[0]}`);
+    if (orderErrors.length > 0) parts.push(`${orderErrors.length} order(s): ${orderErrors[0]}`);
+    throw new Error(`Couldn't save everything, will retry: ${parts.join('; ')}`);
   }
 
   if (fullPull && productUpserts.every((item) => item.currency === 'KHR' || item.currency === 'USD')) {
@@ -210,6 +281,28 @@ async function pullCatalog(config, { full = false } = {}) {
     db.saveDb();
   }
   return productUpserts.length;
+}
+
+// Tracks whether the background pull is actually keeping up, for screens
+// that now read the local store-wide order mirror (Order History, Daily
+// Summary) instead of calling the backend live -- they still need to tell a
+// cashier when that mirror might be behind. Wraps pullCatalogImpl (rather
+// than living inside tick() below) so it reflects ANY successful pull --
+// the scheduled tick, a manual "sync now", or a full resync -- not just the
+// scheduled one.
+let lastPullAt = null;
+let lastPullError = null;
+
+async function pullCatalog(config, opts) {
+  try {
+    const result = await pullCatalogImpl(config, opts);
+    lastPullAt = Date.now();
+    lastPullError = null;
+    return result;
+  } catch (err) {
+    lastPullError = err.message;
+    throw err;
+  }
 }
 
 async function tick() {
@@ -230,4 +323,17 @@ function start() {
   setInterval(run, SYNC_INTERVAL_MS);
 }
 
-module.exports = { start, tick, pullCatalog, pushPending, authHeaders };
+/**
+ * `offline: true` means paired but the background pull isn't keeping up --
+ * the local order/product mirror these screens read may be behind. A single
+ * missed tick can be a blip; two in a row (double the normal interval) means
+ * something's actually wrong, not just one slow request.
+ */
+function getStatus() {
+  const config = db.getSyncConfig();
+  if (!config) return { paired: false, offline: false };
+  const stale = Boolean(lastPullError) || !lastPullAt || Date.now() - lastPullAt > SYNC_INTERVAL_MS * 2;
+  return { paired: true, offline: stale };
+}
+
+module.exports = { start, tick, pullCatalog, pushPending, authHeaders, getStatus };
