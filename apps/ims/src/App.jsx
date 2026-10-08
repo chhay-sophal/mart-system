@@ -3,6 +3,7 @@ import { useAuth } from './auth/AuthContext.jsx';
 import LoginPage from './auth/LoginPage.jsx';
 import AppShell from './layout/AppShell.jsx';
 import ProductsPage from './pages/ProductsPage.jsx';
+import StoresPage from './pages/StoresPage.jsx';
 import SuppliersPage from './pages/SuppliersPage.jsx';
 import StaffPage from './pages/StaffPage.jsx';
 import TerminalsPage from './pages/TerminalsPage.jsx';
@@ -34,6 +35,7 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/stores" element={<StoresPage />} />
         <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/staff" element={<StaffPage />} />
         <Route path="/terminals" element={<TerminalsPage />} />

@@ -7,6 +7,7 @@ import ThemeToggle from '../components/ThemeToggle.jsx';
 
 const NAV_ITEMS = [
   { to: '/products', label: 'Products' },
+  { to: '/stores', label: 'Stores' },
   { to: '/suppliers', label: 'Suppliers' },
   { to: '/staff', label: 'Staff' },
   { to: '/terminals', label: 'Terminals' },
