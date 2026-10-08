@@ -110,7 +110,7 @@ export default function App() {
   const manualInputRef = useRef(null);
   const tenderKhrRef = useRef(null);
   const [locale, setLocale] = useState('km');
-  const [mainCurrency, setMainCurrency] = useState('USD');
+  const [mainCurrency, setMainCurrency] = useState('KHR');
   const [storeName, setStoreName] = useState('');
   const [storeIcon, setStoreIcon] = useState('');
   const [standbyImage, setStandbyImage] = useState('');
@@ -127,7 +127,7 @@ export default function App() {
   const [isPaired, setIsPaired] = useState(null);
   const [isDark, toggleDark] = useDarkMode();
 
-  const [txDiscountType, setTxDiscountType] = useState('pct');
+  const [txDiscountType, setTxDiscountType] = useState('fixed');
   const [txDiscountValue, setTxDiscountValue] = useState('');
   const [showDrafts, setShowDrafts] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState(null);
