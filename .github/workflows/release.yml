@@ -42,7 +42,7 @@ jobs:
       # one looks up the existing latest.json asset id, another deletes and
       # recreates it first, and the first job's update then 404s ("Not
       # Found" on update-a-release-asset). Serializing avoids that race.
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         include:
           - platform: macos-latest
