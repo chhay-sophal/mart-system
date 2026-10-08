@@ -23,7 +23,6 @@ export const translations = {
       title: 'បញ្ចូលលេខកូដសម្ងាត់ថតលុយ',
       wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
       cancel: 'បោះបង់',
-      confirm: 'បើក',
     },
 
     // CUSTOMER DISPLAY LABELS
@@ -510,7 +509,6 @@ export const translations = {
       title: 'Enter drawer PIN',
       wrongPin: 'Incorrect PIN',
       cancel: 'Cancel',
-      confirm: 'Open',
     },
 
     // CUSTOMER DISPLAY LABELS
