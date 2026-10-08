@@ -111,11 +111,7 @@ export default function ReportsPage() {
               { label: 'Avg order', value: inMainCurrency(report.combined.mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr) },
               {
                 label: 'Gross profit',
-                value: inMainCurrency(
-                  report.combined.mainCurrency,
-                  report.combined.grossProfit,
-                  report.byStore.reduce((sum, st) => sum + usdToKhr(st.grossProfit, st.rate), 0),
-                ),
+                value: inMainCurrency(report.combined.mainCurrency, report.combined.grossProfit, report.combined.grossProfitKhr),
               },
             ].map((card) => (
               <div key={card.label} className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
@@ -143,7 +139,7 @@ export default function ReportsPage() {
                       <td className="px-4 py-2">{s.storeName}</td>
                       <td className="px-4 py-2">{s.orderCount}</td>
                       <td className="px-4 py-2"><Amount value={money(s, s.totalRevenue, s.totalRevenueKhr)} /></td>
-                      <td className="px-4 py-2"><Amount value={money(s, s.grossProfit)} /></td>
+                      <td className="px-4 py-2"><Amount value={money(s, s.grossProfit, s.grossProfitKhr)} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -180,7 +176,7 @@ export default function ReportsPage() {
                       <li key={p.productId} className="flex justify-between">
                         <span>{p.name}</span>
                         <span>
-                          {p.totalQty} <span className="text-slate-400 dark:text-slate-500">· {money(singleStore, p.revenue).primary}</span>
+                          {p.totalQty} <span className="text-slate-400 dark:text-slate-500">· {money(singleStore, p.revenue, p.revenueKhr).primary}</span>
                         </span>
                       </li>
                     ))}

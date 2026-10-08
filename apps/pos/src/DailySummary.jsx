@@ -214,8 +214,8 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                 },
                 {
                   label: s.grossProfit || 'Gross Profit',
-                  value: fmt(summary.gross_profit),
-                  sub: fmtSub(summary.gross_profit),
+                  value: fmt(summary.gross_profit, summary.gross_profit_khr),
+                  sub: isKhr ? fmtSub(summary.gross_profit) : `≈ ${(summary.gross_profit_khr ?? usdToKhr(summary.gross_profit, dynamicRate)).toLocaleString()} ៛`,
                   color: summary.gross_profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500',
                 },
                 {
@@ -283,7 +283,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                       <span className="text-xs font-bold text-slate-300 dark:text-slate-600 w-4 text-right shrink-0">{i + 1}</span>
                       <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{p.name}</span>
                       <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{p.total_qty}</span>
-                      <span className="text-sm font-bold text-slate-900 dark:text-white w-16 text-right shrink-0">{fmt(p.revenue)}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white w-16 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
                     </div>
                   ))}
                 </div>
@@ -309,7 +309,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
             <div className="flex justify-between"><span>{s.revenue || 'Revenue'}</span><span className="font-bold">{fmt(summary.total_revenue, summary.total_revenue_khr)}</span></div>
             <div className="flex justify-between"><span>{s.orders || 'Orders'}</span><span className="font-bold">{summary.order_count}</span></div>
             <div className="flex justify-between"><span>{s.avg || 'Avg'}</span><span>{fmt(summary.avg_order, summary.avg_order_khr)}</span></div>
-            <div className="flex justify-between"><span>{s.grossProfit || 'Gross Profit'}</span><span className="font-bold">{fmt(summary.gross_profit)}</span></div>
+            <div className="flex justify-between"><span>{s.grossProfit || 'Gross Profit'}</span><span className="font-bold">{fmt(summary.gross_profit, summary.gross_profit_khr)}</span></div>
             <div className="flex justify-between">
               <span>{s.margin || 'Margin'}</span>
               <span>{summary.total_revenue > 0 ? `${((summary.gross_profit / summary.total_revenue) * 100).toFixed(1)}%` : '—'}</span>
@@ -342,7 +342,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               <div key={i} className="flex gap-1">
                 <span className="flex-1 truncate">{p.name}</span>
                 <span className="w-6 text-right shrink-0">{p.total_qty}</span>
-                <span className="w-12 text-right shrink-0">{fmt(p.revenue)}</span>
+                <span className="w-12 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
               </div>
             ))}
 

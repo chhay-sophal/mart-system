@@ -99,30 +99,50 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     : [];
   const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: fromMinorUnits(sp.costPriceMinor, sp.currency), currency: sp.currency }]));
 
-  const productAgg = new Map<string, { name: string; qty: number; revenue: number }>();
+  const productAgg = new Map<string, { name: string; qty: number; revenue: number; revenueKhr: number }>();
   let grossProfit = 0;
+  let grossProfitKhr = 0;
 
   for (const item of items) {
     const priceUsd = toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency);
     // What the line actually charged: item discounts (e.g. a defective unit) come off.
     const discountUsd = toUsd(fromMinorUnits(item.discountMinor, item.currency), item.currency);
     const lineRevenue = priceUsd * item.quantity - discountUsd;
+    // Exact when the line was priced in riel; otherwise the raw (unrounded)
+    // converted figure. Revenue (shown/handed over as cash) still rounds to
+    // the nearest note per line below -- profit doesn't, since it's never a
+    // cash amount itself: it's rounded once, at the end, to the nearest riel
+    // (see grossProfitKhr's final rounding after the loop).
+    const khrNativeRevenue =
+      item.currency === "KHR"
+        ? fromMinorUnits(item.priceAtSaleMinor, "KHR") * item.quantity - fromMinorUnits(item.discountMinor, "KHR")
+        : null;
+    const lineRevenueKhrExact = khrNativeRevenue ?? lineRevenue * rate;
+    const lineRevenueKhr = khrNativeRevenue ?? roundKhrToNote(lineRevenueKhrExact);
 
-    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0 };
+    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0, revenueKhr: 0 };
     agg.qty += item.quantity;
     agg.revenue += lineRevenue;
+    agg.revenueKhr += lineRevenueKhr;
     productAgg.set(item.productId, agg);
 
     const costInfo = costByProductId.get(item.productId);
     const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
+    const costKhrExact = costInfo ? (costInfo.currency === "KHR" ? costInfo.cost : costUsd * rate) : 0;
     grossProfit += lineRevenue - costUsd * item.quantity;
+    grossProfitKhr += lineRevenueKhrExact - costKhrExact * item.quantity;
   }
+  // Profit calculation: USD to the nearest cent, riel to the nearest whole
+  // riel -- finer-grained than revenue's nearest-note rule above, since
+  // profit is a computed figure, not cash that changes hands.
+  grossProfit = Math.round(grossProfit * 100) / 100;
+  grossProfitKhr = Math.round(grossProfitKhr);
 
   // topProducts is this sliced to 5, for the on-screen card; allProducts (the
   // full list) backs the print report, which needs every product sold, not
   // just the top ones.
   const allProducts = [...productAgg.entries()]
-    .map(([productId, v]) => ({ productId, name: v.name, totalQty: v.qty, revenue: v.revenue }))
+    .map(([productId, v]) => ({ productId, name: v.name, totalQty: v.qty, revenue: v.revenue, revenueKhr: v.revenueKhr }))
     .sort((a, b) => b.totalQty - a.totalQty);
   const topProducts = allProducts.slice(0, 5);
 
@@ -136,6 +156,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     avgOrder,
     avgOrderKhr,
     grossProfit,
+    grossProfitKhr,
     byMethod,
     topProducts,
     allProducts,
@@ -157,7 +178,11 @@ export async function getDailySummary(
   const combinedOrderCount = byStore.reduce((sum, s) => sum + s.orderCount, 0);
   const combinedRevenue = byStore.reduce((sum, s) => sum + s.totalRevenue, 0);
   const combinedRevenueKhr = byStore.reduce((sum, s) => sum + s.totalRevenueKhr, 0);
-  const combinedGrossProfit = byStore.reduce((sum, s) => sum + s.grossProfit, 0);
+  // Each store's own figure is already rounded; re-round the sum too, since
+  // adding several cent/riel-rounded numbers can still drift by a hair of
+  // floating-point error.
+  const combinedGrossProfit = Math.round(byStore.reduce((sum, s) => sum + s.grossProfit, 0) * 100) / 100;
+  const combinedGrossProfitKhr = Math.round(byStore.reduce((sum, s) => sum + s.grossProfitKhr, 0));
 
   return {
     byStore,
@@ -170,6 +195,7 @@ export async function getDailySummary(
       // Lead with riel only when every store in the report is a riel store.
       mainCurrency: byStore.length > 0 && byStore.every((s) => s.mainCurrency === "KHR") ? "KHR" : "USD",
       grossProfit: combinedGrossProfit,
+      grossProfitKhr: combinedGrossProfitKhr,
     },
   };
 }

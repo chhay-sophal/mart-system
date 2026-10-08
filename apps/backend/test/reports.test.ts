@@ -108,6 +108,9 @@ describe("GET /api/reports/daily-summary", () => {
       totalRevenueKhr: 41000,
       avgOrderKhr: 20500,
       grossProfit: 4,
+      // Profit rounds only once, at the end (nearest riel) -- no per-line
+      // note-rounding to compound, so this is exactly grossProfit * rate.
+      grossProfitKhr: 16400,
       mainCurrency: "USD",
     });
     expect(res.body.byStore).toHaveLength(1);
@@ -118,7 +121,46 @@ describe("GET /api/reports/daily-summary", () => {
       { paymentMethod: "CASH", count: 1, total: 6, totalKhr: 24600 },
       { paymentMethod: "KHQR", count: 1, total: 4, totalKhr: 16400 },
     ]);
-    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10 });
+    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10, revenueKhr: 41000 });
+  });
+
+  it("computes gross profit and product revenue in riel using the exact stored amount, not a USD conversion", async () => {
+    const { store, terminal } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    // Riel-priced product, riel cost -- both should flow through untouched,
+    // not get divided then re-multiplied by the exchange rate.
+    const product = await prisma.product.create({ data: { name: "Riel Widget", defaultPriceMinor: 4000, currency: "KHR" } });
+    await prisma.storeProduct.create({
+      data: { storeId: store.id, productId: product.id, stock: 50, costPriceMinor: 2000, currency: "KHR" },
+    });
+
+    await prisma.order.create({
+      data: {
+        storeId: store.id,
+        terminalId: terminal.id,
+        clientOrderUuid: `test-khr-${Math.random()}`,
+        totalAmountMinor: 4000,
+        currency: "KHR",
+        paymentMethod: "CASH",
+        amountPaidUsdMinor: 0,
+        createdAt: new Date(),
+        items: { create: [{ productId: product.id, quantity: 1, priceAtSaleMinor: 4000, currency: "KHR" }] },
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/reports/daily-summary")
+      .query({
+        date_from: new Date(Date.now() - 86_400_000).toISOString(),
+        date_to: new Date(Date.now() + 86_400_000).toISOString(),
+      })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    // Exact riel figures: 4000 - 2000 = 2000, not a rate-derived approximation.
+    expect(res.body.combined.grossProfitKhr).toBe(2000);
+    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, revenueKhr: 4000 });
   });
 });
 
