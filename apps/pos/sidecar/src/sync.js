@@ -89,17 +89,20 @@ function upsertProduct(item) {
   // 22000 = 22,000 ៛). Without it a new row would default to USD and sell
   // at $22,000. Older backends don't send it; keep what the row has then.
   const currency = item.currency === 'KHR' || item.currency === 'USD' ? item.currency : null;
+  // Same backward-compat shape as currency above: an older backend that
+  // doesn't send costPrice leaves whatever this row already had, via the
+  // UPDATE's COALESCE; a brand-new row just defaults to 0.
   const now = db.localNow();
 
   if (existing) {
     db.run(
-      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
-      [item.name, item.barcode, price, currency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
+      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), cost_price = COALESCE(?, cost_price), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
+      [item.name, item.barcode, price, currency, item.costPrice ?? null, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
     );
   } else {
     db.run(
-      'INSERT INTO products (name, barcode, price, currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [item.name, item.barcode, price, currency ?? 'USD', item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
+      'INSERT INTO products (name, barcode, price, currency, cost_price, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [item.name, item.barcode, price, currency ?? 'USD', item.costPrice ?? 0, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
     );
   }
 }

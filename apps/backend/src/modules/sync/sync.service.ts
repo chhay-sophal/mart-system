@@ -211,6 +211,8 @@ export interface ProductUpsert {
   defaultPrice: number;
   /** Currency of the price the terminal sells at: priceOverride's if set, else defaultPrice's. */
   currency: "USD" | "KHR";
+  /** This store's cost price, in StoreProduct's own currency (not necessarily the same as `currency` above). */
+  costPrice: number;
   stock: number;
   isDeleted: boolean;
 }
@@ -368,6 +370,7 @@ export async function pullCatalog(
     priceOverride: row.priceOverrideMinor !== null ? fromMinorUnits(row.priceOverrideMinor, row.currency) : null,
     defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
     currency: row.priceOverrideMinor !== null ? row.currency : row.product.currency,
+    costPrice: fromMinorUnits(row.costPriceMinor, row.currency),
     stock: row.stock,
     isDeleted: row.product.isDeleted,
   }));

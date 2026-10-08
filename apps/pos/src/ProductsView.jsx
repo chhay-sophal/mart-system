@@ -118,6 +118,7 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                 <tr>
                   <th className="px-4 py-2.5">{s.colName}</th>
                   <th className="px-4 py-2.5">{s.colBarcode}</th>
+                  <th className="px-4 py-2.5 text-right">{s.colCostPrice}</th>
                   <th className="px-4 py-2.5 text-right">{s.colPrice}</th>
                   <th className="px-4 py-2.5 text-right">{s.colStock}</th>
                   <th className="px-4 py-2.5" />
@@ -131,6 +132,9 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                       className={`border-t border-slate-100 dark:border-slate-700/60 ${i === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : ''}`}>
                       <td className="px-4 py-2.5 font-semibold">{p.name}</td>
                       <td className="px-4 py-2.5 font-bold">{p.barcode || '—'}</td>
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        {fmtPrice(p.costPrice, p.currency)}
+                      </td>
                       <td className="px-4 py-2.5 text-right whitespace-nowrap">
                         <span className="font-bold">{fmtPrice(p.price, p.currency)}</span>
                         {converted(p) && <span className="block text-[11px] text-slate-400">{converted(p)}</span>}

@@ -346,6 +346,18 @@ describe("GET /api/sync/pull", () => {
     expect(byBarcode.get("usd-1")).toMatchObject({ priceOverride: 1.25, currency: "USD" });
   });
 
+  it("sends this store's cost price, in StoreProduct's own currency", async () => {
+    const { store, terminal } = await seedFixtures();
+    const product = await prisma.product.create({ data: { name: "Water", barcode: "cost-1", defaultPriceMinor: 100, currency: "USD" } });
+    await prisma.storeProduct.create({
+      data: { storeId: store.id, productId: product.id, stock: 5, costPriceMinor: 2500, currency: "KHR" },
+    });
+
+    const res = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    const row = res.body.productUpserts.find((p: { barcode: string }) => p.barcode === "cost-1");
+    expect(row).toMatchObject({ costPrice: 2500 });
+  });
+
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).get("/api/sync/pull");
     expect(res.status).toBe(401);

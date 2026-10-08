@@ -24,7 +24,7 @@ router.get('/api/products/barcode/:barcode', (req, res) => {
 // read-only, searched on screen so results update as the cashier types.
 router.get('/api/products', (req, res) => {
   res.json(
-    query('SELECT id, name, barcode, price, currency, stock FROM products WHERE is_deleted = 0 ORDER BY name COLLATE NOCASE')
+    query('SELECT id, name, barcode, price, cost_price as costPrice, currency, stock FROM products WHERE is_deleted = 0 ORDER BY name COLLATE NOCASE')
   );
 });
 
