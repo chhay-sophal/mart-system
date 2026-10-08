@@ -25,6 +25,13 @@ export const translations = {
       cancel: 'បោះបង់',
     },
 
+    // SETTINGS PIN PROMPT (re-confirms an admin before entering Settings)
+    settingsPinPrompt: {
+      title: 'បញ្ចូលលេខកូដសម្ងាត់អ្នកគ្រប់គ្រង',
+      wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
+      cancel: 'បោះបង់',
+    },
+
     // CUSTOMER DISPLAY LABELS
     customerDisplay: {
       welcome: 'សូមស្វាគមន៍',
@@ -507,6 +514,13 @@ export const translations = {
     // DRAWER PIN PROMPT (Settings > Drawer > Require a PIN to open the drawer)
     drawerPinPrompt: {
       title: 'Enter drawer PIN',
+      wrongPin: 'Incorrect PIN',
+      cancel: 'Cancel',
+    },
+
+    // SETTINGS PIN PROMPT (re-confirms an admin before entering Settings)
+    settingsPinPrompt: {
+      title: 'Enter admin PIN',
       wrongPin: 'Incorrect PIN',
       cancel: 'Cancel',
     },

@@ -25,7 +25,7 @@ import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
-import DrawerPinPrompt from './DrawerPinPrompt';
+import PinPrompt from './PinPrompt';
 import { useToast } from './Toast';
 import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
@@ -54,6 +54,7 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [clearCartPrompt, setClearCartPrompt] = useState(false);
   const [showDrawerPinPrompt, setShowDrawerPinPrompt] = useState(false);
+  const [showSettingsPinPrompt, setShowSettingsPinPrompt] = useState(false);
   // Locking the register (button or shortcut) drops cached sales data, so the
   // next cashier starts fresh.
   useEffect(() => {
@@ -699,6 +700,13 @@ export default function App() {
     if (printer.requireDrawerPin) { setShowDrawerPinPrompt(true); return; }
     openDrawerNow();
   };
+  // Re-confirms an admin PIN before entering Settings -- the nav button is
+  // already only shown to an admin session, but this guards against someone
+  // else walking up to a register an admin left unlocked.
+  const openSettings = () => {
+    setShowShortcuts(false);
+    setShowSettingsPinPrompt(true);
+  };
 
   // ── Keyboard shortcuts (issue #7). The keys are fixed in shortcuts.js;
   // this is what each action does. Daily Summary's day actions live in
@@ -735,7 +743,7 @@ export default function App() {
       history: { run: () => goTo('HISTORY') },
       summary: { run: () => goTo('SUMMARY') },
       products: { run: () => goTo('PRODUCTS') },
-      settings: { when: () => session?.role === 'ADMIN', run: () => goTo('SETTINGS') },
+      settings: { when: () => session?.role === 'ADMIN', run: () => openSettings() },
       lock: { run: () => { setShowShortcuts(false); setSession(null); } },
       manualBarcode: { run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
       payCash: { when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
@@ -868,13 +876,35 @@ export default function App() {
       />
     )}
     {showDrawerPinPrompt && (
-      <DrawerPinPrompt
-        pin={printer.drawerPin}
+      <PinPrompt
+        onVerify={(value) => value === printer.drawerPin}
         t={t[locale]?.drawerPinPrompt}
         onCancel={() => setShowDrawerPinPrompt(false)}
         onConfirm={() => {
           setShowDrawerPinPrompt(false);
           openDrawerNow();
+        }}
+      />
+    )}
+    {showSettingsPinPrompt && (
+      <PinPrompt
+        // Local roster check (same endpoint LockScreen unlocks with) -- not a
+        // plain string compare like the drawer PIN, since PINs are only ever
+        // stored hashed. Any active admin's PIN re-confirms, matching the
+        // Settings button's own role-only (not identity-specific) gating.
+        onVerify={async (value) => {
+          try {
+            const data = await client.post('/api/auth/pin-unlock', { pin: value });
+            return data.role === 'ADMIN';
+          } catch {
+            return false;
+          }
+        }}
+        t={t[locale]?.settingsPinPrompt}
+        onCancel={() => setShowSettingsPinPrompt(false)}
+        onConfirm={() => {
+          setShowSettingsPinPrompt(false);
+          setView('SETTINGS');
         }}
       />
     )}
@@ -931,7 +961,7 @@ export default function App() {
           </button>
           {session.role === 'ADMIN' && (
             <button
-              onClick={() => setView('SETTINGS')}
+              onClick={openSettings}
               title={`${t[locale].settings}${keyHint('settings')}`}
               className="px-3.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
             >

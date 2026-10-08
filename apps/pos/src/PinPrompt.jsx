@@ -5,17 +5,28 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
 // Every PIN is exactly 4 digits; unlocking starts as soon as the fourth one is entered.
 const PIN_LENGTH = 4;
 
-// Gates a manual drawer open behind the PIN set in Settings > Drawer >
-// Require a PIN to open the drawer. Same dot-indicator + on-screen keypad as
-// the register's own PIN unlock (LockScreen.jsx), just in a dismissible
-// popup instead of a full screen -- this is a quick re-entry check, not a
-// fresh sign-in.
-export default function DrawerPinPrompt({ pin, onConfirm, onCancel, t = {} }) {
+/**
+ * A dismissible step-up PIN re-check: same dot-indicator + on-screen keypad
+ * as the register's own PIN unlock (LockScreen.jsx), just in a popup instead
+ * of a full screen -- this is a quick re-entry check, not a fresh sign-in.
+ * Used both for the manual cash-drawer PIN and for re-confirming an admin
+ * before entering Settings.
+ *
+ * `onVerify(pin)` decides whether the entered PIN is correct -- a plain
+ * local comparison (drawer PIN) or an async backend check (admin PIN) both
+ * work, since its return value is awaited either way. `onConfirm` runs only
+ * once `onVerify` resolves truthy.
+ */
+export default function PinPrompt({ onVerify, onConfirm, onCancel, t = {} }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  function submit() {
-    if (value === pin) {
+  async function submit() {
+    setChecking(true);
+    const ok = await Promise.resolve(onVerify(value)).catch(() => false);
+    setChecking(false);
+    if (ok) {
       onConfirm();
     } else {
       setError(true);
@@ -32,6 +43,7 @@ export default function DrawerPinPrompt({ pin, onConfirm, onCancel, t = {} }) {
   // Supports a physical keyboard, same as LockScreen.
   useEffect(() => {
     const handleKey = (e) => {
+      if (checking) return;
       if (e.key >= '0' && e.key <= '9') {
         setError(false);
         setValue((prev) => (prev.length >= PIN_LENGTH ? prev : prev + e.key));
@@ -42,9 +54,10 @@ export default function DrawerPinPrompt({ pin, onConfirm, onCancel, t = {} }) {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
+  }, [checking]);
 
   function press(key) {
+    if (checking) return;
     setError(false);
     if (key === 'back') setValue((prev) => prev.slice(0, -1));
     else setValue((prev) => (prev.length >= PIN_LENGTH ? prev : prev + key));
@@ -59,9 +72,9 @@ export default function DrawerPinPrompt({ pin, onConfirm, onCancel, t = {} }) {
         <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg">
           <Lock size={22} className="text-white" />
         </div>
-        <h3 className="text-base font-bold text-slate-900 dark:text-white -mt-1">{t.title || 'Enter drawer PIN'}</h3>
+        <h3 className="text-base font-bold text-slate-900 dark:text-white -mt-1">{t.title || 'Enter PIN'}</h3>
 
-        <div className="flex gap-4">
+        <div className={`flex gap-4 ${checking ? 'animate-pulse' : ''}`}>
           {Array.from({ length: PIN_LENGTH }).map((_, i) => (
             <span
               key={i}
@@ -82,7 +95,8 @@ export default function DrawerPinPrompt({ pin, onConfirm, onCancel, t = {} }) {
                 key={i}
                 type="button"
                 onClick={() => press(key)}
-                className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-xl flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                disabled={checking}
+                className="h-14 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-xl flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {key === 'back' ? '⌫' : key}
               </button>
