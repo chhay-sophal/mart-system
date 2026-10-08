@@ -99,7 +99,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     : [];
   const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: fromMinorUnits(sp.costPriceMinor, sp.currency), currency: sp.currency }]));
 
-  const productAgg = new Map<string, { name: string; qty: number; revenue: number; revenueKhr: number }>();
+  const productAgg = new Map<string, { name: string; qty: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number }>();
   let grossProfit = 0;
   let grossProfitKhr = 0;
 
@@ -120,17 +120,22 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     const lineRevenueKhrExact = khrNativeRevenue ?? lineRevenue * rate;
     const lineRevenueKhr = khrNativeRevenue ?? roundKhrToNote(lineRevenueKhrExact);
 
-    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0, revenueKhr: 0 };
+    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0, revenueKhr: 0, profit: 0, profitKhr: 0 };
     agg.qty += item.quantity;
     agg.revenue += lineRevenue;
     agg.revenueKhr += lineRevenueKhr;
-    productAgg.set(item.productId, agg);
 
     const costInfo = costByProductId.get(item.productId);
     const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
     const costKhrExact = costInfo ? (costInfo.currency === "KHR" ? costInfo.cost : costUsd * rate) : 0;
-    grossProfit += lineRevenue - costUsd * item.quantity;
-    grossProfitKhr += lineRevenueKhrExact - costKhrExact * item.quantity;
+    const lineProfit = lineRevenue - costUsd * item.quantity;
+    const lineProfitKhr = lineRevenueKhrExact - costKhrExact * item.quantity;
+    agg.profit += lineProfit;
+    agg.profitKhr += lineProfitKhr;
+    productAgg.set(item.productId, agg);
+
+    grossProfit += lineProfit;
+    grossProfitKhr += lineProfitKhr;
   }
   // Profit calculation: USD to the nearest cent, riel to the nearest whole
   // riel -- finer-grained than revenue's nearest-note rule above, since
@@ -142,7 +147,16 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   // full list) backs the print report, which needs every product sold, not
   // just the top ones.
   const allProducts = [...productAgg.entries()]
-    .map(([productId, v]) => ({ productId, name: v.name, totalQty: v.qty, revenue: v.revenue, revenueKhr: v.revenueKhr }))
+    .map(([productId, v]) => ({
+      productId,
+      name: v.name,
+      totalQty: v.qty,
+      revenue: v.revenue,
+      revenueKhr: v.revenueKhr,
+      // Same nearest-cent/nearest-riel rounding as the day's total gross profit above.
+      profit: Math.round(v.profit * 100) / 100,
+      profitKhr: Math.round(v.profitKhr),
+    }))
     .sort((a, b) => b.totalQty - a.totalQty);
   const topProducts = allProducts.slice(0, 5);
 

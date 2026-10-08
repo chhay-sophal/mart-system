@@ -276,6 +276,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                   <span className="flex-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{s.topProducts || 'Product'}</span>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider shrink-0">{s.colQty || 'Qty'}</span>
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-16 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-16 text-right shrink-0">{s.colProfit || 'Profit'}</span>
                 </div>
                 <div className="space-y-3">
                   {(summary.all_products ?? summary.top_products ?? []).map((p, i) => (
@@ -284,6 +285,9 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                       <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{p.name}</span>
                       <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{p.total_qty}</span>
                       <span className="text-sm font-bold text-slate-900 dark:text-white w-16 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
+                      <span className={`text-sm font-bold w-16 text-right shrink-0 ${(p.profit ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                        {fmt(p.profit, p.profit_khr)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -334,6 +338,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               <span className="flex-1">{s.topProducts || 'Product'}</span>
               <span className="w-6 text-right shrink-0">{s.colQty || 'Qty'}</span>
               <span className="w-12 text-right shrink-0">{s.colRevenue || 'Revenue'}</span>
+              <span className="w-12 text-right shrink-0">{s.colProfit || 'Profit'}</span>
             </div>
             {/* all_products: every product sold that day, not just the top 5
                 shown on screen above -- falls back to top_products against an
@@ -343,6 +348,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                 <span className="flex-1 truncate">{p.name}</span>
                 <span className="w-6 text-right shrink-0">{p.total_qty}</span>
                 <span className="w-12 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
+                <span className="w-12 text-right shrink-0">{fmt(p.profit, p.profit_khr)}</span>
               </div>
             ))}
 

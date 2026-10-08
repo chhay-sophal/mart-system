@@ -121,7 +121,7 @@ describe("GET /api/reports/daily-summary", () => {
       { paymentMethod: "CASH", count: 1, total: 6, totalKhr: 24600 },
       { paymentMethod: "KHQR", count: 1, total: 4, totalKhr: 16400 },
     ]);
-    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10, revenueKhr: 41000 });
+    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10, revenueKhr: 41000, profit: 4, profitKhr: 16400 });
   });
 
   it("computes gross profit and product revenue in riel using the exact stored amount, not a USD conversion", async () => {
@@ -160,7 +160,7 @@ describe("GET /api/reports/daily-summary", () => {
     expect(res.status).toBe(200);
     // Exact riel figures: 4000 - 2000 = 2000, not a rate-derived approximation.
     expect(res.body.combined.grossProfitKhr).toBe(2000);
-    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, revenueKhr: 4000 });
+    expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, revenueKhr: 4000, profit: 0.49, profitKhr: 2000 });
   });
 });
 

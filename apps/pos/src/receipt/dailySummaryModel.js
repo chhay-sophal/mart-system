@@ -24,7 +24,7 @@ export function buildDailySummary({ summary, shop, title, dateLabel, fmt, method
   add({ type: 'pair', left: s.revenue || 'Revenue', right: fmt(summary.total_revenue, summary.total_revenue_khr), bold: true });
   add({ type: 'pair', left: s.orders || 'Orders', right: String(summary.order_count) });
   add({ type: 'pair', left: s.avg || 'Avg', right: fmt(summary.avg_order, summary.avg_order_khr) });
-  add({ type: 'pair', left: s.grossProfit || 'Gross Profit', right: fmt(summary.gross_profit), bold: true });
+  add({ type: 'pair', left: s.grossProfit || 'Gross Profit', right: fmt(summary.gross_profit, summary.gross_profit_khr), bold: true });
   add({
     type: 'pair',
     left: s.margin || 'Margin',
@@ -47,7 +47,8 @@ export function buildDailySummary({ summary, shop, title, dateLabel, fmt, method
       no: `${i + 1}.`,
       name: p.name,
       detail: `${p.total_qty} ${s.colQty || 'Qty'}`,
-      amount: fmt(p.revenue),
+      amount: fmt(p.revenue, p.revenue_khr),
+      note: `${s.colProfit || 'Profit'}: ${fmt(p.profit, p.profit_khr)}`,
     });
   });
 

@@ -60,7 +60,9 @@ router.get('/api/summary/daily', (req, res) => {
   const allProducts = query(
     `SELECT p.name, SUM(oi.quantity) as total_qty,
             SUM(${ITEM_REVENUE_USD}) as revenue,
-            SUM(${ITEM_REVENUE_KHR}) as revenue_khr
+            SUM(${ITEM_REVENUE_KHR}) as revenue_khr,
+            ROUND(SUM(${ITEM_REVENUE_USD} - ${ITEM_COST_USD} * oi.quantity), 2) as profit,
+            ROUND(SUM(${ITEM_REVENUE_KHR_EXACT} - ${ITEM_COST_KHR_EXACT} * oi.quantity)) as profit_khr
      FROM order_items oi
      JOIN orders o ON o.id = oi.order_id
      JOIN products p ON p.id = oi.product_id
