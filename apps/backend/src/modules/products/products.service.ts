@@ -22,7 +22,6 @@ function toProductView(row: StoreProductWithProduct) {
     category: row.product.category,
     currency: row.product.currency,
     defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
-    defaultCostPrice: fromMinorUnits(row.product.defaultCostPriceMinor, row.product.currency),
     priceOverride: row.priceOverrideMinor !== null ? fromMinorUnits(row.priceOverrideMinor, row.currency) : null,
     costPrice: fromMinorUnits(row.costPriceMinor, row.currency),
     stock: row.stock,
@@ -78,7 +77,6 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
         barcode: input.barcode ?? null,
         category: input.category ?? null,
         defaultPriceMinor: toMinorUnits(input.price, input.currency as Currency),
-        defaultCostPriceMinor: toMinorUnits(input.costPrice, input.currency as Currency),
         currency: input.currency as Currency,
         supplierId: input.supplierId ?? null,
       },
@@ -115,7 +113,6 @@ export async function updateProduct(storeId: string, productId: string, input: U
       input.barcode !== undefined ||
       input.category !== undefined ||
       input.price !== undefined ||
-      input.costPrice !== undefined ||
       input.currency !== undefined ||
       input.supplierId !== undefined
     ) {
@@ -126,7 +123,6 @@ export async function updateProduct(storeId: string, productId: string, input: U
           barcode: input.barcode,
           category: input.category,
           defaultPriceMinor: input.price !== undefined ? toMinorUnits(input.price, effectiveCurrency) : undefined,
-          defaultCostPriceMinor: input.costPrice !== undefined ? toMinorUnits(input.costPrice, effectiveCurrency) : undefined,
           currency: input.currency as Currency | undefined,
           supplierId: input.supplierId,
         },
@@ -350,7 +346,6 @@ export async function bulkImportProducts(
             name: r.name,
             barcode: r.barcode,
             defaultPriceMinor: r.priceMinor,
-            defaultCostPriceMinor: r.costPriceMinor,
             currency: r.currency,
           })),
           select: { id: true, name: true, barcode: true },
@@ -378,7 +373,7 @@ export async function bulkImportProducts(
       await prisma.$transaction([
         prisma.product.update({
           where: { id: productId },
-          data: { name: row.name, defaultPriceMinor: row.priceMinor, defaultCostPriceMinor: row.costPriceMinor, currency: row.currency },
+          data: { name: row.name, defaultPriceMinor: row.priceMinor, currency: row.currency },
         }),
         prisma.storeProduct.upsert({
           where: { storeId_productId: { storeId, productId } },
