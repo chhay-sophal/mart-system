@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 export const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200';
 
@@ -44,9 +45,13 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
   return (
     <th className="px-4 py-2">
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => onSort(col)} className="font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
+        <button type="button" onClick={() => onSort(col)} className="inline-flex items-center font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
           {label}
-          <span className="ml-1 text-[var(--accent)]">{active ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+          {active ? (
+            sort.dir === 'asc' ? <ChevronUp size={12} className="ml-1 text-[var(--accent)]" /> : <ChevronDown size={12} className="ml-1 text-[var(--accent)]" />
+          ) : (
+            <ChevronsUpDown size={12} className="ml-1 text-slate-300 dark:text-slate-600" />
+          )}
         </button>
         <button
           ref={buttonRef}
