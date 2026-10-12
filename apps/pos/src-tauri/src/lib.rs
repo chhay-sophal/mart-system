@@ -29,6 +29,19 @@ fn kill_backend(state: tauri::State<Mutex<Option<CommandChild>>>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    // Must come first: a second launch (double-click while still starting, an
+    // autostart entry plus a manual open, ...) is caught here and never
+    // reaches `setup()` below -- so it can't spawn a second backend-server or
+    // run the pkill/taskkill that would kill the first instance's. Without
+    // this, that race is what caused the flashing extra windows and the
+    // occasional "backend failed to start" on the surviving one.
+    .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+      }
+    }))
     .manage(BackendPort(Mutex::new(None)))
     .setup(|app| {
       app.handle().plugin(
