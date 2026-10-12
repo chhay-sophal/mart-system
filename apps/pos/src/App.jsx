@@ -257,6 +257,14 @@ export default function App() {
       lastTimestamp = currentTimestamp;
 
       if (e.key === 'Enter') {
+        // A touch tap leaves its button focused; the scanner's trailing
+        // Enter would otherwise also be seen as "Enter pressed on a focused
+        // button" and re-click it (e.g. re-opening/re-printing the invoice).
+        // Stop that native activation and drop the focus so it can't fire
+        // on the next scan either.
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+
         const cleanBarcode = keyBuffer.trim();
         if (cleanBarcode.length > 0) {
           executeDirectBarcodeLookup(cleanBarcode);
