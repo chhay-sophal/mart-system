@@ -1392,7 +1392,7 @@ export default function App() {
                     </span>
                   </div>
                 )}
-                <div className="border-t border-slate-800 dark:border-slate-700 pt-2.5 flex justify-between items-baseline">
+                <div className="border-t border-slate-300 dark:border-slate-700 pt-2.5 flex justify-between items-baseline">
                   <span className="text-md font-medium font-display">
                     {mainCurrency === 'USD' ? t[locale].totalUsd : t[locale].totalKhr}
                   </span>
