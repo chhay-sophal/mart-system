@@ -15,7 +15,7 @@ function FilterIcon({ className }) {
 // Column header: clicking the label text sorts (unchanged); a separate
 // filter button on the right opens a dropdown with that column's filter
 // controls. Pairs with the useColumnFilter hook, which owns isOpen/panelRef.
-export default function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, hasActiveFilter, panelRef, children }) {
+export default function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, hasActiveFilter, panelRef, className = '', children }) {
   const active = sort.col === col;
   const buttonRef = useRef(null);
   // Screen coordinates for the portaled panel below, in state (not read at
@@ -42,9 +42,14 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
     };
   }, [isOpen]);
 
+  // Matches the plain SortTh's own className convention (e.g. "text-center",
+  // "text-right") so a numeric column's filter icon lands on the same side as
+  // its header label, instead of always drifting to the far right.
+  const justify = className.includes('text-right') ? 'justify-end' : className.includes('text-center') ? 'justify-center' : 'justify-between';
+
   return (
-    <th className="px-4 py-2">
-      <div className="flex items-center justify-between gap-2">
+    <th className={`px-4 py-2 ${className}`}>
+      <div className={`flex items-center gap-2 ${justify}`}>
         <button type="button" onClick={() => onSort(col)} className="inline-flex items-center font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
           {label}
           {active ? (

@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
+import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
 
 function formatDate(value) {
   if (!value) return 'Never';
@@ -19,6 +21,83 @@ function isOnline(terminal) {
   return Boolean(terminal.lastSeenAt) && Date.now() - new Date(terminal.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
 }
 
+// 'inactive' mirrors the "—" shown in the Sync column for a deactivated terminal.
+function syncState(terminal) {
+  if (!terminal.isActive) return 'inactive';
+  return isOnline(terminal) ? 'online' : 'offline';
+}
+
+const SYNC_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'online', label: 'Online' },
+  { value: 'offline', label: 'Offline' },
+  { value: 'inactive', label: '— (inactive)' },
+];
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
+const EMPTY_FILTERS = {
+  name: '',
+  pairedFrom: '', // 'YYYY-MM-DD', local, inclusive
+  pairedTo: '',
+  lastSeenFrom: '',
+  lastSeenTo: '',
+  sync: 'all', // all | online | offline | inactive
+  status: 'all', // all | active | inactive
+};
+
+const norm = (value) => String(value ?? '').trim().toLowerCase();
+
+// from/to are 'YYYY-MM-DD' (<input type="date"> values, local time, no
+// timezone) -- both bounds inclusive of the whole selected day. A null value
+// (terminal never paired/seen) never matches a bound.
+function inDateRange(value, fromStr, toStr) {
+  if (!fromStr && !toStr) return true;
+  if (!value) return false;
+  const d = new Date(value);
+  if (fromStr && d < new Date(`${fromStr}T00:00:00`)) return false;
+  if (toStr) {
+    const to = new Date(`${toStr}T00:00:00`);
+    to.setDate(to.getDate() + 1); // exclusive upper bound -- through the end of the selected day
+    if (d >= to) return false;
+  }
+  return true;
+}
+
+function filterTerminals(terminals, f) {
+  const name = norm(f.name);
+  return terminals.filter((t) => {
+    if (name && !norm(t.name).includes(name)) return false;
+    if (!inDateRange(t.pairedAt, f.pairedFrom, f.pairedTo)) return false;
+    if (!inDateRange(t.lastSeenAt, f.lastSeenFrom, f.lastSeenTo)) return false;
+    if (f.sync !== 'all' && syncState(t) !== f.sync) return false;
+    if (f.status !== 'all' && (f.status === 'active') !== t.isActive) return false;
+    return true;
+  });
+}
+
+const COMPARE = {
+  name: (a, b) => a.name.localeCompare(b.name),
+  pairedAt: (a, b) => new Date(a.pairedAt ?? 0) - new Date(b.pairedAt ?? 0),
+  lastSeenAt: (a, b) => new Date(a.lastSeenAt ?? 0) - new Date(b.lastSeenAt ?? 0),
+  sync: (a, b) => syncState(a).localeCompare(syncState(b)),
+  status: (a, b) => Number(a.isActive) - Number(b.isActive),
+};
+
+function sortTerminals(terminals, { col, dir }) {
+  const compare = COMPARE[col];
+  if (!compare) return terminals;
+  const sign = dir === 'desc' ? -1 : 1;
+  // Ties fall back to name, so the order is stable and predictable.
+  return [...terminals].sort((a, b) => sign * compare(a, b) || COMPARE.name(a, b));
+}
+
+const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
+
 export default function TerminalsPage() {
   const { storeId } = useOutletContext();
   const confirm = useConfirm();
@@ -26,6 +105,13 @@ export default function TerminalsPage() {
   const [showPair, setShowPair] = useState(false);
   const [pairName, setPairName] = useState('');
   const [revealedSecret, setRevealedSecret] = useState(null); // { id, name, deviceSecret }
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
+  const toggleSort = (col) =>
+    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
+  const filterCount = activeFilterCount(filters);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -35,8 +121,9 @@ export default function TerminalsPage() {
     queryFn: () => apiClient.get(`/api/stores/${storeId}/terminals`),
     enabled: Boolean(storeId),
   });
-  const terminals = listQuery.data ?? [];
+  const terminals = useMemo(() => listQuery.data ?? [], [listQuery.data]);
   const loading = listQuery.isPending;
+  const visible = useMemo(() => sortTerminals(filterTerminals(terminals, filters), sort), [terminals, filters, sort]);
   // After a save: refresh the cached list.
   const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.terminals(storeId) });
 
@@ -79,12 +166,22 @@ export default function TerminalsPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Terminals</h1>
-        <button
-          onClick={() => setShowPair(true)}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
-        >
-          Pair new terminal
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {visible.length === terminals.length ? `${terminals.length} terminals` : `${visible.length} of ${terminals.length} terminals`}
+          </span>
+          {filterCount > 0 && (
+            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              Clear filters ({filterCount})
+            </button>
+          )}
+          <button
+            onClick={() => setShowPair(true)}
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+          >
+            Pair new terminal
+          </button>
+        </div>
       </div>
 
       {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load terminals.'}</p>}
@@ -93,11 +190,73 @@ export default function TerminalsPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Paired</th>
-              <th className="px-4 py-2">Last seen</th>
-              <th className="px-4 py-2">Sync</th>
-              <th className="px-4 py-2">Status</th>
+              <FilterableHeader
+                col="name" label="Name" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
+              >
+                <input
+                  value={filters.name}
+                  onChange={(e) => setFilter('name', e.target.value)}
+                  placeholder="Filter name"
+                  className={filterInput}
+                  autoFocus
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="pairedAt" label="Paired" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'pairedAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.pairedFrom !== EMPTY_FILTERS.pairedFrom || filters.pairedTo !== EMPTY_FILTERS.pairedTo}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    From
+                    <input type="date" value={filters.pairedFrom} onChange={(e) => setFilter('pairedFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    To
+                    <input type="date" value={filters.pairedTo} onChange={(e) => setFilter('pairedTo', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="lastSeenAt" label="Last seen" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'lastSeenAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.lastSeenFrom !== EMPTY_FILTERS.lastSeenFrom || filters.lastSeenTo !== EMPTY_FILTERS.lastSeenTo}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    From
+                    <input type="date" value={filters.lastSeenFrom} onChange={(e) => setFilter('lastSeenFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400">
+                    To
+                    <input type="date" value={filters.lastSeenTo} onChange={(e) => setFilter('lastSeenTo', e.target.value)} className={`${filterInput} mt-0.5`} />
+                  </label>
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="sync" label="Sync" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'sync'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.sync !== EMPTY_FILTERS.sync}
+              >
+                <select value={filters.sync} onChange={(e) => setFilter('sync', e.target.value)} className={filterInput}>
+                  {SYNC_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
+              <FilterableHeader
+                col="status" label="Status" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
+              >
+                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
+                  {STATUS_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -108,14 +267,14 @@ export default function TerminalsPage() {
                   Loading…
                 </td>
               </tr>
-            ) : terminals.length === 0 ? (
+            ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  No terminals paired yet.
+                  {terminals.length === 0 ? 'No terminals paired yet.' : 'No terminals match the filters.'}
                 </td>
               </tr>
             ) : (
-              terminals.map((t) => (
+              visible.map((t) => (
                 <tr key={t.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{t.name}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(t.pairedAt)}</td>

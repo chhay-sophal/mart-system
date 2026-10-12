@@ -1,15 +1,81 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
+import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
 // Staff PINs are exactly 4 digits (the POS lock screen has four places).
 const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
 
 const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
+
+const ROLE_FILTERS = [{ value: 'all', label: 'All' }, ...ROLES.map((r) => ({ value: r, label: r.charAt(0) + r.slice(1).toLowerCase() }))];
+
+const PIN_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'set', label: 'Set' },
+  { value: 'unset', label: 'Not set' },
+];
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
+const EMPTY_FILTERS = {
+  name: '',
+  email: '',
+  role: 'all', // all | CASHIER | INVENTORY | ADMIN
+  pin: 'all', // all | set | unset
+  status: 'all', // all | active | inactive
+};
+
+const norm = (value) => String(value ?? '').trim().toLowerCase();
+
+function matchesPin(row, mode) {
+  if (mode === 'all') return true;
+  return mode === 'set' ? row.hasPinSet : !row.hasPinSet;
+}
+
+function matchesStatus(row, mode) {
+  if (mode === 'all') return true;
+  return mode === 'active' ? row.isActive : !row.isActive;
+}
+
+function filterStaff(staff, f) {
+  const name = norm(f.name);
+  const email = norm(f.email);
+  return staff.filter((row) => {
+    if (name && !norm(row.name).includes(name)) return false;
+    if (email && !norm(row.email).includes(email)) return false;
+    if (f.role !== 'all' && row.role !== f.role) return false;
+    if (!matchesPin(row, f.pin)) return false;
+    return matchesStatus(row, f.status);
+  });
+}
+
+const COMPARE = {
+  name: (a, b) => a.name.localeCompare(b.name),
+  email: (a, b) => (a.email ?? '').localeCompare(b.email ?? ''),
+  role: (a, b) => a.role.localeCompare(b.role),
+  pin: (a, b) => Number(a.hasPinSet) - Number(b.hasPinSet),
+  status: (a, b) => Number(a.isActive) - Number(b.isActive),
+};
+
+function sortStaff(staff, { col, dir }) {
+  const compare = COMPARE[col];
+  if (!compare) return staff;
+  const sign = dir === 'desc' ? -1 : 1;
+  // Ties fall back to name, so the order is stable and predictable.
+  return [...staff].sort((a, b) => sign * compare(a, b) || COMPARE.name(a, b));
+}
+
+const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
 
 export default function StaffPage() {
   const { storeId } = useOutletContext();
@@ -22,6 +88,13 @@ export default function StaffPage() {
   const [editing, setEditing] = useState(null); // staff row being edited
   const [editForm, setEditForm] = useState(null);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
+  const toggleSort = (col) =>
+    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
+  const filterCount = activeFilterCount(filters);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -31,8 +104,9 @@ export default function StaffPage() {
     queryFn: () => apiClient.get(`/api/stores/${storeId}/staff`),
     enabled: Boolean(storeId),
   });
-  const staff = listQuery.data ?? [];
+  const staff = useMemo(() => listQuery.data ?? [], [listQuery.data]);
   const loading = listQuery.isPending;
+  const visible = useMemo(() => sortStaff(filterStaff(staff, filters), sort), [staff, filters, sort]);
   // After a save: refresh the cached list.
   const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.staff(storeId) });
 
@@ -119,12 +193,22 @@ export default function StaffPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Staff</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
-        >
-          Add staff
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {visible.length === staff.length ? `${staff.length} staff` : `${visible.length} of ${staff.length} staff`}
+          </span>
+          {filterCount > 0 && (
+            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              Clear filters ({filterCount})
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(true)}
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+          >
+            Add staff
+          </button>
+        </div>
       </div>
 
       {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load staff.'}</p>}
@@ -133,11 +217,64 @@ export default function StaffPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Email</th>
-              <th className="px-4 py-2">Role</th>
-              <th className="px-4 py-2">PIN</th>
-              <th className="px-4 py-2">Status</th>
+              <FilterableHeader
+                col="name" label="Name" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
+              >
+                <input
+                  value={filters.name}
+                  onChange={(e) => setFilter('name', e.target.value)}
+                  placeholder="Filter name"
+                  className={filterInput}
+                  autoFocus
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="email" label="Email" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'email'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.email !== EMPTY_FILTERS.email}
+              >
+                <input
+                  value={filters.email}
+                  onChange={(e) => setFilter('email', e.target.value)}
+                  placeholder="Contains"
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="role" label="Role" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'role'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.role !== EMPTY_FILTERS.role}
+              >
+                <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)} className={filterInput}>
+                  {ROLE_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
+              <FilterableHeader
+                col="pin" label="PIN" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'pin'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.pin !== EMPTY_FILTERS.pin}
+              >
+                <select value={filters.pin} onChange={(e) => setFilter('pin', e.target.value)} className={filterInput}>
+                  {PIN_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
+              <FilterableHeader
+                col="status" label="Status" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
+              >
+                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
+                  {STATUS_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -148,14 +285,14 @@ export default function StaffPage() {
                   Loading…
                 </td>
               </tr>
-            ) : staff.length === 0 ? (
+            ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  No staff yet.
+                  {staff.length === 0 ? 'No staff yet.' : 'No staff match the filters.'}
                 </td>
               </tr>
             ) : (
-              staff.map((row) => (
+              visible.map((row) => (
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email ?? '—'}</td>

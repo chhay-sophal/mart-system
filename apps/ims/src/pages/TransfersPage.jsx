@@ -1,11 +1,62 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
+import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
 
 const EMPTY_CREATE_FORM = { fromStoreId: '', toStoreId: '', items: [] };
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'REQUESTED', label: 'Requested' },
+  { value: 'IN_TRANSIT', label: 'In transit' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'CANCELLED', label: 'Cancelled' },
+];
+
+const itemsSummary = (t) => t.items.map((i) => `${i.quantity}× ${i.productName}`).join(', ');
+
+const EMPTY_FILTERS = {
+  from: '',
+  to: '',
+  items: '',
+  status: 'all', // all | REQUESTED | IN_TRANSIT | COMPLETED | CANCELLED
+};
+
+const norm = (value) => String(value ?? '').trim().toLowerCase();
+
+function filterTransfers(transfers, f) {
+  const from = norm(f.from);
+  const to = norm(f.to);
+  const items = norm(f.items);
+  return transfers.filter((t) => {
+    if (from && !norm(t.fromStoreName).includes(from)) return false;
+    if (to && !norm(t.toStoreName).includes(to)) return false;
+    if (items && !norm(itemsSummary(t)).includes(items)) return false;
+    if (f.status !== 'all' && t.status !== f.status) return false;
+    return true;
+  });
+}
+
+const COMPARE = {
+  from: (a, b) => a.fromStoreName.localeCompare(b.fromStoreName),
+  to: (a, b) => a.toStoreName.localeCompare(b.toStoreName),
+  items: (a, b) => a.items.length - b.items.length,
+  status: (a, b) => a.status.localeCompare(b.status),
+};
+
+function sortTransfers(transfers, { col, dir }) {
+  const compare = COMPARE[col];
+  if (!compare) return transfers;
+  const sign = dir === 'desc' ? -1 : 1;
+  // Ties fall back to from-store, so the order is stable and predictable.
+  return [...transfers].sort((a, b) => sign * compare(a, b) || COMPARE.from(a, b));
+}
+
+const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
 
 export default function TransfersPage() {
   // Not scoped to the AppShell's single current store — a transfer inherently
@@ -17,13 +68,21 @@ export default function TransfersPage() {
   const [fromStoreProducts, setFromStoreProducts] = useState([]);
   const [pendingProductId, setPendingProductId] = useState('');
   const [pendingQuantity, setPendingQuantity] = useState('1');
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sort, setSort] = useState({ col: 'from', dir: 'asc' });
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
+  const toggleSort = (col) =>
+    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
+  const filterCount = activeFilterCount(filters);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
   const queryClient = useQueryClient();
   const transfersQuery = useQuery({ queryKey: queryKeys.transfers(), queryFn: () => apiClient.get('/api/stock-transfers') });
-  const transfers = transfersQuery.data ?? [];
+  const transfers = useMemo(() => transfersQuery.data ?? [], [transfersQuery.data]);
   const loading = transfersQuery.isPending;
+  const visible = useMemo(() => sortTransfers(filterTransfers(transfers, filters), sort), [transfers, filters, sort]);
   // After a save: shipping/receiving moves stock between stores, so product
   // lists and reports are out of date too.
   const load = () =>
@@ -115,12 +174,22 @@ export default function TransfersPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">Stock transfers</h1>
-        <button
-          onClick={openCreate}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
-        >
-          New transfer
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {visible.length === transfers.length ? `${transfers.length} transfers` : `${visible.length} of ${transfers.length} transfers`}
+          </span>
+          {filterCount > 0 && (
+            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              Clear filters ({filterCount})
+            </button>
+          )}
+          <button
+            onClick={openCreate}
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+          >
+            New transfer
+          </button>
+        </div>
       </div>
 
       {(error || transfersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load transfers.'}</p>}
@@ -129,10 +198,54 @@ export default function TransfersPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-2">From</th>
-              <th className="px-4 py-2">To</th>
-              <th className="px-4 py-2">Items</th>
-              <th className="px-4 py-2">Status</th>
+              <FilterableHeader
+                col="from" label="From" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'from'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.from !== EMPTY_FILTERS.from}
+              >
+                <input
+                  value={filters.from}
+                  onChange={(e) => setFilter('from', e.target.value)}
+                  placeholder="Filter store"
+                  className={filterInput}
+                  autoFocus
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="to" label="To" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'to'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.to !== EMPTY_FILTERS.to}
+              >
+                <input
+                  value={filters.to}
+                  onChange={(e) => setFilter('to', e.target.value)}
+                  placeholder="Filter store"
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="items" label="Items" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.items !== EMPTY_FILTERS.items}
+              >
+                <input
+                  value={filters.items}
+                  onChange={(e) => setFilter('items', e.target.value)}
+                  placeholder="Contains"
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="status" label="Status" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
+              >
+                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
+                  {STATUS_FILTERS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -143,19 +256,19 @@ export default function TransfersPage() {
                   Loading…
                 </td>
               </tr>
-            ) : transfers.length === 0 ? (
+            ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  No transfers yet.
+                  {transfers.length === 0 ? 'No transfers yet.' : 'No transfers match the filters.'}
                 </td>
               </tr>
             ) : (
-              transfers.map((t) => (
+              visible.map((t) => (
                 <tr key={t.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{t.fromStoreName}</td>
                   <td className="px-4 py-2">{t.toStoreName}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
-                    {t.items.map((i) => `${i.quantity}× ${i.productName}`).join(', ')}
+                    {itemsSummary(t)}
                   </td>
                   <td className="px-4 py-2">
                     <span

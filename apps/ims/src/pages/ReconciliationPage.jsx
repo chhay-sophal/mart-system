@@ -1,21 +1,77 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
+import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+
+const activitySummary = (row) =>
+  row.recentMovements.length === 0 ? '' : row.recentMovements.map((m) => `${m.delta > 0 ? '+' : ''}${m.delta} (${m.reason})`).join(', ');
+
+const EMPTY_FILTERS = {
+  store: '',
+  product: '',
+  stockMin: '',
+  stockMax: '',
+  activity: '',
+};
+
+const norm = (value) => String(value ?? '').trim().toLowerCase();
+
+function filterRows(rows, f) {
+  const store = norm(f.store);
+  const product = norm(f.product);
+  const activity = norm(f.activity);
+  const min = f.stockMin === '' ? null : Number(f.stockMin);
+  const max = f.stockMax === '' ? null : Number(f.stockMax);
+  return rows.filter((row) => {
+    if (store && !norm(row.storeName).includes(store)) return false;
+    if (product && !norm(row.productName).includes(product) && !norm(row.barcode).includes(product)) return false;
+    if (min !== null && !(row.stock >= min)) return false;
+    if (max !== null && !(row.stock <= max)) return false;
+    if (activity && !norm(activitySummary(row)).includes(activity)) return false;
+    return true;
+  });
+}
+
+const COMPARE = {
+  store: (a, b) => a.storeName.localeCompare(b.storeName),
+  product: (a, b) => a.productName.localeCompare(b.productName),
+  stock: (a, b) => a.stock - b.stock,
+  activity: (a, b) => b.recentMovements.length - a.recentMovements.length,
+};
+
+function sortRows(rows, { col, dir }) {
+  const compare = COMPARE[col];
+  if (!compare) return rows;
+  const sign = dir === 'desc' ? -1 : 1;
+  // Ties fall back to store then product, so the order is stable and predictable.
+  return [...rows].sort((a, b) => sign * compare(a, b) || COMPARE.store(a, b) || COMPARE.product(a, b));
+}
+
+const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
 
 export default function ReconciliationPage() {
   const [error, setError] = useState('');
   const [adjustTarget, setAdjustTarget] = useState(null); // row being corrected
   const [correctedStock, setCorrectedStock] = useState('');
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [sort, setSort] = useState({ col: 'stock', dir: 'asc' });
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
+  const toggleSort = (col) =>
+    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
+  const filterCount = activeFilterCount(filters);
 
   // Not scoped to the AppShell's single current store — this spans every
   // store the signed-in user can access, same list GET /api/stores returns.
   // Cached (lib/queryClient.js); refreshed in the background when stale.
   const queryClient = useQueryClient();
   const rowsQuery = useQuery({ queryKey: queryKeys.negativeStock(), queryFn: () => apiClient.get('/api/reports/negative-stock') });
-  const rows = rowsQuery.data ?? [];
+  const rows = useMemo(() => rowsQuery.data ?? [], [rowsQuery.data]);
   const loading = rowsQuery.isPending;
+  const visible = useMemo(() => sortRows(filterRows(rows, filters), sort), [rows, filters, sort]);
   // After a correction: this report and that store's product lists change.
   const load = () =>
     Promise.all([
@@ -48,6 +104,16 @@ export default function ReconciliationPage() {
             through when the shelf count didn't match the system.
           </p>
         </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {visible.length === rows.length ? `${rows.length} row${rows.length === 1 ? '' : 's'}` : `${visible.length} of ${rows.length} rows`}
+          </span>
+          {filterCount > 0 && (
+            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              Clear filters ({filterCount})
+            </button>
+          )}
+        </div>
       </div>
 
       {(error || rowsQuery.isError) && (
@@ -58,10 +124,53 @@ export default function ReconciliationPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
-              <th className="px-4 py-2">Store</th>
-              <th className="px-4 py-2">Product</th>
-              <th className="px-4 py-2">Stock</th>
-              <th className="px-4 py-2">Recent activity</th>
+              <FilterableHeader
+                col="store" label="Store" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'store'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.store !== EMPTY_FILTERS.store}
+              >
+                <input
+                  value={filters.store}
+                  onChange={(e) => setFilter('store', e.target.value)}
+                  placeholder="Filter store"
+                  className={filterInput}
+                  autoFocus
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="product" label="Product" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'product'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.product !== EMPTY_FILTERS.product}
+              >
+                <input
+                  value={filters.product}
+                  onChange={(e) => setFilter('product', e.target.value)}
+                  placeholder="Name or barcode"
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="stock" label="Stock" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'stock'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.stockMin !== EMPTY_FILTERS.stockMin || filters.stockMax !== EMPTY_FILTERS.stockMax}
+              >
+                <div className="flex gap-1">
+                  <input type="number" value={filters.stockMin} onChange={(e) => setFilter('stockMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.stockMax} onChange={(e) => setFilter('stockMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="activity" label="Recent activity" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'activity'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.activity !== EMPTY_FILTERS.activity}
+              >
+                <input
+                  value={filters.activity}
+                  onChange={(e) => setFilter('activity', e.target.value)}
+                  placeholder="Contains"
+                  className={filterInput}
+                />
+              </FilterableHeader>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -72,14 +181,14 @@ export default function ReconciliationPage() {
                   Loading…
                 </td>
               </tr>
-            ) : rows.length === 0 ? (
+            ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  Nothing to reconcile — no store has negative stock right now.
+                  {rows.length === 0 ? 'Nothing to reconcile — no store has negative stock right now.' : 'No rows match the filters.'}
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              visible.map((row) => (
                 <tr key={`${row.storeId}-${row.productId}`} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.storeName}</td>
                   <td className="px-4 py-2">
@@ -88,11 +197,7 @@ export default function ReconciliationPage() {
                   </td>
                   <td className="px-4 py-2 font-medium text-red-600 dark:text-red-400">{row.stock}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
-                    {row.recentMovements.length === 0
-                      ? '—'
-                      : row.recentMovements
-                          .map((m) => `${m.delta > 0 ? '+' : ''}${m.delta} (${m.reason})`)
-                          .join(', ')}
+                    {activitySummary(row) || '—'}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button

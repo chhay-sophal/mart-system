@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { ApiError } from '@mart-system/api-client';
 import { useAuth } from '../auth/AuthContext.jsx';
 import Modal from '../components/Modal.jsx';
+import { useColumnFilter } from '../hooks/useColumnFilter';
+import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
@@ -94,6 +97,19 @@ export default function SalesHistoryPage() {
   const [sort, setSort] = useState({ col: 'date', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
+  // Per-column header filters, on top of the filter bar above: branch/register
+  // narrow further within the already-fetched rows (the Branch select above
+  // still drives which branch's data is fetched at all); items/total are new,
+  // with no bar equivalent. Payment's column filter reads/writes the same
+  // payFilter state as its select above, just a second entry point onto it.
+  const [receiptFilter, setReceiptFilter] = useState('');
+  const [branchFilter, setBranchFilter] = useState('');
+  const [registerFilter, setRegisterFilter] = useState('');
+  const [itemsMin, setItemsMin] = useState('');
+  const [itemsMax, setItemsMax] = useState('');
+  const [totalMin, setTotalMin] = useState('');
+  const [totalMax, setTotalMax] = useState('');
+  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
 
   const [error, setError] = useState('');
   const [voidTarget, setVoidTarget] = useState(null);
@@ -140,15 +156,29 @@ export default function SalesHistoryPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [storeFilter, dateFrom, dateTo, payFilter, search, showVoided, sort]);
+  }, [storeFilter, dateFrom, dateTo, payFilter, search, showVoided, sort, receiptFilter, branchFilter, registerFilter, itemsMin, itemsMax, totalMin, totalMax]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const receiptQ = receiptFilter.trim().toLowerCase();
+    const branchQ = branchFilter.trim().toLowerCase();
+    const registerQ = registerFilter.trim().toLowerCase();
+    const iMin = itemsMin === '' ? null : Number(itemsMin);
+    const iMax = itemsMax === '' ? null : Number(itemsMax);
+    const tMin = totalMin === '' ? null : Number(totalMin);
+    const tMax = totalMax === '' ? null : Number(totalMax);
     const dir = sort.dir === 'asc' ? 1 : -1;
     const byDate = (a, b) => new Date(a.created_at) - new Date(b.created_at);
     return orders
       .filter((o) => showVoided || !isVoided(o))
       .filter((o) => payFilter === 'all' || o.payment_method === payFilter)
+      .filter((o) => !receiptQ || o.receipt_no.toLowerCase().includes(receiptQ))
+      .filter((o) => !branchQ || (o.store_name ?? '').toLowerCase().includes(branchQ))
+      .filter((o) => !registerQ || (o.terminal_name ?? '').toLowerCase().includes(registerQ))
+      .filter((o) => iMin === null || itemCount(o) >= iMin)
+      .filter((o) => iMax === null || itemCount(o) <= iMax)
+      .filter((o) => tMin === null || Number(o.total_amount) >= tMin)
+      .filter((o) => tMax === null || Number(o.total_amount) <= tMax)
       .filter(
         (o) =>
           !q ||
@@ -168,7 +198,7 @@ export default function SalesHistoryPage() {
           default: return dir * byDate(a, b);
         }
       });
-  }, [orders, showVoided, payFilter, search, sort]);
+  }, [orders, showVoided, payFilter, search, sort, receiptFilter, branchFilter, registerFilter, itemsMin, itemsMax, totalMin, totalMax]);
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -301,13 +331,81 @@ export default function SalesHistoryPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
-              <SortTh sort={sort} onSort={toggleSort} col="receipt">Receipt #</SortTh>
+              <FilterableHeader
+                col="receipt" label="Receipt #" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'receipt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={receiptFilter !== ''}
+              >
+                <input
+                  value={receiptFilter}
+                  onChange={(e) => setReceiptFilter(e.target.value)}
+                  placeholder="Contains"
+                  className={filterInput}
+                  autoFocus
+                />
+              </FilterableHeader>
+              {/* Date stays sort-only: the filter bar above already drives the
+                  actual date range this page fetches (with quick presets), so
+                  a second date filter here would just duplicate it. */}
               <SortTh sort={sort} onSort={toggleSort} col="date">Date</SortTh>
-              {allBranches && <SortTh sort={sort} onSort={toggleSort} col="branch">Branch</SortTh>}
-              <SortTh sort={sort} onSort={toggleSort} col="register">Register</SortTh>
-              <SortTh sort={sort} onSort={toggleSort} col="items" className="text-center">Items</SortTh>
-              <SortTh sort={sort} onSort={toggleSort} col="total" className="text-right">Total</SortTh>
-              <SortTh sort={sort} onSort={toggleSort} col="payment">Payment</SortTh>
+              {allBranches && (
+                <FilterableHeader
+                  col="branch" label="Branch" sort={sort} onSort={toggleSort}
+                  isOpen={openFilterCol === 'branch'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                  hasActiveFilter={branchFilter !== ''}
+                >
+                  <input
+                    value={branchFilter}
+                    onChange={(e) => setBranchFilter(e.target.value)}
+                    placeholder="Contains"
+                    className={filterInput}
+                  />
+                </FilterableHeader>
+              )}
+              <FilterableHeader
+                col="register" label="Register" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'register'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={registerFilter !== ''}
+              >
+                <input
+                  value={registerFilter}
+                  onChange={(e) => setRegisterFilter(e.target.value)}
+                  placeholder="Contains"
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
+                col="items" label="Items" sort={sort} onSort={toggleSort} className="text-center"
+                isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={itemsMin !== '' || itemsMax !== ''}
+              >
+                <div className="flex gap-1">
+                  <input type="number" value={itemsMin} onChange={(e) => setItemsMin(e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
+                  <input type="number" value={itemsMax} onChange={(e) => setItemsMax(e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="total" label="Total" sort={sort} onSort={toggleSort} className="text-right"
+                isOpen={openFilterCol === 'total'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={totalMin !== '' || totalMax !== ''}
+              >
+                <div className="flex gap-1">
+                  <input type="number" value={totalMin} onChange={(e) => setTotalMin(e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
+                  <input type="number" value={totalMax} onChange={(e) => setTotalMax(e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                </div>
+              </FilterableHeader>
+              <FilterableHeader
+                col="payment" label="Payment" sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'payment'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={payFilter !== 'all'}
+              >
+                <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className={filterInput}>
+                  <option value="all">All methods</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                  ))}
+                </select>
+              </FilterableHeader>
             </tr>
           </thead>
           <tbody>
@@ -367,10 +465,17 @@ export default function SalesHistoryPage() {
 }
 
 function SortTh({ col, sort, onSort, children, className = '' }) {
+  const active = sort.col === col;
   return (
     <th className={`px-3 py-2 font-medium cursor-pointer select-none whitespace-nowrap ${className}`} onClick={() => onSort(col)}>
-      {children}
-      <span className="text-[var(--accent)]">{sort.col === col ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</span>
+      <span className="inline-flex items-center gap-1">
+        {children}
+        {active ? (
+          sort.dir === 'asc' ? <ChevronUp size={12} className="text-[var(--accent)]" /> : <ChevronDown size={12} className="text-[var(--accent)]" />
+        ) : (
+          <ChevronsUpDown size={12} className="text-slate-300 dark:text-slate-600" />
+        )}
+      </span>
     </th>
   );
 }
