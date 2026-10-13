@@ -427,9 +427,13 @@ export default function App() {
     let displayState;
     if (checkoutResult) {
       displayState = 'done';
-    } else if (cart.length > 0 && ((paymentMethod === 'KHQR' && activeKhqr) || paymentMethod === 'STATIC_QR')) {
-      // Payment only with something to pay for: an empty cart is idle (standby
-      // image) whichever payment method is selected.
+    } else if (
+      (cart.length > 0 && ((paymentMethod === 'KHQR' && activeKhqr) || paymentMethod === 'STATIC_QR')) ||
+      staticQrImage
+    ) {
+      // Payment with something to pay for. A bank picked under Bank QR shows its
+      // QR even with an empty cart (e.g. a customer paying for something that
+      // wasn't scanned); otherwise an empty cart is idle (standby image).
       displayState = 'payment';
     } else if (cart.length > 0) {
       displayState = 'active';

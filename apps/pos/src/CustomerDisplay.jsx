@@ -170,6 +170,22 @@ export default function CustomerDisplay() {
     );
   }
 
+  /* ── BANK QR, NOTHING IN THE CART ──────────────────────── */
+  // Just the QR to scan: an empty item list and a zero total would only confuse.
+  if (paymentMethod === 'STATIC_QR' && staticQrImage && cart.length === 0) {
+    return (
+      <div className="h-screen w-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center gap-6 select-none overflow-hidden">
+        <div className="bg-white p-5 rounded-3xl shadow-2xl ring-1 ring-slate-900/5">
+          <img src={staticQrImage} alt={staticQrBank} className="w-[min(60vh,60vw)] h-[min(60vh,60vw)] object-contain" />
+        </div>
+        <p className="text-slate-900 dark:text-white text-4xl font-black text-center">{staticQrBank}</p>
+        <p className="text-slate-600 dark:text-slate-300 text-lg font-bold uppercase tracking-widest text-center">
+          {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay'}
+        </p>
+      </div>
+    );
+  }
+
   /* ── ACTIVE / PAYMENT — 70 / 30 split ──────────────────── */
   const showTendered = paymentMethod === 'CASH' && (tenderedUsd > 0 || tenderedKhr > 0);
   const showKhqr     = paymentMethod === 'KHQR' && qrString;
