@@ -2,6 +2,7 @@
 // browser. Columns added by later online-pos migrations (cost_price,
 // is_deleted, bank_name, ...) may be missing from older files, so every
 // optional column falls back to a default.
+import { getT } from '../i18n/translate';
 
 const PRODUCT_COLUMNS = ['name', 'barcode', 'price', 'cost_price', 'currency', 'stock'];
 
@@ -34,7 +35,7 @@ function rowsOf(db, sql) {
 export function readProducts(db) {
   const columns = columnsOf(db, 'products');
   if (!columns.includes('name') || !columns.includes('price')) {
-    throw new Error('This SQLite file has no online-pos products table.');
+    throw new Error(getT().importExport.noProductsTable);
   }
   const selected = PRODUCT_COLUMNS.filter((c) => columns.includes(c));
   const where = columns.includes('is_deleted') ? 'WHERE is_deleted = 0' : '';

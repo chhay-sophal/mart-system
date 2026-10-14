@@ -7,9 +7,11 @@ import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
-function formatDate(value) {
-  if (!value) return 'Never';
+function formatDate(value, never) {
+  if (!value) return never;
   return new Date(value).toLocaleString();
 }
 
@@ -27,18 +29,9 @@ function syncState(terminal) {
   return isOnline(terminal) ? 'online' : 'offline';
 }
 
-const SYNC_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'online', label: 'Online' },
-  { value: 'offline', label: 'Offline' },
-  { value: 'inactive', label: '— (inactive)' },
-];
+const SYNC_FILTERS = ['all', 'online', 'offline', 'inactive'];
 
-const STATUS_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
+const STATUS_FILTERS = ['all', 'active', 'inactive'];
 
 const EMPTY_FILTERS = {
   name: '',
@@ -101,6 +94,8 @@ const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, emp
 export default function TerminalsPage() {
   const { storeId } = useOutletContext();
   const confirm = useConfirm();
+  const { t } = useLocale();
+  const syncFilterLabel = { all: t.common.all, online: t.terminals.online, offline: t.terminals.offline, inactive: t.terminals.syncInactive };
   const [error, setError] = useState('');
   const [showPair, setShowPair] = useState(false);
   const [pairName, setPairName] = useState('');
@@ -136,12 +131,12 @@ export default function TerminalsPage() {
       setRevealedSecret({ id: res.id, name: res.name, deviceSecret: res.deviceSecret });
       await load();
     } catch {
-      setError('Failed to pair terminal.');
+      setError(t.terminals.pairFailed);
     }
   }
 
   async function handleRotate(terminal) {
-    if (!(await confirm(`Rotate the device secret for "${terminal.name}"? The old secret stops working immediately.`, { confirmLabel: 'Rotate', danger: true }))) {
+    if (!(await confirm(fmt(t.terminals.rotateConfirm, { name: terminal.name }), { confirmLabel: t.terminals.rotate, danger: true }))) {
       return;
     }
     try {
@@ -149,7 +144,7 @@ export default function TerminalsPage() {
       setRevealedSecret({ id: res.id, name: res.name, deviceSecret: res.deviceSecret });
       await load();
     } catch {
-      setError('Failed to rotate secret.');
+      setError(t.terminals.rotateFailed);
     }
   }
 
@@ -158,102 +153,104 @@ export default function TerminalsPage() {
       await apiClient.patch(`/api/stores/${storeId}/terminals/${terminal.id}`, { isActive: !terminal.isActive });
       await load();
     } catch {
-      setError('Failed to update terminal.');
+      setError(t.terminals.updateFailed);
     }
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Terminals</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.terminals.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === terminals.length ? `${terminals.length} terminals` : `${visible.length} of ${terminals.length} terminals`}
+            {visible.length === terminals.length
+              ? fmt(plural(terminals.length, t.terminals.countOne, t.terminals.countMany), { count: terminals.length })
+              : fmt(t.terminals.countFiltered, { shown: visible.length, total: terminals.length })}
           </span>
           {filterCount > 0 && (
             <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              Clear filters ({filterCount})
+              {fmt(t.terminals.clearFilters, { count: filterCount })}
             </button>
           )}
           <button
             onClick={() => setShowPair(true)}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
           >
-            Pair new terminal
+            {t.terminals.pairNew}
           </button>
         </div>
       </div>
 
-      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load terminals.'}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.terminals.loadFailed}</p>}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="name" label="Name" sort={sort} onSort={toggleSort}
+                col="name" label={t.common.name} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
               >
                 <input
                   value={filters.name}
                   onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder="Filter name"
+                  placeholder={t.terminals.filterName}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="pairedAt" label="Paired" sort={sort} onSort={toggleSort}
+                col="pairedAt" label={t.terminals.paired} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'pairedAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.pairedFrom !== EMPTY_FILTERS.pairedFrom || filters.pairedTo !== EMPTY_FILTERS.pairedTo}
               >
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    From
+                    {t.common.from}
                     <input type="date" value={filters.pairedFrom} onChange={(e) => setFilter('pairedFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    To
+                    {t.common.to}
                     <input type="date" value={filters.pairedTo} onChange={(e) => setFilter('pairedTo', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="lastSeenAt" label="Last seen" sort={sort} onSort={toggleSort}
+                col="lastSeenAt" label={t.terminals.lastSeen} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'lastSeenAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.lastSeenFrom !== EMPTY_FILTERS.lastSeenFrom || filters.lastSeenTo !== EMPTY_FILTERS.lastSeenTo}
               >
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    From
+                    {t.common.from}
                     <input type="date" value={filters.lastSeenFrom} onChange={(e) => setFilter('lastSeenFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    To
+                    {t.common.to}
                     <input type="date" value={filters.lastSeenTo} onChange={(e) => setFilter('lastSeenTo', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="sync" label="Sync" sort={sort} onSort={toggleSort}
+                col="sync" label={t.terminals.sync} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'sync'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.sync !== EMPTY_FILTERS.sync}
               >
                 <select value={filters.sync} onChange={(e) => setFilter('sync', e.target.value)} className={filterInput}>
-                  {SYNC_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {SYNC_FILTERS.map((value) => (
+                    <option key={value} value={value}>{syncFilterLabel[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
               <FilterableHeader
-                col="status" label="Status" sort={sort} onSort={toggleSort}
+                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
               >
                 <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {STATUS_FILTERS.map((value) => (
+                    <option key={value} value={value}>{t.common[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
@@ -264,41 +261,41 @@ export default function TerminalsPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  {terminals.length === 0 ? 'No terminals paired yet.' : 'No terminals match the filters.'}
+                  {terminals.length === 0 ? t.terminals.empty : t.terminals.noMatch}
                 </td>
               </tr>
             ) : (
-              visible.map((t) => (
-                <tr key={t.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2">{t.name}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(t.pairedAt)}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(t.lastSeenAt)}</td>
+              visible.map((terminal) => (
+                <tr key={terminal.id} className="border-t border-[var(--border)]">
+                  <td className="px-4 py-2">{terminal.name}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(terminal.pairedAt, t.terminals.never)}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{formatDate(terminal.lastSeenAt, t.terminals.never)}</td>
                   <td className="px-4 py-2">
-                    {!t.isActive ? (
+                    {!terminal.isActive ? (
                       <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : (
-                      <span className={isOnline(t) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                        {isOnline(t) ? 'Online' : 'Offline'}
+                      <span className={isOnline(terminal) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                        {isOnline(terminal) ? t.terminals.online : t.terminals.offline}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    <span className={t.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                      {t.isActive ? 'Active' : 'Inactive'}
+                    <span className={terminal.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                      {terminal.isActive ? t.common.active : t.common.inactive}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right space-x-3">
-                    <button onClick={() => handleRotate(t)} className="text-[var(--accent)] font-medium cursor-pointer">
-                      Rotate secret
+                    <button onClick={() => handleRotate(terminal)} className="text-[var(--accent)] font-medium cursor-pointer">
+                      {t.terminals.rotateSecret}
                     </button>
-                    <button onClick={() => handleToggleActive(t)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                      {t.isActive ? 'Deactivate' : 'Reactivate'}
+                    <button onClick={() => handleToggleActive(terminal)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
+                      {terminal.isActive ? t.terminals.deactivate : t.terminals.reactivate}
                     </button>
                   </td>
                 </tr>
@@ -309,14 +306,14 @@ export default function TerminalsPage() {
       </div>
 
       {showPair && (
-        <Modal title="Pair new terminal" onClose={() => setShowPair(false)}>
+        <Modal title={t.terminals.pairNew} onClose={() => setShowPair(false)}>
           <form onSubmit={handlePair} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Terminal name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.terminals.terminalName}</label>
               <input
                 required
                 autoFocus
-                placeholder="e.g. Register 2"
+                placeholder={t.terminals.namePlaceholder}
                 value={pairName}
                 onChange={(e) => setPairName(e.target.value)}
                 className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
@@ -324,10 +321,10 @@ export default function TerminalsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowPair(false)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-                Pair
+                {t.terminals.pair}
               </button>
             </div>
           </form>
@@ -335,15 +332,15 @@ export default function TerminalsPage() {
       )}
 
       {revealedSecret && (
-        <Modal title={`Device secret for "${revealedSecret.name}"`} onClose={() => setRevealedSecret(null)}>
+        <Modal title={fmt(t.terminals.secretTitle, { name: revealedSecret.name })} onClose={() => setRevealedSecret(null)}>
           <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-3">
-            Save these now — the device secret will not be shown again. Enter both in the POS terminal's setup screen.
+            {t.terminals.secretWarning}
           </p>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Terminal ID</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.terminals.terminalId}</label>
           <code className="block break-all bg-slate-100 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm mb-3">
             {revealedSecret.id}
           </code>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Device Secret</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.terminals.deviceSecret}</label>
           <code className="block break-all bg-slate-100 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm mb-4">
             {revealedSecret.deviceSecret}
           </code>
@@ -352,7 +349,7 @@ export default function TerminalsPage() {
               onClick={() => setRevealedSecret(null)}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
-              I've saved it
+              {t.terminals.savedIt}
             </button>
           </div>
         </Modal>

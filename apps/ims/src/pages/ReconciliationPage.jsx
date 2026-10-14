@@ -5,6 +5,8 @@ import { queryKeys } from '../lib/queryClient';
 import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
 const activitySummary = (row) =>
   row.recentMovements.length === 0 ? '' : row.recentMovements.map((m) => `${m.delta > 0 ? '+' : ''}${m.delta} (${m.reason})`).join(', ');
@@ -53,6 +55,7 @@ function sortRows(rows, { col, dir }) {
 const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
 
 export default function ReconciliationPage() {
+  const { t } = useLocale();
   const [error, setError] = useState('');
   const [adjustTarget, setAdjustTarget] = useState(null); // row being corrected
   const [correctedStock, setCorrectedStock] = useState('');
@@ -63,6 +66,10 @@ export default function ReconciliationPage() {
   const toggleSort = (col) =>
     setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
   const filterCount = activeFilterCount(filters);
+  // The current stock is shown in bold, so split the sentence around it.
+  const [stockBefore, stockAfter] = adjustTarget
+    ? fmt(t.reconciliation.currentlyShows, { store: adjustTarget.storeName }).split('{stock}')
+    : [];
 
   // Not scoped to the AppShell's single current store — this spans every
   // store the signed-in user can access, same list GET /api/stores returns.
@@ -90,7 +97,7 @@ export default function ReconciliationPage() {
       setCorrectedStock('');
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to adjust stock.');
+      setError(err?.body?.error ?? t.reconciliation.adjustFailed);
     }
   }
 
@@ -98,26 +105,27 @@ export default function ReconciliationPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-lg font-semibold text-[var(--text-h)]">Stock reconciliation</h1>
+          <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.reconciliation.title}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Products whose stock has gone negative across every store you can access — a sale or transfer went
-            through when the shelf count didn't match the system.
+            {t.reconciliation.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === rows.length ? `${rows.length} row${rows.length === 1 ? '' : 's'}` : `${visible.length} of ${rows.length} rows`}
+            {visible.length === rows.length
+              ? fmt(t.reconciliation.count, { count: rows.length, rows: plural(rows.length, t.reconciliation.row, t.reconciliation.rowsWord) })
+              : fmt(t.reconciliation.countFiltered, { visible: visible.length, total: rows.length, rows: plural(rows.length, t.reconciliation.row, t.reconciliation.rowsWord) })}
           </span>
           {filterCount > 0 && (
             <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              Clear filters ({filterCount})
+              {fmt(t.reconciliation.clearFilters, { count: filterCount })}
             </button>
           )}
         </div>
       </div>
 
       {(error || rowsQuery.isError) && (
-        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load the negative-stock report.'}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.reconciliation.loadFailed}</p>
       )}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
@@ -125,49 +133,49 @@ export default function ReconciliationPage() {
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="store" label="Store" sort={sort} onSort={toggleSort}
+                col="store" label={t.common.store} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'store'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.store !== EMPTY_FILTERS.store}
               >
                 <input
                   value={filters.store}
                   onChange={(e) => setFilter('store', e.target.value)}
-                  placeholder="Filter store"
+                  placeholder={t.reconciliation.filterStore}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="product" label="Product" sort={sort} onSort={toggleSort}
+                col="product" label={t.reconciliation.product} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'product'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.product !== EMPTY_FILTERS.product}
               >
                 <input
                   value={filters.product}
                   onChange={(e) => setFilter('product', e.target.value)}
-                  placeholder="Name or barcode"
+                  placeholder={t.reconciliation.nameOrBarcode}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="stock" label="Stock" sort={sort} onSort={toggleSort}
+                col="stock" label={t.reconciliation.stock} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'stock'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.stockMin !== EMPTY_FILTERS.stockMin || filters.stockMax !== EMPTY_FILTERS.stockMax}
               >
                 <div className="flex gap-1">
-                  <input type="number" value={filters.stockMin} onChange={(e) => setFilter('stockMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                  <input type="number" value={filters.stockMax} onChange={(e) => setFilter('stockMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.stockMin} onChange={(e) => setFilter('stockMin', e.target.value)} placeholder={t.reconciliation.min} className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.stockMax} onChange={(e) => setFilter('stockMax', e.target.value)} placeholder={t.reconciliation.max} className={`${filterInput} w-20`} />
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="activity" label="Recent activity" sort={sort} onSort={toggleSort}
+                col="activity" label={t.reconciliation.recentActivity} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'activity'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.activity !== EMPTY_FILTERS.activity}
               >
                 <input
                   value={filters.activity}
                   onChange={(e) => setFilter('activity', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.reconciliation.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
@@ -178,13 +186,13 @@ export default function ReconciliationPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  {rows.length === 0 ? 'Nothing to reconcile — no store has negative stock right now.' : 'No rows match the filters.'}
+                  {rows.length === 0 ? t.reconciliation.nothingToReconcile : t.reconciliation.noMatches}
                 </td>
               </tr>
             ) : (
@@ -207,7 +215,7 @@ export default function ReconciliationPage() {
                       }}
                       className="text-[var(--accent)] font-medium cursor-pointer"
                     >
-                      Set corrected count
+                      {t.reconciliation.setCorrectedCount}
                     </button>
                   </td>
                 </tr>
@@ -218,14 +226,15 @@ export default function ReconciliationPage() {
       </div>
 
       {adjustTarget && (
-        <Modal title={`Correct stock — ${adjustTarget.productName}`} onClose={() => setAdjustTarget(null)}>
+        <Modal title={fmt(t.reconciliation.modalTitle, { product: adjustTarget.productName })} onClose={() => setAdjustTarget(null)}>
           <form onSubmit={handleAdjust} className="space-y-3">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {adjustTarget.storeName} currently shows <span className="font-medium">{adjustTarget.stock}</span>.
-              Enter the actual physical count — this is recorded as an audited adjustment, not silently overwritten.
+              {stockBefore}
+              <span className="font-medium">{adjustTarget.stock}</span>
+              {stockAfter} {t.reconciliation.adjustHint}
             </p>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Corrected stock count</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.reconciliation.correctedCount}</label>
               <input
                 required
                 type="number"
@@ -237,10 +246,10 @@ export default function ReconciliationPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setAdjustTarget(null)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-                Save
+                {t.common.save}
               </button>
             </div>
           </form>

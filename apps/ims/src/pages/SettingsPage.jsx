@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import OnlinePosImport from '../components/OnlinePosImport.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, getT } from '../i18n/translate';
 
 // Synced to every POS terminal in the store (read-only there once paired),
 // so they get proper inputs below instead of the free-form key/value list.
@@ -16,6 +18,7 @@ const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white round
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
+  const { t } = useLocale();
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,7 +49,7 @@ export default function SettingsPage() {
       const res = await apiClient.get(`/api/stores/${storeId}/settings`);
       setSettings(res.settings ?? {});
     } catch {
-      setMessage('Failed to load settings.');
+      setMessage(getT().settings.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -67,7 +70,7 @@ export default function SettingsPage() {
       const store = await apiClient.get(`/api/stores/${storeId}`);
       setStoreName(store.name ?? '');
     } catch {
-      setProfileMessage('Failed to load store profile.');
+      setProfileMessage(getT().settings.profile.loadFailed);
     }
   }, [storeId]);
 
@@ -83,9 +86,9 @@ export default function SettingsPage() {
     setProfileMessage('');
     try {
       await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
-      setProfileMessage('Saved.');
+      setProfileMessage(t.settings.saved);
     } catch {
-      setProfileMessage('Failed to save.');
+      setProfileMessage(t.settings.saveFailed);
     } finally {
       setProfileSaving(false);
     }
@@ -100,9 +103,9 @@ export default function SettingsPage() {
       const values = Object.fromEntries(POS_SYNCED_KEYS.map((key) => [key, String(posSynced[key])]));
       const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
       setSettings(res.settings ?? settings);
-      setPosSyncedMessage('Saved. POS terminals pick this up on their next sync.');
+      setPosSyncedMessage(t.settings.pos.saved);
     } catch {
-      setPosSyncedMessage('Failed to save — check the exchange rate is a positive number.');
+      setPosSyncedMessage(t.settings.pos.saveFailed);
     } finally {
       setPosSyncedSaving(false);
     }
@@ -114,9 +117,9 @@ export default function SettingsPage() {
     try {
       const res = await apiClient.put(`/api/stores/${storeId}/bakong-credential`, { registeredEmail: bakongEmail });
       setBakongHasToken(Boolean(res.hasToken));
-      setBakongMessage('Saved.');
+      setBakongMessage(t.settings.saved);
     } catch {
-      setBakongMessage('Failed to save.');
+      setBakongMessage(t.settings.saveFailed);
     } finally {
       setBakongSaving(false);
     }
@@ -127,9 +130,9 @@ export default function SettingsPage() {
     setMessage('');
     try {
       await apiClient.put(`/api/stores/${storeId}/settings`, { settings });
-      setMessage('Saved.');
+      setMessage(t.settings.saved);
     } catch {
-      setMessage('Failed to save settings.');
+      setMessage(t.settings.saveSettingsFailed);
     } finally {
       setSaving(false);
     }
@@ -148,55 +151,52 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">Store settings</h1>
+      <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">{t.settings.title}</h1>
 
       {message && <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">{message}</p>}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">Store profile</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          How this store is named in IMS. The shop name, image, address and phone customers see are set on each
-          register, in POS Settings.
-        </p>
+        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.profile.title}</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.profile.hint}</p>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Store name</label>
-          <input value={storeName} placeholder="My Store" onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.profile.storeName}</label>
+          <input value={storeName} placeholder={t.settings.profile.storeNamePlaceholder} onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
         </div>
         <div className="flex items-center justify-end gap-3">
           {profileMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{profileMessage}</p>}
           <button onClick={handleSaveProfile} disabled={profileSaving || !storeName.trim()} className={saveButtonClass}>
-            {profileSaving ? 'Saving…' : 'Save'}
+            {profileSaving ? t.common.saving : t.common.save}
           </button>
         </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">Currency &amp; language</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">Applied to every POS terminal in this store.</p>
+        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.pos.title}</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.pos.hint}</p>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Main currency</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.mainCurrency}</label>
           <select
             value={posSynced.main_currency}
             onChange={(e) => setSettings({ ...settings, main_currency: e.target.value })}
             className={inputClass}
           >
-            <option value="USD">US Dollar (USD)</option>
-            <option value="KHR">Khmer Riel (KHR)</option>
+            <option value="USD">{t.settings.pos.usd}</option>
+            <option value="KHR">{t.settings.pos.khr}</option>
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Main language</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.mainLanguage}</label>
           <select
             value={posSynced.locale}
             onChange={(e) => setSettings({ ...settings, locale: e.target.value })}
             className={inputClass}
           >
-            <option value="km">ភាសាខ្មែរ (Khmer)</option>
-            <option value="en">English</option>
+            <option value="km">{t.settings.pos.khmer}</option>
+            <option value="en">{t.settings.pos.english}</option>
           </select>
         </div>
         <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">Exchange rate</label>
+          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.exchangeRate}</label>
           <input
             type="number"
             min="1"
@@ -204,26 +204,23 @@ export default function SettingsPage() {
             onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
             className={inputClass}
           />
-          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">KHR per 1 USD</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{t.settings.pos.perUsd}</span>
         </div>
         <div className="flex items-center justify-end gap-3">
           {posSyncedMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{posSyncedMessage}</p>}
           <button onClick={handleSavePosSynced} disabled={posSyncedSaving || loading} className={saveButtonClass}>
-            {posSyncedSaving ? 'Saving…' : 'Save'}
+            {posSyncedSaving ? t.common.saving : t.common.save}
           </button>
         </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">Bakong KHQR</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          The email registered with this store's Bakong merchant account. Used to mint the token that lets POS
-          terminals generate KHQR codes and check payment status — never shown again once saved.
-        </p>
+        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.bakong.title}</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.bakong.hint}</p>
         <div className="flex items-center gap-3">
           <input
             type="email"
-            placeholder="owner@yourstore.com"
+            placeholder={t.settings.bakong.emailPlaceholder}
             value={bakongEmail}
             onChange={(e) => setBakongEmail(e.target.value)}
             className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
@@ -233,18 +230,20 @@ export default function SettingsPage() {
             disabled={bakongSaving || !bakongEmail}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
           >
-            {bakongSaving ? 'Saving…' : 'Save'}
+            {bakongSaving ? t.common.saving : t.common.save}
           </button>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Status: {bakongHasToken ? 'connected (token cached)' : 'registered, not yet used'}
+          {fmt(t.settings.bakong.status, {
+            status: bakongHasToken ? t.settings.bakong.connected : t.settings.bakong.notUsed,
+          })}
         </p>
         {bakongMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{bakongMessage}</p>}
       </div>
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3">
         {loading ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t.common.loading}</p>
         ) : (
           <>
             {keys.map((key) => (
@@ -260,19 +259,19 @@ export default function SettingsPage() {
 
             <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
               <input
-                placeholder="new_setting_key"
+                placeholder={t.settings.custom.keyPlaceholder}
                 value={newKey}
                 onChange={(e) => setNewKey(e.target.value)}
                 className="w-40 border border-[var(--border)] rounded-lg px-3 h-9 text-sm shrink-0"
               />
               <input
-                placeholder="value"
+                placeholder={t.settings.custom.valuePlaceholder}
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
                 className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
               />
               <button onClick={addSetting} className="text-sm font-medium text-[var(--accent)] cursor-pointer">
-                Add
+                {t.common.add}
               </button>
             </div>
 
@@ -282,7 +281,7 @@ export default function SettingsPage() {
                 disabled={saving}
                 className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
               >
-                {saving ? 'Saving…' : 'Save changes'}
+                {saving ? t.common.saving : t.settings.saveChanges}
               </button>
             </div>
           </>

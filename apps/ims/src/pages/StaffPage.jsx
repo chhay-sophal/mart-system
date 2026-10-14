@@ -6,6 +6,8 @@ import { queryKeys } from '../lib/queryClient';
 import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt } from '../i18n/translate';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
 // Staff PINs are exactly 4 digits (the POS lock screen has four places).
@@ -13,19 +15,9 @@ const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
 
 const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
-const ROLE_FILTERS = [{ value: 'all', label: 'All' }, ...ROLES.map((r) => ({ value: r, label: r.charAt(0) + r.slice(1).toLowerCase() }))];
+const PIN_FILTERS = ['all', 'set', 'unset'];
 
-const PIN_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'set', label: 'Set' },
-  { value: 'unset', label: 'Not set' },
-];
-
-const STATUS_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
+const STATUS_FILTERS = ['all', 'active', 'inactive'];
 
 const EMPTY_FILTERS = {
   name: '',
@@ -79,6 +71,9 @@ const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, emp
 
 export default function StaffPage() {
   const { storeId } = useOutletContext();
+  const { t } = useLocale();
+  const roleLabel = (role) => t.staff.roles[role] ?? role;
+  const pinFilterLabel = { all: t.common.all, set: t.staff.pinSet, unset: t.staff.pinNotSet };
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(CREATE_FORM);
@@ -126,7 +121,7 @@ export default function StaffPage() {
       setCreateForm(CREATE_FORM);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to create staff member.');
+      setError(err?.body?.error ?? t.staff.createFailed);
     }
   }
 
@@ -148,7 +143,7 @@ export default function StaffPage() {
       }
       await load();
     } catch {
-      setError('Failed to update status.');
+      setError(t.staff.statusFailed);
     }
   }
 
@@ -173,7 +168,7 @@ export default function StaffPage() {
       setEditing(null);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to update staff member.');
+      setError(err?.body?.error ?? t.staff.updateFailed);
     }
   }
 
@@ -185,93 +180,96 @@ export default function StaffPage() {
       setPinValue('');
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to reset PIN — it may already be used by someone else at this store.');
+      setError(err?.body?.error ?? t.staff.resetPinFailed);
     }
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Staff</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.staff.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === staff.length ? `${staff.length} staff` : `${visible.length} of ${staff.length} staff`}
+            {visible.length === staff.length
+              ? fmt(t.staff.count, { count: staff.length })
+              : fmt(t.staff.countFiltered, { shown: visible.length, total: staff.length })}
           </span>
           {filterCount > 0 && (
             <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              Clear filters ({filterCount})
+              {fmt(t.staff.clearFilters, { count: filterCount })}
             </button>
           )}
           <button
             onClick={() => setShowCreate(true)}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
           >
-            Add staff
+            {t.staff.addStaff}
           </button>
         </div>
       </div>
 
-      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load staff.'}</p>}
+      {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.staff.loadFailed}</p>}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="name" label="Name" sort={sort} onSort={toggleSort}
+                col="name" label={t.common.name} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
               >
                 <input
                   value={filters.name}
                   onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder="Filter name"
+                  placeholder={t.staff.filterName}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="email" label="Email" sort={sort} onSort={toggleSort}
+                col="email" label={t.staff.email} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'email'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.email !== EMPTY_FILTERS.email}
               >
                 <input
                   value={filters.email}
                   onChange={(e) => setFilter('email', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.staff.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="role" label="Role" sort={sort} onSort={toggleSort}
+                col="role" label={t.staff.role} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'role'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.role !== EMPTY_FILTERS.role}
               >
                 <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)} className={filterInput}>
-                  {ROLE_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  <option value="all">{t.common.all}</option>
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>{roleLabel(r)}</option>
                   ))}
                 </select>
               </FilterableHeader>
               <FilterableHeader
-                col="pin" label="PIN" sort={sort} onSort={toggleSort}
+                col="pin" label={t.staff.pin} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'pin'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.pin !== EMPTY_FILTERS.pin}
               >
                 <select value={filters.pin} onChange={(e) => setFilter('pin', e.target.value)} className={filterInput}>
-                  {PIN_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {PIN_FILTERS.map((value) => (
+                    <option key={value} value={value}>{pinFilterLabel[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
               <FilterableHeader
-                col="status" label="Status" sort={sort} onSort={toggleSort}
+                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
               >
                 <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {STATUS_FILTERS.map((value) => (
+                    <option key={value} value={value}>{t.common[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
@@ -282,13 +280,13 @@ export default function StaffPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
-                  {staff.length === 0 ? 'No staff yet.' : 'No staff match the filters.'}
+                  {staff.length === 0 ? t.staff.empty : t.staff.noMatch}
                 </td>
               </tr>
             ) : (
@@ -296,7 +294,7 @@ export default function StaffPage() {
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.role}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{roleLabel(row.role)}</td>
                   {/* <td className="px-4 py-2">
                     <select
                       value={row.role}
@@ -310,15 +308,15 @@ export default function StaffPage() {
                       ))}
                     </select>
                   </td> */}
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.hasPinSet ? 'Set' : 'Not set'}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.hasPinSet ? t.staff.pinSet : t.staff.pinNotSet}</td>
                   <td className="px-4 py-2">
                     <span className={row.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                      {row.isActive ? 'Active' : 'Inactive'}
+                      {row.isActive ? t.common.active : t.common.inactive}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right space-x-3">
                     <button onClick={() => openEdit(row)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                      Edit
+                      {t.common.edit}
                     </button>
                     {/* <button
                       onClick={() => {
@@ -330,7 +328,7 @@ export default function StaffPage() {
                       Reset PIN
                     </button> */}
                     <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                      {row.isActive ? 'Deactivate' : 'Reactivate'}
+                      {row.isActive ? t.staff.deactivate : t.staff.reactivate}
                     </button>
                   </td>
                 </tr>
@@ -341,10 +339,10 @@ export default function StaffPage() {
       </div>
 
       {showCreate && (
-        <Modal title="Add staff" onClose={() => setShowCreate(false)}>
+        <Modal title={t.staff.addStaff} onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.role}</label>
               <select
                 value={createForm.role}
                 onChange={(e) => setCreateForm({ ...createForm, role: e.target.value, pin: e.target.value === 'INVENTORY' ? '' : createForm.pin })}
@@ -352,13 +350,13 @@ export default function StaffPage() {
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    {roleLabel(r)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.name}</label>
               <input
                 required
                 value={createForm.name}
@@ -369,7 +367,7 @@ export default function StaffPage() {
             {createForm.role !== 'CASHIER' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.email}</label>
                   <input
                     required
                     type="email"
@@ -379,7 +377,7 @@ export default function StaffPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Initial password</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.initialPassword}</label>
                   <div className="relative">
                     <input
                       required
@@ -394,7 +392,7 @@ export default function StaffPage() {
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                     >
-                      {showPassword ? 'Hide' : 'Show'}
+                      {showPassword ? t.common.hide : t.common.show}
                     </button>
                   </div>
                 </div>
@@ -403,13 +401,13 @@ export default function StaffPage() {
             {createForm.role !== 'INVENTORY' && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                  PIN {createForm.role === 'CASHIER' ? '(4 digits)' : '(optional, 4 digits)'}
+                  {createForm.role === 'CASHIER' ? t.staff.pinRequired : t.staff.pinOptional}
                 </label>
                 <input
                   required={createForm.role === 'CASHIER'}
                   inputMode="numeric"
                   pattern="[0-9]{4}"
-                  title="Exactly 4 digits"
+                  title={t.staff.pinTitle}
                   maxLength={4}
                   value={createForm.pin}
                   onChange={(e) => setCreateForm({ ...createForm, pin: onlyDigits(e.target.value) })}
@@ -419,10 +417,10 @@ export default function StaffPage() {
             )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-                Create
+                {t.common.create}
               </button>
             </div>
           </form>
@@ -430,15 +428,15 @@ export default function StaffPage() {
       )}
 
       {pinTarget && (
-        <Modal title={`Reset PIN for ${pinTarget.name}`} onClose={() => setPinTarget(null)}>
+        <Modal title={fmt(t.staff.resetPinTitle, { name: pinTarget.name })} onClose={() => setPinTarget(null)}>
           <form onSubmit={handleResetPin} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">New PIN (4 digits)</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.newPin4}</label>
               <input
                 required
                 inputMode="numeric"
                 pattern="[0-9]{4}"
-                title="Exactly 4 digits"
+                title={t.staff.pinTitle}
                 maxLength={4}
                 value={pinValue}
                 onChange={(e) => setPinValue(onlyDigits(e.target.value))}
@@ -447,10 +445,10 @@ export default function StaffPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setPinTarget(null)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-                Save PIN
+                {t.staff.savePin}
               </button>
             </div>
           </form>
@@ -458,10 +456,10 @@ export default function StaffPage() {
       )}
 
       {editing && (
-        <Modal title={`Edit ${editing.name}`} onClose={() => setEditing(null)}>
+        <Modal title={fmt(t.staff.editTitle, { name: editing.name })} onClose={() => setEditing(null)}>
           <form onSubmit={handleEditSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Role</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.role}</label>
               <select
                 value={editForm.role}
                 onChange={(e) => setEditForm({ ...editForm, role: e.target.value, pin: e.target.value === 'INVENTORY' ? '' : editForm.pin })}
@@ -469,13 +467,13 @@ export default function StaffPage() {
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
-                    {r}
+                    {roleLabel(r)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.name}</label>
               <input
                 required
                 value={editForm.name}
@@ -486,7 +484,7 @@ export default function StaffPage() {
             {editForm.role !== 'CASHIER' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.email}</label>
                   <input
                     required
                     type="email"
@@ -497,7 +495,7 @@ export default function StaffPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                    New password <span className="text-slate-400 dark:text-slate-500">(leave blank to keep the current one)</span>
+                    {t.staff.newPassword} <span className="text-slate-400 dark:text-slate-500">{t.staff.keepCurrent}</span>
                   </label>
                   <div className="relative">
                     <input
@@ -512,7 +510,7 @@ export default function StaffPage() {
                       onClick={() => setShowEditPassword((v) => !v)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                     >
-                      {showEditPassword ? 'Hide' : 'Show'}
+                      {showEditPassword ? t.common.hide : t.common.show}
                     </button>
                   </div>
                 </div>
@@ -522,12 +520,12 @@ export default function StaffPage() {
             {editForm.role !== 'INVENTORY' && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                  New PIN <span className="text-slate-400 dark:text-slate-500">(optional, leave blank to keep the current one)</span>
+                  {t.staff.newPin} <span className="text-slate-400 dark:text-slate-500">{t.staff.newPinHint}</span>
                 </label>
                 <input
                   inputMode="numeric"
                   pattern="[0-9]{4}"
-                  title="Exactly 4 digits"
+                  title={t.staff.pinTitle}
                   maxLength={4}
                   value={editForm.pin}
                   onChange={(e) => setEditForm({ ...editForm, pin: onlyDigits(e.target.value) })}
@@ -537,10 +535,10 @@ export default function StaffPage() {
             )}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-                Save
+                {t.common.save}
               </button>
             </div>
           </form>

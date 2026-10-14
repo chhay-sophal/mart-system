@@ -5,6 +5,8 @@ import * as XLSX from 'xlsx';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { ApiError } from '@mart-system/api-client';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt as fill } from '../i18n/translate';
 import Modal from '../components/Modal.jsx';
 import { useColumnFilter } from '../hooks/useColumnFilter';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
@@ -19,11 +21,10 @@ import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalK
 
 const PAGE_SIZE = 20;
 const PAYMENT_METHODS = ['CASH', 'KHQR', 'STATIC_QR', 'CARD'];
-const PAYMENT_LABELS = { CASH: 'Cash', KHQR: 'KHQR', STATIC_QR: 'Static QR', CARD: 'Card' };
 
 // Riel is shown to the nearest 100 (the smallest note), like the POS.
-const fmtDateTime = (iso) =>
-  new Date(iso).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fmtDateTime = (iso, locale) =>
+  new Date(iso).toLocaleString(locale === 'km' ? 'km-KH' : 'en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const itemCount = (o) => (o.items || []).reduce((sum, i) => sum + i.quantity, 0);
 const isVoided = (o) => o.status === 'VOIDED';
 
@@ -47,7 +48,6 @@ function getDateRange(dateFrom, dateTo) {
 }
 
 const DATE_PRESETS = ['today', 'yesterday', '7d', '30d', 'all'];
-const DATE_PRESET_LABELS = { today: 'Today', yesterday: 'Yesterday', '7d': '7 days', '30d': '30 days', all: 'All' };
 
 // The {from, to} the date inputs land on for each shortcut -- shared by
 // applyDatePreset (sets it) and the active-chip check (detects it), so they
@@ -64,28 +64,30 @@ function presetRange(preset) {
   return { from: '', to: '' }; // 'all'
 }
 
+// Headers come from t.sales.exportColumns[key].
 const EXPORT_COLUMNS = [
-  { key: 'receipt', header: 'Receipt #', wch: 12, val: (o) => o.receipt_no },
-  { key: 'date', header: 'Date', wch: 12, val: (o) => new Date(o.created_at).toLocaleDateString('en-US') },
-  { key: 'time', header: 'Time', wch: 10, val: (o) => new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
-  { key: 'branch', header: 'Branch', wch: 18, val: (o) => o.store_name },
-  { key: 'register', header: 'Register', wch: 18, val: (o) => o.terminal_name },
-  { key: 'items', header: 'Items', wch: 8, val: (o) => itemCount(o) },
-  { key: 'totalUsd', header: 'Total (USD)', wch: 12, val: (o) => Number(Number(o.total_amount).toFixed(2)) },
-  { key: 'totalKhr', header: 'Total (KHR)', wch: 14, val: (o) => orderTotalKhr(o) },
-  { key: 'payment', header: 'Payment', wch: 10, val: (o) => PAYMENT_LABELS[o.payment_method] ?? o.payment_method },
-  { key: 'bank', header: 'Bank', wch: 10, val: (o) => o.bank_name ?? '' },
-  { key: 'paidUsd', header: 'Paid (USD)', wch: 12, val: (o) => o.amount_paid_usd },
-  { key: 'paidKhr', header: 'Paid (KHR)', wch: 12, val: (o) => o.amount_paid_khr },
-  { key: 'changeKhr', header: 'Change (KHR)', wch: 13, val: (o) => o.change_given_khr },
-  { key: 'status', header: 'Status', wch: 11, val: (o) => o.status },
-  { key: 'products', header: 'Products', wch: 40, val: (o) => (o.items || []).map((i) => `${i.product_name} x${i.quantity}`).join(', ') },
+  { key: 'receipt', wch: 12, val: (o) => o.receipt_no },
+  { key: 'date', wch: 12, val: (o) => new Date(o.created_at).toLocaleDateString('en-US') },
+  { key: 'time', wch: 10, val: (o) => new Date(o.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) },
+  { key: 'branch', wch: 18, val: (o) => o.store_name },
+  { key: 'register', wch: 18, val: (o) => o.terminal_name },
+  { key: 'items', wch: 8, val: (o) => itemCount(o) },
+  { key: 'totalUsd', wch: 12, val: (o) => Number(Number(o.total_amount).toFixed(2)) },
+  { key: 'totalKhr', wch: 14, val: (o) => orderTotalKhr(o) },
+  { key: 'payment', wch: 10, val: (o, t) => t.sales.methods[o.payment_method] ?? o.payment_method },
+  { key: 'bank', wch: 10, val: (o) => o.bank_name ?? '' },
+  { key: 'paidUsd', wch: 12, val: (o) => o.amount_paid_usd },
+  { key: 'paidKhr', wch: 12, val: (o) => o.amount_paid_khr },
+  { key: 'changeKhr', wch: 13, val: (o) => o.change_given_khr },
+  { key: 'status', wch: 11, val: (o, t) => t.sales.statuses[o.status] ?? o.status },
+  { key: 'products', wch: 40, val: (o) => (o.items || []).map((i) => `${i.product_name} x${i.quantity}`).join(', ') },
 ];
 const DEFAULT_EXPORT_COLUMNS = ['receipt', 'date', 'time', 'branch', 'items', 'totalUsd', 'totalKhr', 'payment', 'status'];
 
 export default function SalesHistoryPage() {
   const { storeId: currentStoreId } = useOutletContext();
   const { stores } = useAuth();
+  const { t } = useLocale();
 
   const [storeFilter, setStoreFilter] = useState(currentStoreId ?? '');
   // Free-form date range, not a fixed set of periods -- defaults to today.
@@ -213,6 +215,10 @@ export default function SalesHistoryPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  const voidBody = voidTarget
+    ? t.sales.voidBody.split('{receipt}').map((part) => fill(part, { total: orderTotal(voidTarget).primary, store: voidTarget.store_name }))
+    : [];
+
   const toggleSort = (col) =>
     setSort((s) => (s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: col === 'date' ? 'desc' : 'asc' }));
 
@@ -227,7 +233,7 @@ export default function SalesHistoryPage() {
       setVoidTarget(null);
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0;
-      setError(status === 403 || status === 401 ? 'Only store admins can void sales.' : err?.body?.error || 'Failed to void the sale.');
+      setError(status === 403 || status === 401 ? t.sales.voidOnlyAdmins : err?.body?.error || t.sales.voidFailed);
       setVoidTarget(null);
     } finally {
       setVoiding(false);
@@ -237,24 +243,24 @@ export default function SalesHistoryPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Sales history</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.sales.title}</h1>
         <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-          Export
+          {t.sales.export}
         </button>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 mb-4 bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Branch</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.branch}</label>
           <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-            <option value="">All branches</option>
+            <option value="">{t.sales.allBranches}</option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Date range</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.dateRange}</label>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
               {DATE_PRESETS.map((preset) => (
@@ -263,7 +269,7 @@ export default function SalesHistoryPage() {
                   onClick={() => applyDatePreset(preset)}
                   className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent cursor-pointer ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  {DATE_PRESET_LABELS[preset]}
+                  {t.sales.presets[preset]}
                 </button>
               ))}
             </div>
@@ -285,61 +291,61 @@ export default function SalesHistoryPage() {
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Payment</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.payment}</label>
           <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-            <option value="all">All methods</option>
+            <option value="all">{t.sales.allMethods}</option>
             {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+              <option key={m} value={m}>{t.sales.methods[m]}</option>
             ))}
           </select>
         </div>
         <div className="flex-1 min-w-48">
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Search</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.search}</label>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Receipt #, product, barcode, register…"
+            placeholder={t.sales.searchPlaceholder}
             className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 pb-1.5">
           <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)} />
-          Show voided
+          {t.sales.showVoided}
         </label>
       </div>
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Revenue</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.revenue}</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{revenue.primary}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{revenue.secondary}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Sales</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.sales}</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{counted.length}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Average sale</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.averageSale}</p>
           <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{average.primary}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{average.secondary}</p>
         </div>
       </div>
 
-      {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load sales.'}</p>}
+      {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.sales.loadFailed}</p>}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="receipt" label="Receipt #" sort={sort} onSort={toggleSort}
+                col="receipt" label={t.sales.receiptNo} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'receipt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={receiptFilter !== ''}
               >
                 <input
                   value={receiptFilter}
                   onChange={(e) => setReceiptFilter(e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.sales.contains}
                   className={filterInput}
                   autoFocus
                 />
@@ -347,62 +353,62 @@ export default function SalesHistoryPage() {
               {/* Date stays sort-only: the filter bar above already drives the
                   actual date range this page fetches (with quick presets), so
                   a second date filter here would just duplicate it. */}
-              <SortTh sort={sort} onSort={toggleSort} col="date">Date</SortTh>
+              <SortTh sort={sort} onSort={toggleSort} col="date">{t.common.date}</SortTh>
               {allBranches && (
                 <FilterableHeader
-                  col="branch" label="Branch" sort={sort} onSort={toggleSort}
+                  col="branch" label={t.sales.branch} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'branch'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={branchFilter !== ''}
                 >
                   <input
                     value={branchFilter}
                     onChange={(e) => setBranchFilter(e.target.value)}
-                    placeholder="Contains"
+                    placeholder={t.sales.contains}
                     className={filterInput}
                   />
                 </FilterableHeader>
               )}
               <FilterableHeader
-                col="register" label="Register" sort={sort} onSort={toggleSort}
+                col="register" label={t.sales.register} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'register'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={registerFilter !== ''}
               >
                 <input
                   value={registerFilter}
                   onChange={(e) => setRegisterFilter(e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.sales.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="items" label="Items" sort={sort} onSort={toggleSort} className="text-center"
+                col="items" label={t.sales.items} sort={sort} onSort={toggleSort} className="text-center"
                 isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={itemsMin !== '' || itemsMax !== ''}
               >
                 <div className="flex gap-1">
-                  <input type="number" value={itemsMin} onChange={(e) => setItemsMin(e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                  <input type="number" value={itemsMax} onChange={(e) => setItemsMax(e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                  <input type="number" value={itemsMin} onChange={(e) => setItemsMin(e.target.value)} placeholder={t.sales.min} className={`${filterInput} w-20`} />
+                  <input type="number" value={itemsMax} onChange={(e) => setItemsMax(e.target.value)} placeholder={t.sales.max} className={`${filterInput} w-20`} />
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="total" label="Total" sort={sort} onSort={toggleSort} className="text-right"
+                col="total" label={t.common.total} sort={sort} onSort={toggleSort} className="text-right"
                 isOpen={openFilterCol === 'total'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={totalMin !== '' || totalMax !== ''}
               >
                 <div className="flex gap-1">
-                  <input type="number" value={totalMin} onChange={(e) => setTotalMin(e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                  <input type="number" value={totalMax} onChange={(e) => setTotalMax(e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                  <input type="number" value={totalMin} onChange={(e) => setTotalMin(e.target.value)} placeholder={t.sales.min} className={`${filterInput} w-20`} />
+                  <input type="number" value={totalMax} onChange={(e) => setTotalMax(e.target.value)} placeholder={t.sales.max} className={`${filterInput} w-20`} />
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="payment" label="Payment" sort={sort} onSort={toggleSort}
+                col="payment" label={t.sales.payment} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'payment'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={payFilter !== 'all'}
               >
                 <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className={filterInput}>
-                  <option value="all">All methods</option>
+                  <option value="all">{t.sales.allMethods}</option>
                   {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                    <option key={m} value={m}>{t.sales.methods[m]}</option>
                   ))}
                 </select>
               </FilterableHeader>
@@ -410,9 +416,9 @@ export default function SalesHistoryPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>Loading…</td></tr>
+              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>{t.common.loading}</td></tr>
             ) : pageRows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>No sales found.</td></tr>
+              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>{t.sales.noSales}</td></tr>
             ) : (
               pageRows.map((o) => (
                 <OrderRow
@@ -432,26 +438,27 @@ export default function SalesHistoryPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
           <span>
-            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            {fill(t.sales.range, { from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, filtered.length), total: filtered.length })}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
-            <span>Page {page} / {totalPages}</span>
-            <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.previous}</button>
+            <span>{fill(t.common.page, { page, pages: totalPages })}</span>
+            <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
           </div>
         </div>
       )}
 
       {voidTarget && (
-        <Modal title="Void this sale?" onClose={() => !voiding && setVoidTarget(null)}>
+        <Modal title={t.sales.voidTitle} onClose={() => !voiding && setVoidTarget(null)}>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Receipt <span className="font-semibold">#{voidTarget.receipt_no}</span> ({orderTotal(voidTarget).primary}, {voidTarget.store_name}) will be
-            marked voided and its items put back in stock. It no longer counts toward revenue.
+            {voidBody[0]}
+            <span className="font-semibold">#{voidTarget.receipt_no}</span>
+            {voidBody[1]}
           </p>
           <div className="flex justify-end gap-2 mt-4">
-            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">Cancel</button>
+            <button onClick={() => setVoidTarget(null)} disabled={voiding} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">{t.common.cancel}</button>
             <button onClick={confirmVoid} disabled={voiding} className="text-sm font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60 cursor-pointer">
-              {voiding ? 'Voiding…' : 'Void sale'}
+              {voiding ? t.sales.voiding : t.sales.voidSale}
             </button>
           </div>
         </Modal>
@@ -481,15 +488,16 @@ function SortTh({ col, sort, onSort, children, className = '' }) {
 }
 
 function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
+  const { t, locale } = useLocale();
   const voided = isVoided(o);
   return (
     <>
       <tr onClick={onToggle} className={`border-t border-[var(--border)] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${voided ? 'text-slate-400 dark:text-slate-500' : ''}`}>
         <td className="px-3 py-2 font-medium whitespace-nowrap">
           #{o.receipt_no}
-          {voided && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5">Voided</span>}
+          {voided && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5">{t.sales.voided}</span>}
         </td>
-        <td className="px-3 py-2 whitespace-nowrap">{fmtDateTime(o.created_at)}</td>
+        <td className="px-3 py-2 whitespace-nowrap">{fmtDateTime(o.created_at, locale)}</td>
         {showBranch && <td className="px-3 py-2">{o.store_name}</td>}
         <td className="px-3 py-2">{o.terminal_name}</td>
         <td className="px-3 py-2 text-center">{itemCount(o)}</td>
@@ -498,7 +506,7 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
           <span className="block text-xs text-slate-500 dark:text-slate-400">{orderTotal(o).secondary}</span>
         </td>
         <td className="px-3 py-2 whitespace-nowrap">
-          {PAYMENT_LABELS[o.payment_method] ?? o.payment_method}
+          {t.sales.methods[o.payment_method] ?? o.payment_method}
           {o.bank_name && <span className="text-xs text-slate-500 dark:text-slate-400"> · {o.bank_name}</span>}
         </td>
       </tr>
@@ -508,11 +516,11 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
             <table className="w-full text-xs mb-3">
               <thead className="text-slate-500 dark:text-slate-400 text-left">
                 <tr>
-                  <th className="py-1 font-medium">Product</th>
-                  <th className="py-1 font-medium">Barcode</th>
-                  <th className="py-1 font-medium text-right">Qty</th>
-                  <th className="py-1 font-medium text-right">Price</th>
-                  <th className="py-1 font-medium text-right">Line total</th>
+                  <th className="py-1 font-medium">{t.sales.product}</th>
+                  <th className="py-1 font-medium">{t.sales.barcode}</th>
+                  <th className="py-1 font-medium text-right">{t.sales.qty}</th>
+                  <th className="py-1 font-medium text-right">{t.sales.price}</th>
+                  <th className="py-1 font-medium text-right">{t.sales.lineTotal}</th>
                 </tr>
               </thead>
               <tbody>
@@ -536,17 +544,17 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
             </table>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4">
-                {o.amount_paid_usd > 0 && <span>Paid USD: {fmtUsd(o.amount_paid_usd)}</span>}
-                {o.amount_paid_khr > 0 && <span>Paid KHR: {fmtKhr(o.amount_paid_khr)}</span>}
-                {o.change_given_khr > 0 && <span>Change: {fmtKhr(o.change_given_khr)}</span>}
+                {o.amount_paid_usd > 0 && <span>{fill(t.sales.paidUsd, { amount: fmtUsd(o.amount_paid_usd) })}</span>}
+                {o.amount_paid_khr > 0 && <span>{fill(t.sales.paidKhr, { amount: fmtKhr(o.amount_paid_khr) })}</span>}
+                {o.change_given_khr > 0 && <span>{fill(t.sales.changeAmount, { amount: fmtKhr(o.change_given_khr) })}</span>}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
-                  Print receipt
+                  {t.sales.printReceipt}
                 </button>
                 {!voided && (
                   <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer">
-                    Void sale
+                    {t.sales.voidSale}
                   </button>
                 )}
               </div>
@@ -559,6 +567,7 @@ function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
 }
 
 function ExportModal({ stores, defaultStoreId, onClose }) {
+  const { t } = useLocale();
   const [storeId, setStoreId] = useState(defaultStoreId);
   const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
@@ -587,15 +596,15 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
         .filter((o) => includeVoided || !isVoided(o))
         .filter((o) => payment === 'all' || o.payment_method === payment);
       const active = EXPORT_COLUMNS.filter((c) => columns.has(c.key));
-      const ws = XLSX.utils.json_to_sheet(rows.map((o) => Object.fromEntries(active.map((c) => [c.header, c.val(o)]))));
+      const ws = XLSX.utils.json_to_sheet(rows.map((o) => Object.fromEntries(active.map((c) => [t.sales.exportColumns[c.key], c.val(o, t)]))));
       ws['!cols'] = active.map((c) => ({ wch: c.wch }));
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+      XLSX.utils.book_append_sheet(wb, ws, t.sales.sheetName);
       const branch = storeId ? stores.find((s) => s.id === storeId)?.name ?? 'branch' : 'all-branches';
       XLSX.writeFile(wb, `sales-${branch.replace(/[^\w-]+/g, '-').toLowerCase()}-${dateFrom || 'all'}_${dateTo || 'all'}.xlsx`);
       onClose();
     } catch {
-      setError('Export failed.');
+      setError(t.sales.exportFailed);
     } finally {
       setExporting(false);
     }
@@ -610,67 +619,67 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
     });
 
   return (
-    <Modal title="Export sales" onClose={onClose} width="max-w-2xl">
+    <Modal title={t.sales.exportTitle} onClose={onClose} width="max-w-2xl">
       <div className="space-y-4">
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Branch</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.branch}</label>
             <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-              <option value="">All branches</option>
+              <option value="">{t.sales.allBranches}</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.from}</label>
             <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.to}</label>
             <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Payment</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.payment}</label>
             <select value={payment} onChange={(e) => setPayment(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-              <option value="all">All methods</option>
+              <option value="all">{t.sales.allMethods}</option>
               {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                <option key={m} value={m}>{t.sales.methods[m]}</option>
               ))}
             </select>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {[['today', 'Today'], ['yesterday', 'Yesterday'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['month', 'This month'], ['all', 'All time']].map(([key, label]) => (
+          {['today', 'yesterday', '7d', '30d', 'month', 'all'].map((key) => (
             <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-              {label}
+              {t.sales.exportPresets[key]}
             </button>
           ))}
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">Columns</p>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{t.sales.columns}</p>
           <div className="grid grid-cols-3 gap-2">
             {EXPORT_COLUMNS.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input type="checkbox" checked={columns.has(c.key)} onChange={() => toggleColumn(c.key)} />
-                {c.header}
+                {t.sales.exportColumns[c.key]}
               </label>
             ))}
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={includeVoided} onChange={(e) => setIncludeVoided(e.target.checked)} />
-          Include voided sales
+          {t.sales.includeVoided}
         </label>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">Cancel</button>
+          <button onClick={onClose} className="text-sm px-3 py-1.5 border border-transparent cursor-pointer">{t.common.cancel}</button>
           <button
             onClick={runExport}
             disabled={exporting || columns.size === 0}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 border border-transparent disabled:opacity-60 cursor-pointer"
           >
-            {exporting ? 'Exporting…' : 'Export to Excel'}
+            {exporting ? t.sales.exporting : t.sales.exportToExcel}
           </button>
         </div>
       </div>

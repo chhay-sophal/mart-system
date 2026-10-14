@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import Modal from './Modal.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
 
 const ConfirmContext = createContext(null);
 
@@ -13,14 +14,15 @@ const ConfirmContext = createContext(null);
 export function ConfirmProvider({ children }) {
   const [request, setRequest] = useState(null);
   const resolveRef = useRef(null);
+  const { t } = useLocale();
 
   const confirm = useCallback((message, options = {}) => {
     return new Promise((resolve) => {
       resolveRef.current = resolve;
       setRequest({
         message,
-        title: options.title ?? 'Please confirm',
-        confirmLabel: options.confirmLabel ?? 'Confirm',
+        title: options.title,
+        confirmLabel: options.confirmLabel,
         danger: options.danger ?? false,
       });
     });
@@ -36,7 +38,7 @@ export function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {request && (
-        <Modal title={request.title} onClose={() => settle(false)} width="max-w-sm">
+        <Modal title={request.title ?? t.common.pleaseConfirm} onClose={() => settle(false)} width="max-w-sm">
           <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{request.message}</p>
           <div className="flex justify-end gap-2 pt-4">
             <button
@@ -44,7 +46,7 @@ export function ConfirmProvider({ children }) {
               onClick={() => settle(false)}
               className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer"
             >
-              Cancel
+              {t.common.cancel}
             </button>
             <button
               type="button"
@@ -54,7 +56,7 @@ export function ConfirmProvider({ children }) {
                 request.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-[var(--accent)]'
               }`}
             >
-              {request.confirmLabel}
+              {request.confirmLabel ?? t.common.confirm}
             </button>
           </div>
         </Modal>

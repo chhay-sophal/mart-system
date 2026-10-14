@@ -1,6 +1,8 @@
 // Search, per-column filters and sorting for IMS Products (issue #8). All in
 // the browser on the cached product list, so results update as you type.
 
+import { getT } from '../i18n/translate';
+
 export const EMPTY_FILTERS = {
   search: '', // name or barcode
   name: '',
@@ -21,18 +23,21 @@ export const EMPTY_FILTERS = {
   updatedTo: '',
 };
 
+// label is a getter, so it reads the current language each time it's shown.
+const option = (value, key) => ({ value, get label() { return getT().products[key]; } });
+
 export const STOCK_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'low', label: 'Low' },
-  { value: 'out', label: 'Out (0 or less)' },
-  { value: 'negative', label: 'Negative' },
-  { value: 'in', label: 'In stock' },
+  option('all', 'stockAll'),
+  option('low', 'stockLow'),
+  option('out', 'stockOut'),
+  option('negative', 'stockNegative'),
+  option('in', 'stockIn'),
 ];
 
 export const STATUS_FILTERS = [
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
-  { value: 'all', label: 'All' },
+  option('active', 'statusActive'),
+  option('archived', 'statusArchived'),
+  option('all', 'statusAll'),
 ];
 
 /** The price a register sells at: the store's override if set, else the default. */

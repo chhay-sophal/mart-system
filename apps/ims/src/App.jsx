@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext.jsx';
+import { useLocale } from './i18n/LocaleContext.jsx';
 import LoginPage from './auth/LoginPage.jsx';
 import AppShell from './layout/AppShell.jsx';
 import ProductsPage from './pages/ProductsPage.jsx';
@@ -15,11 +16,12 @@ import SalesHistoryPage from './pages/SalesHistoryPage.jsx';
 
 export default function App() {
   const { status, stores, currentStoreId } = useAuth();
+  const { t } = useLocale();
   const isAdmin = stores.find((s) => s.id === currentStoreId)?.role === 'ADMIN';
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">Loading…</div>
+      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">{t.shell.loading}</div>
     );
   }
 

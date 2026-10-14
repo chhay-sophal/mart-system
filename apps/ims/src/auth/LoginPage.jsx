@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import LanguageToggle from '../components/LanguageToggle.jsx';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { t } = useLocale();
+  const l = t.shell.login;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -16,7 +20,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch {
-      setError('Invalid email or password.');
+      setError(l.invalid);
     } finally {
       setSubmitting(false);
     }
@@ -28,11 +32,14 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-8 shadow-sm"
       >
-        <h1 className="text-xl font-semibold text-[var(--text-h)] mb-1">Mart System IMS</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Sign in to manage your store.</p>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h1 className="text-xl font-semibold text-[var(--text-h)]">{t.shell.appName}</h1>
+          <LanguageToggle />
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{l.subtitle}</p>
 
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="email">
-          Email
+          {l.email}
         </label>
         <input
           id="email"
@@ -45,7 +52,7 @@ export default function LoginPage() {
         />
 
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="password">
-          Password
+          {l.password}
         </label>
         <div className="relative mb-4">
           <input
@@ -61,7 +68,7 @@ export default function LoginPage() {
             onClick={() => setShowPassword((v) => !v)}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
           >
-            {showPassword ? 'Hide' : 'Show'}
+            {showPassword ? l.hide : l.show}
           </button>
         </div>
 
@@ -72,7 +79,7 @@ export default function LoginPage() {
           disabled={submitting}
           className="w-full bg-[var(--accent)] text-white rounded-lg py-2 text-sm font-medium disabled:opacity-60 cursor-pointer"
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? l.signingIn : l.signIn}
         </button>
       </form>
     </div>

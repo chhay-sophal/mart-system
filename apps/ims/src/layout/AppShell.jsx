@@ -4,18 +4,21 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { useHeadroom } from './useHeadroom';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import LanguageToggle from '../components/LanguageToggle.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
 
+// key: the label in t.shell.nav
 const NAV_ITEMS = [
-  { to: '/products', label: 'Products' },
-  { to: '/stores', label: 'Stores' },
-  { to: '/suppliers', label: 'Suppliers' },
-  { to: '/staff', label: 'Staff' },
-  { to: '/terminals', label: 'Terminals' },
-  { to: '/transfers', label: 'Transfers' },
-  { to: '/sales', label: 'Sales' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/reconciliation', label: 'Reconciliation' },
-  { to: '/settings', label: 'Settings', adminOnly: true },
+  { to: '/products', key: 'products' },
+  { to: '/stores', key: 'stores' },
+  { to: '/suppliers', key: 'suppliers' },
+  { to: '/staff', key: 'staff' },
+  { to: '/terminals', key: 'terminals' },
+  { to: '/transfers', key: 'transfers' },
+  { to: '/sales', key: 'sales' },
+  { to: '/reports', key: 'reports' },
+  { to: '/reconciliation', key: 'reconciliation' },
+  { to: '/settings', key: 'settings', adminOnly: true },
 ];
 
 function navLinkClass({ isActive }) {
@@ -30,6 +33,7 @@ export default function AppShell() {
   const headerRef = useRef(null);
   const { hidden, show } = useHeadroom(headerRef);
   const [theme, setTheme] = useTheme();
+  const { t } = useLocale();
   const isAdmin = stores.find((s) => s.id === currentStoreId)?.role === 'ADMIN';
   const navItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
@@ -45,11 +49,11 @@ export default function AppShell() {
       >
         <div className="flex items-center justify-between px-6 py-3 gap-4">
           <div className="flex items-center gap-6">
-            <span className="font-semibold text-[var(--text-h)]">Mart System IMS</span>
+            <span className="font-semibold text-[var(--text-h)]">{t.shell.appName}</span>
             <nav className="flex gap-1">
               {navItems.map((item) => (
                 <NavLink key={item.to} to={item.to} className={navLinkClass}>
-                  {item.label}
+                  {t.shell.nav[item.key]}
                 </NavLink>
               ))}
             </nav>
@@ -70,12 +74,13 @@ export default function AppShell() {
               </select>
             )}
             <span className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</span>
+            <LanguageToggle />
             <ThemeToggle theme={theme} onChange={setTheme} />
             <button
               onClick={logout}
               className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
-              Sign out
+              {t.shell.signOut}
             </button>
           </div>
         </div>
@@ -85,7 +90,7 @@ export default function AppShell() {
         {currentStoreId ? (
           <Outlet context={{ storeId: currentStoreId }} />
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400">No store access. Contact an administrator.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t.shell.noStoreAccess}</p>
         )}
       </main>
     </div>

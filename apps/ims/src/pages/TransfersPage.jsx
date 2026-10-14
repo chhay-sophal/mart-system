@@ -6,16 +6,12 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
 const EMPTY_CREATE_FORM = { fromStoreId: '', toStoreId: '', items: [] };
 
-const STATUS_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'REQUESTED', label: 'Requested' },
-  { value: 'IN_TRANSIT', label: 'In transit' },
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'CANCELLED', label: 'Cancelled' },
-];
+const STATUS_FILTERS = ['all', 'REQUESTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED'];
 
 const itemsSummary = (t) => t.items.map((i) => `${i.quantity}× ${i.productName}`).join(', ');
 
@@ -62,6 +58,7 @@ export default function TransfersPage() {
   // Not scoped to the AppShell's single current store — a transfer inherently
   // spans two, so this uses the full store list from AuthContext directly.
   const { stores } = useAuth();
+  const { t } = useLocale();
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -145,7 +142,7 @@ export default function TransfersPage() {
       setShowCreate(false);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to create transfer.');
+      setError(err?.body?.error ?? t.transfers.createFailed);
     }
   }
 
@@ -154,7 +151,7 @@ export default function TransfersPage() {
       await apiClient.post(`/api/stock-transfers/${transfer.id}/complete`);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to complete transfer — you may need a role at the receiving store.');
+      setError(err?.body?.error ?? t.transfers.completeFailed);
     }
   }
 
@@ -163,7 +160,7 @@ export default function TransfersPage() {
       await apiClient.post(`/api/stock-transfers/${transfer.id}/cancel`);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to cancel transfer.');
+      setError(err?.body?.error ?? t.transfers.cancelFailed);
     }
   }
 
@@ -173,76 +170,78 @@ export default function TransfersPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Stock transfers</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.transfers.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === transfers.length ? `${transfers.length} transfers` : `${visible.length} of ${transfers.length} transfers`}
+            {visible.length === transfers.length
+              ? fmt(t.transfers.count, { count: transfers.length, transfers: plural(transfers.length, t.transfers.transfer, t.transfers.transfersWord) })
+              : fmt(t.transfers.countFiltered, { visible: visible.length, total: transfers.length, transfers: plural(transfers.length, t.transfers.transfer, t.transfers.transfersWord) })}
           </span>
           {filterCount > 0 && (
             <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              Clear filters ({filterCount})
+              {fmt(t.transfers.clearFilters, { count: filterCount })}
             </button>
           )}
           <button
             onClick={openCreate}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
           >
-            New transfer
+            {t.transfers.newTransfer}
           </button>
         </div>
       </div>
 
-      {(error || transfersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load transfers.'}</p>}
+      {(error || transfersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.transfers.loadFailed}</p>}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="from" label="From" sort={sort} onSort={toggleSort}
+                col="from" label={t.common.from} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'from'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.from !== EMPTY_FILTERS.from}
               >
                 <input
                   value={filters.from}
                   onChange={(e) => setFilter('from', e.target.value)}
-                  placeholder="Filter store"
+                  placeholder={t.transfers.filterStore}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="to" label="To" sort={sort} onSort={toggleSort}
+                col="to" label={t.common.to} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'to'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.to !== EMPTY_FILTERS.to}
               >
                 <input
                   value={filters.to}
                   onChange={(e) => setFilter('to', e.target.value)}
-                  placeholder="Filter store"
+                  placeholder={t.transfers.filterStore}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="items" label="Items" sort={sort} onSort={toggleSort}
+                col="items" label={t.transfers.items} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.items !== EMPTY_FILTERS.items}
               >
                 <input
                   value={filters.items}
                   onChange={(e) => setFilter('items', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.transfers.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="status" label="Status" sort={sort} onSort={toggleSort}
+                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
               >
                 <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {STATUS_FILTERS.map((value) => (
+                    <option key={value} value={value}>{value === 'all' ? t.common.all : t.transfers.status[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
@@ -253,44 +252,44 @@ export default function TransfersPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  {transfers.length === 0 ? 'No transfers yet.' : 'No transfers match the filters.'}
+                  {transfers.length === 0 ? t.transfers.noTransfers : t.transfers.noMatches}
                 </td>
               </tr>
             ) : (
-              visible.map((t) => (
-                <tr key={t.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2">{t.fromStoreName}</td>
-                  <td className="px-4 py-2">{t.toStoreName}</td>
+              visible.map((tr) => (
+                <tr key={tr.id} className="border-t border-[var(--border)]">
+                  <td className="px-4 py-2">{tr.fromStoreName}</td>
+                  <td className="px-4 py-2">{tr.toStoreName}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
-                    {itemsSummary(t)}
+                    {itemsSummary(tr)}
                   </td>
                   <td className="px-4 py-2">
                     <span
                       className={
-                        t.status === 'COMPLETED'
+                        tr.status === 'COMPLETED'
                           ? 'text-emerald-600 dark:text-emerald-400'
-                          : t.status === 'CANCELLED'
+                          : tr.status === 'CANCELLED'
                             ? 'text-slate-400 dark:text-slate-500'
                             : 'text-amber-600 dark:text-amber-400'
                       }
                     >
-                      {t.status}
+                      {t.transfers.status[tr.status] ?? tr.status}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-right space-x-3">
-                    {t.status === 'REQUESTED' && (
+                    {tr.status === 'REQUESTED' && (
                       <>
-                        <button onClick={() => handleComplete(t)} className="text-[var(--accent)] font-medium cursor-pointer">
-                          Complete
+                        <button onClick={() => handleComplete(tr)} className="text-[var(--accent)] font-medium cursor-pointer">
+                          {t.transfers.complete}
                         </button>
-                        <button onClick={() => handleCancel(t)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                          Cancel
+                        <button onClick={() => handleCancel(tr)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
+                          {t.common.cancel}
                         </button>
                       </>
                     )}
@@ -303,18 +302,18 @@ export default function TransfersPage() {
       </div>
 
       {showCreate && (
-        <Modal title="New stock transfer" onClose={() => setShowCreate(false)}>
+        <Modal title={t.transfers.modalTitle} onClose={() => setShowCreate(false)}>
           <form onSubmit={handleCreate} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From store</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.transfers.fromStore}</label>
                 <select
                   required
                   value={createForm.fromStoreId}
                   onChange={(e) => handleFromStoreChange(e.target.value)}
                   className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
                 >
-                  <option value="">Select…</option>
+                  <option value="">{t.common.select}</option>
                   {stores.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -323,14 +322,14 @@ export default function TransfersPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To store</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.transfers.toStore}</label>
                 <select
                   required
                   value={createForm.toStoreId}
                   onChange={(e) => setCreateForm({ ...createForm, toStoreId: e.target.value })}
                   className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
                 >
-                  <option value="">Select…</option>
+                  <option value="">{t.common.select}</option>
                   {stores
                     .filter((s) => s.id !== createForm.fromStoreId)
                     .map((s) => (
@@ -344,17 +343,17 @@ export default function TransfersPage() {
 
             {createForm.fromStoreId && (
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Add item</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.transfers.addItem}</label>
                 <div className="flex gap-2">
                   <select
                     value={pendingProductId}
                     onChange={(e) => setPendingProductId(e.target.value)}
                     className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                   >
-                    <option value="">Select a product…</option>
+                    <option value="">{t.transfers.selectProduct}</option>
                     {fromStoreProducts.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} ({p.stock} in stock)
+                        {fmt(t.transfers.productOption, { name: p.name, stock: p.stock })}
                       </option>
                     ))}
                   </select>
@@ -367,7 +366,7 @@ export default function TransfersPage() {
                     className="w-20 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                   />
                   <button type="button" onClick={addLineItem} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-[var(--border)] rounded-lg cursor-pointer">
-                    Add
+                    {t.common.add}
                   </button>
                 </div>
               </div>
@@ -378,10 +377,10 @@ export default function TransfersPage() {
                 {createForm.items.map((item) => (
                   <li key={item.productId} className="flex items-center justify-between">
                     <span>
-                      {item.quantity}× {item.name}
+                      {fmt(t.transfers.lineItem, { quantity: item.quantity, name: item.name })}
                     </span>
                     <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 dark:text-red-400 text-xs cursor-pointer">
-                      Remove
+                      {t.common.remove}
                     </button>
                   </li>
                 ))}
@@ -390,14 +389,14 @@ export default function TransfersPage() {
 
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowCreate(false)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button
                 type="submit"
                 disabled={!canSubmitCreate}
                 className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 disabled:opacity-50 cursor-pointer"
               >
-                Request transfer
+                {t.transfers.requestTransfer}
               </button>
             </div>
           </form>

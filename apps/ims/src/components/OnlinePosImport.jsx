@@ -1,18 +1,17 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { apiClient } from '../lib/apiClient';
 import { openOnlinePosDb, readOrders, readProducts, readSettings, sourceIdFor } from '../lib/onlinePosFile';
 import { importProductsInBatches } from '../lib/productImport';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
 // ~350 bytes per order with a couple of items, so 100 stays far under the
 // backend's 100KB body limit even for big baskets.
 const ORDER_BATCH_SIZE = 100;
 const SHOWN_ERRORS = 10;
 
-const SETTING_LABELS = {
-  main_currency: 'Main currency',
-  locale: 'Language',
-  exchange_rate: 'Exchange rate',
-};
+// Labels in t.importExport.onlinePos.settingLabels.
+const SETTING_KEYS = ['main_currency', 'locale', 'exchange_rate'];
 
 const VALID_SETTINGS = {
   main_currency: (v) => v === 'USD' || v === 'KHR',
@@ -31,6 +30,8 @@ function dateRange(orders) {
  * (sales are matched to products by barcode, so products go first).
  */
 export default function OnlinePosImport({ storeId, onImported }) {
+  const { t } = useLocale();
+  const op = t.importExport.onlinePos;
   const fileInputRef = useRef(null);
   const [file, setFile] = useState(null); // { name, settings, products, orders, sourceId, deletedSkipped }
   const [readError, setReadError] = useState('');
@@ -65,7 +66,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
       }
     } catch (err) {
       setFile(null);
-      setReadError(err?.message?.includes('online-pos') ? err.message : 'Could not read that file as an online-pos database.');
+      setReadError(err?.message?.includes('online-pos') ? err.message : op.unreadable);
     }
   }
 
@@ -73,27 +74,26 @@ export default function OnlinePosImport({ storeId, onImported }) {
 
   async function importSettings() {
     const { settings } = file;
-    setStep('settings', 'Importing…');
+    setStep('settings', op.importing);
     const values = {};
     for (const [key, isValid] of Object.entries(VALID_SETTINGS)) {
       if (settings[key] && isValid(settings[key])) values[key] = settings[key];
     }
     if (Object.keys(values).length) await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
-    setStep('settings', 'Done.');
+    setStep('settings', op.done);
   }
 
   async function importProducts() {
     const total = file.products.length;
     try {
-      const t = await importProductsInBatches(storeId, file.products, updateExisting, (n) =>
-        setStep('products', `Importing… ${n} / ${total}`)
+      const totals = await importProductsInBatches(storeId, file.products, updateExisting, (n) =>
+        setStep('products', fmt(op.importingProgress, { done: n, total }))
       );
-      setStep('products', `Done: ${t.imported} imported, ${t.updated} updated, ${t.skipped} skipped, ${t.errors} errors.`);
+      setStep('products', fmt(op.productsDone, totals));
     } catch (err) {
-      const t = err.partialTotals;
-      throw new Error(`Products stopped after ${t.imported + t.updated + t.skipped + t.errors} of ${total} rows.`, {
-        cause: err,
-      });
+      const totals = err.partialTotals;
+      const done = totals.imported + totals.updated + totals.skipped + totals.errors;
+      throw new Error(fmt(op.productsStopped, { done, total }), { cause: err });
     }
   }
 
@@ -102,7 +102,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
     const totals = { imported: 0, skipped: 0, productsCreated: 0 };
     const orderErrors = [];
     for (let i = 0; i < orders.length; i += ORDER_BATCH_SIZE) {
-      setStep('orders', `Importing… ${i} / ${orders.length}`);
+      setStep('orders', fmt(op.importingProgress, { done: i, total: orders.length }));
       let res;
       try {
         res = await apiClient.post(`/api/stores/${storeId}/legacy-import/online-pos/orders`, {
@@ -111,20 +111,22 @@ export default function OnlinePosImport({ storeId, onImported }) {
         });
       } catch (err) {
         setErrors((e) => [...e, ...orderErrors]);
-        throw new Error(`Sales stopped after ${i} of ${orders.length} orders. Re-run to finish; imported ones are skipped.`, {
-          cause: err,
-        });
+        throw new Error(fmt(op.salesStopped, { done: i, total: orders.length }), { cause: err });
       }
       totals.imported += res.imported;
       totals.skipped += res.skipped;
       totals.productsCreated += res.productsCreated;
-      orderErrors.push(...res.errors.map((e) => `Order #${e.legacyId}: ${e.error}`));
+      orderErrors.push(...res.errors.map((e) => fmt(op.orderError, { id: e.legacyId, error: e.error })));
     }
     setErrors((e) => [...e, ...orderErrors]);
     setStep(
       'orders',
-      `Done: ${totals.imported} imported, ${totals.skipped} already imported, ${orderErrors.length} errors` +
-        (totals.productsCreated ? `, ${totals.productsCreated} missing products added as deleted.` : '.')
+      fmt(totals.productsCreated ? op.ordersDoneWithCreated : op.ordersDone, {
+        imported: totals.imported,
+        skipped: totals.skipped,
+        errors: orderErrors.length,
+        created: totals.productsCreated,
+      })
     );
   }
 
@@ -142,7 +144,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
         try {
           await run();
         } catch (err) {
-          setStep(key, err?.message || 'Failed.');
+          setStep(key, err?.message || op.failed);
           break; // Later steps depend on earlier ones (sales need products).
         }
       }
@@ -153,14 +155,17 @@ export default function OnlinePosImport({ storeId, onImported }) {
   }
 
   const canRun = file && Object.values(include).some(Boolean) && !running;
-  const settingEntries = file ? Object.entries(SETTING_LABELS).filter(([key]) => file.settings[key]) : [];
+  const settingEntries = file ? SETTING_KEYS.filter((key) => file.settings[key]).map((key) => [key, op.settingLabels[key]]) : [];
 
   return (
     <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-      <h2 className="text-sm font-semibold text-[var(--text-h)]">Import from online-pos</h2>
+      <h2 className="text-sm font-semibold text-[var(--text-h)]">{op.title}</h2>
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Bring over data from the old online-pos app. Choose its <code>database.sqlite</code> (on the old PC under{' '}
-        <code>.soso-babymart-pos</code>, or a file from its <code>backups</code> folder).
+        {fillParts(op.intro, {
+          file: <code>database.sqlite</code>,
+          folder: <code>.soso-babymart-pos</code>,
+          backups: <code>backups</code>,
+        })}
       </p>
 
       <div className="flex items-center gap-3">
@@ -170,9 +175,9 @@ export default function OnlinePosImport({ storeId, onImported }) {
           disabled={running}
           className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 disabled:opacity-60 cursor-pointer"
         >
-          Choose file
+          {op.chooseFile}
         </button>
-        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{file?.name ?? 'No file chosen'}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{file?.name ?? op.noFileChosen}</span>
         <input ref={fileInputRef} type="file" accept=".sqlite,.sqlite3,.db" className="hidden" onChange={handleFile} />
       </div>
       {readError && <p className="text-xs text-red-600 dark:text-red-400">{readError}</p>}
@@ -183,21 +188,21 @@ export default function OnlinePosImport({ storeId, onImported }) {
             checked={include.settings}
             disabled={running || settingEntries.length === 0}
             onChange={(v) => setInclude({ ...include, settings: v })}
-            title="Store settings"
+            title={op.storeSettings}
             status={status.settings}
           >
             {settingEntries.length === 0 ? (
-              'None found in this file.'
+              op.noSettings
             ) : (
               <>
                 {settingEntries.map(([key, label]) => (
                   <span key={key} className="block">
                     {label}: {file.settings[key]}
-                    {VALID_SETTINGS[key] && !VALID_SETTINGS[key](file.settings[key]) && ' (invalid, will be skipped)'}
+                    {VALID_SETTINGS[key] && !VALID_SETTINGS[key](file.settings[key]) && ` ${op.invalidSetting}`}
                   </span>
                 ))}
-                <span className="block">Shop name, image, address and phone are set on each register (POS Settings).</span>
-                <span className="block text-amber-700 dark:text-amber-300">Replaces this store's current values.</span>
+                <span className="block">{op.registerSettingsNote}</span>
+                <span className="block text-amber-700 dark:text-amber-300">{op.replacesNote}</span>
               </>
             )}
           </Step>
@@ -206,10 +211,16 @@ export default function OnlinePosImport({ storeId, onImported }) {
             checked={include.products}
             disabled={running}
             onChange={(v) => setInclude({ ...include, products: v })}
-            title={`Products (${file.products.length})`}
+            title={fmt(op.productsTitle, { count: file.products.length })}
             status={status.products}
           >
-            {file.deletedSkipped > 0 && <span className="block">{file.deletedSkipped} deleted products left out.</span>}
+            {file.deletedSkipped > 0 && (
+              <span className="block">
+                {fmt(plural(file.deletedSkipped, op.deletedLeftOutOne, op.deletedLeftOutMany), {
+                  count: file.deletedSkipped,
+                })}
+              </span>
+            )}
             <label className="flex items-center gap-2 mt-1">
               <input
                 type="checkbox"
@@ -217,7 +228,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
                 disabled={running}
                 onChange={(e) => setUpdateExisting(e.target.checked)}
               />
-              Update existing products matched by barcode (otherwise they're skipped)
+              {op.updateExisting}
             </label>
           </Step>
 
@@ -225,13 +236,11 @@ export default function OnlinePosImport({ storeId, onImported }) {
             checked={include.orders}
             disabled={running || file.orders.length === 0}
             onChange={(v) => setInclude({ ...include, orders: v })}
-            title={`Sales history (${file.orders.length} orders)`}
+            title={fmt(plural(file.orders.length, op.salesTitleOne, op.salesTitleMany), { count: file.orders.length })}
             status={status.orders}
           >
             {file.orders.length > 0 && <span className="block">{dateRange(file.orders)}</span>}
-            <span className="block">
-              Doesn't change stock. Items are matched to products by barcode, so import products first (now or earlier).
-            </span>
+            <span className="block">{op.salesNote}</span>
           </Step>
 
           {errors.length > 0 && (
@@ -239,7 +248,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
               {errors.slice(0, SHOWN_ERRORS).map((e) => (
                 <p key={e}>{e}</p>
               ))}
-              {errors.length > SHOWN_ERRORS && <p>…and {errors.length - SHOWN_ERRORS} more.</p>}
+              {errors.length > SHOWN_ERRORS && <p>{fmt(op.moreErrors, { count: errors.length - SHOWN_ERRORS })}</p>}
             </div>
           )}
 
@@ -250,12 +259,19 @@ export default function OnlinePosImport({ storeId, onImported }) {
               disabled={!canRun}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 py-1.5 disabled:opacity-60 cursor-pointer"
             >
-              {running ? 'Importing…' : 'Import selected'}
+              {running ? op.importing : op.importSelected}
             </button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// fmt() for JSX: fills {name} placeholders with elements instead of text.
+function fillParts(template, parts) {
+  return template.split(/\{(\w+)\}/).map((piece, i) =>
+    i % 2 ? <Fragment key={i}>{parts[piece] ?? `{${piece}}`}</Fragment> : piece
   );
 }
 

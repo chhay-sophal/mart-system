@@ -11,6 +11,8 @@ import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
 const EMPTY_FORM = {
   name: '',
@@ -64,6 +66,7 @@ export default function ProductsPage() {
   const { storeId } = useOutletContext();
   const { stores } = useAuth();
   const confirm = useConfirm();
+  const { t } = useLocale();
   const [error, setError] = useState(''); // save/delete errors
   // This page's own store filter -- independent of the header's global store
   // switcher. '' means "All stores"; null means "not initialized yet" (stores
@@ -210,17 +213,17 @@ export default function ProductsPage() {
       setEditing(null);
       await load();
     } catch {
-      setError('Failed to save product.');
+      setError(t.products.saveFailed);
     }
   }
 
   async function handleArchive(product) {
-    if (!(await confirm(`Archive "${product.name}"? It'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
+    if (!(await confirm(fmt(t.products.confirmArchive, { name: product.name }), { confirmLabel: t.common.archive }))) return;
     try {
       await apiClient.delete(`/api/stores/${product.storeId}/products/${product.id}`);
       await load();
     } catch {
-      setError('Failed to archive product.');
+      setError(t.products.archiveFailed);
     }
   }
 
@@ -229,7 +232,7 @@ export default function ProductsPage() {
       await apiClient.post(`/api/stores/${product.storeId}/products/${product.id}/restore`);
       await load();
     } catch {
-      setError('Failed to restore product.');
+      setError(t.products.restoreFailed);
     }
   }
 
@@ -254,7 +257,7 @@ export default function ProductsPage() {
 
   async function handleBulkArchive() {
     if (selected.size === 0) return;
-    if (!(await confirm(`Archive ${selected.size} selected product${selected.size === 1 ? '' : 's'}? They'll be hidden from this list until restored.`, { confirmLabel: 'Archive' }))) return;
+    if (!(await confirm(fmt(plural(selected.size, t.products.confirmBulkArchiveOne, t.products.confirmBulkArchive), { count: selected.size }), { confirmLabel: t.common.archive }))) return;
     setBulkDeleting(true);
     try {
       // Selection is by storeProductId, and in the "All stores" view can span
@@ -272,7 +275,7 @@ export default function ProductsPage() {
       setSelected(new Set());
       await load();
     } catch {
-      setError('Failed to archive the selected products.');
+      setError(t.products.bulkArchiveFailed);
     } finally {
       setBulkDeleting(false);
     }
@@ -281,19 +284,19 @@ export default function ProductsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Products</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.products.title}</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportExport(true)}
             className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
           >
-            Import / Export
+            {t.products.importExport}
           </button>
           <button
             onClick={openCreate}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
           >
-            Add product
+            {t.products.addProduct}
           </button>
         </div>
       </div>
@@ -304,7 +307,7 @@ export default function ProductsPage() {
           onChange={(e) => setViewStoreId(e.target.value)}
           className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
         >
-          <option value="">All stores</option>
+          <option value="">{t.common.allStores}</option>
           {stores.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -316,37 +319,39 @@ export default function ProductsPage() {
           type="search"
           value={filters.search}
           onChange={(e) => setFilter('search', e.target.value)}
-          placeholder="Search by name or barcode…  ( / )"
+          placeholder={t.products.searchPlaceholder}
           className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800"
         />
         <span className="text-sm text-slate-500 dark:text-slate-400">
-          {visible.length === products.length ? `${products.length} products` : `${visible.length} of ${products.length} products`}
+          {visible.length === products.length
+            ? fmt(plural(products.length, t.products.countOne, t.products.count), { count: products.length })
+            : fmt(t.products.countFiltered, { visible: visible.length, total: products.length })}
         </span>
         {(filterCount > 0 || filters.search) && (
           <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-            Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
+            {filterCount > 0 ? fmt(t.products.clearFilters, { count: filterCount }) : t.products.clearSearch}
           </button>
         )}
       </div>
 
       {selected.size > 0 && (
         <div className="flex items-center gap-3 mb-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{selected.size} selected</span>
+          <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">{fmt(t.products.selectedCount, { count: selected.size })}</span>
           <button
             onClick={handleBulkArchive}
             disabled={bulkDeleting}
             className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {bulkDeleting ? 'Archiving…' : 'Archive selected'}
+            {bulkDeleting ? t.products.archiving : t.products.archiveSelected}
           </button>
           <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto cursor-pointer">
-            Clear selection
+            {t.products.clearSelection}
           </button>
         </div>
       )}
 
       {(error || productsQuery.isError) && (
-        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load products.'}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.products.loadFailed}</p>
       )}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
@@ -362,46 +367,46 @@ export default function ProductsPage() {
                 />
               </th>
               <FilterableHeader
-                col="name" label="Name" sort={sort} onSort={toggleSort}
+                col="name" label={t.products.colName} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
               >
                 <input
                   value={filters.name}
                   onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder="Filter name"
+                  placeholder={t.products.filterName}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
-              {viewStoreId === '' && <th className="px-4 py-2 font-medium">Store</th>}
+              {viewStoreId === '' && <th className="px-4 py-2 font-medium">{t.products.colStore}</th>}
               <FilterableHeader
-                col="barcode" label="Barcode" sort={sort} onSort={toggleSort}
+                col="barcode" label={t.products.colBarcode} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'barcode'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.barcodeMode !== EMPTY_FILTERS.barcodeMode || filters.barcode !== EMPTY_FILTERS.barcode}
               >
                 <div className="flex flex-col gap-1.5">
                   <select value={filters.barcodeMode} onChange={(e) => setFilter('barcodeMode', e.target.value)} className={filterInput}>
-                    <option value="any">Any</option>
-                    <option value="missing">No barcode</option>
+                    <option value="any">{t.products.any}</option>
+                    <option value="missing">{t.products.noBarcode}</option>
                   </select>
                   {filters.barcodeMode === 'any' && (
-                    <input value={filters.barcode} onChange={(e) => setFilter('barcode', e.target.value)} placeholder="Contains" className={filterInput} />
+                    <input value={filters.barcode} onChange={(e) => setFilter('barcode', e.target.value)} placeholder={t.products.contains} className={filterInput} />
                   )}
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="costPrice" label="Cost price" sort={sort} onSort={toggleSort}
+                col="costPrice" label={t.products.colCostPrice} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'costPrice'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.costPriceMin !== EMPTY_FILTERS.costPriceMin || filters.costPriceMax !== EMPTY_FILTERS.costPriceMax}
               >
                 <div className="flex gap-1">
-                  <input type="number" value={filters.costPriceMin} onChange={(e) => setFilter('costPriceMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                  <input type="number" value={filters.costPriceMax} onChange={(e) => setFilter('costPriceMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.costPriceMin} onChange={(e) => setFilter('costPriceMin', e.target.value)} placeholder={t.products.min} className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.costPriceMax} onChange={(e) => setFilter('costPriceMax', e.target.value)} placeholder={t.products.max} className={`${filterInput} w-20`} />
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="price" label="Price" sort={sort} onSort={toggleSort}
+                col="price" label={t.products.colPrice} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'price'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={
                   filters.currency !== EMPTY_FILTERS.currency ||
@@ -411,18 +416,18 @@ export default function ProductsPage() {
               >
                 <div className="flex flex-col gap-1.5">
                   <select value={filters.currency} onChange={(e) => setFilter('currency', e.target.value)} className={filterInput}>
-                    <option value="all">All currencies</option>
+                    <option value="all">{t.products.allCurrencies}</option>
                     <option value="USD">USD</option>
                     <option value="KHR">KHR</option>
                   </select>
                   <div className="flex gap-1">
-                    <input type="number" value={filters.priceMin} onChange={(e) => setFilter('priceMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                    <input type="number" value={filters.priceMax} onChange={(e) => setFilter('priceMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                    <input type="number" value={filters.priceMin} onChange={(e) => setFilter('priceMin', e.target.value)} placeholder={t.products.min} className={`${filterInput} w-20`} />
+                    <input type="number" value={filters.priceMax} onChange={(e) => setFilter('priceMax', e.target.value)} placeholder={t.products.max} className={`${filterInput} w-20`} />
                   </div>
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="stock" label="Stock" sort={sort} onSort={toggleSort}
+                col="stock" label={t.products.colStock} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'stock'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.stock !== EMPTY_FILTERS.stock}
               >
@@ -433,22 +438,22 @@ export default function ProductsPage() {
                 </select>
               </FilterableHeader>
               <FilterableHeader
-                col="supplier" label="Supplier" sort={sort} onSort={toggleSort}
+                col="supplier" label={t.products.colSupplier} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'supplier'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.supplierMode !== EMPTY_FILTERS.supplierMode || filters.supplier !== EMPTY_FILTERS.supplier}
               >
                 <div className="flex flex-col gap-1.5">
                   <select value={filters.supplierMode} onChange={(e) => setFilter('supplierMode', e.target.value)} className={filterInput}>
-                    <option value="any">Any</option>
-                    <option value="missing">No supplier</option>
+                    <option value="any">{t.products.any}</option>
+                    <option value="missing">{t.products.noSupplier}</option>
                   </select>
                   {filters.supplierMode === 'any' && (
-                    <input value={filters.supplier} onChange={(e) => setFilter('supplier', e.target.value)} placeholder="Contains" className={filterInput} />
+                    <input value={filters.supplier} onChange={(e) => setFilter('supplier', e.target.value)} placeholder={t.products.contains} className={filterInput} />
                   )}
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="status" label="Status" sort={sort} onSort={toggleSort}
+                col="status" label={t.products.colStatus} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
               >
@@ -459,33 +464,33 @@ export default function ProductsPage() {
                 </select>
               </FilterableHeader>
               <FilterableHeader
-                col="createdAt" label="Created" sort={sort} onSort={toggleSort}
+                col="createdAt" label={t.products.colCreated} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'createdAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.createdFrom !== EMPTY_FILTERS.createdFrom || filters.createdTo !== EMPTY_FILTERS.createdTo}
               >
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    From
+                    {t.common.from}
                     <input type="date" value={filters.createdFrom} onChange={(e) => setFilter('createdFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    To
+                    {t.common.to}
                     <input type="date" value={filters.createdTo} onChange={(e) => setFilter('createdTo', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="updatedAt" label="Updated" sort={sort} onSort={toggleSort}
+                col="updatedAt" label={t.products.colUpdated} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'updatedAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.updatedFrom !== EMPTY_FILTERS.updatedFrom || filters.updatedTo !== EMPTY_FILTERS.updatedTo}
               >
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    From
+                    {t.common.from}
                     <input type="date" value={filters.updatedFrom} onChange={(e) => setFilter('updatedFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                   <label className="text-xs text-slate-500 dark:text-slate-400">
-                    To
+                    {t.common.to}
                     <input type="date" value={filters.updatedTo} onChange={(e) => setFilter('updatedTo', e.target.value)} className={`${filterInput} mt-0.5`} />
                   </label>
                 </div>
@@ -497,13 +502,13 @@ export default function ProductsPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
-                  {products.length === 0 ? 'No products.' : 'No products match the search or filters.'}
+                  {products.length === 0 ? t.products.noProducts : t.products.noMatches}
                 </td>
               </tr>
             ) : (
@@ -531,7 +536,7 @@ export default function ProductsPage() {
                   <td className="px-4 py-2">
                     {p.stock}
                     {p.stock <= p.lowStockThreshold && (
-                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">low</span>
+                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">{t.products.lowBadge}</span>
                     )}
                   </td>
                   <td className="px-4 py-2">
@@ -545,9 +550,9 @@ export default function ProductsPage() {
                   </td>
                   <td className="px-4 py-2">
                     {p.isDeleted ? (
-                      <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                      <span className="text-slate-500 dark:text-slate-400">{t.products.statusArchived}</span>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.products.statusActive}</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(p.createdAt)}</td>
@@ -555,15 +560,15 @@ export default function ProductsPage() {
                   <td className="px-4 py-2 text-right">
                     {p.isDeleted ? (
                       <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
-                        Restore
+                        {t.common.restore}
                       </button>
                     ) : (
                       <>
                         <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                          Edit
+                          {t.common.edit}
                         </button>
                         <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
-                          Archive
+                          {t.common.archive}
                         </button>
                       </>
                     )}
@@ -579,12 +584,12 @@ export default function ProductsPage() {
       {pageCount > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
           <span>
-            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} of {visible.length}
+            {fmt(t.products.rangeOf, { from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, visible.length), total: visible.length })}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
-            <span>Page {page} / {pageCount}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.products.prev}</button>
+            <span>{fmt(t.products.pageOf, { page, pages: pageCount })}</span>
+            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
           </div>
         </div>
       )}
@@ -593,14 +598,18 @@ export default function ProductsPage() {
         <Modal
           title={
             editing === 'new'
-              ? `Add product${stores.find((s) => s.id === createStoreId) ? ` — ${stores.find((s) => s.id === createStoreId).name}` : ''}`
-              : `Edit product${editing.storeName ? ` — ${editing.storeName}` : ''}`
+              ? (stores.find((s) => s.id === createStoreId)
+                ? fmt(t.products.addProductFor, { store: stores.find((s) => s.id === createStoreId).name })
+                : t.products.addProduct)
+              : editing.storeName
+                ? fmt(t.products.editProductFor, { store: editing.storeName })
+                : t.products.editProduct
           }
           onClose={() => setEditing(null)}
         >
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.name}</label>
               <input
                 required
                 value={form.name}
@@ -610,7 +619,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Barcode</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.colBarcode}</label>
                 <input
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
@@ -618,7 +627,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Category</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.category}</label>
                 <input
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -628,7 +637,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Currency</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.currency}</label>
                 <select
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
@@ -639,7 +648,7 @@ export default function ProductsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Cost price</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.colCostPrice}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -650,7 +659,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Price</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.colPrice}</label>
                 <input
                   required
                   type="number"
@@ -664,13 +673,13 @@ export default function ProductsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">
-                Price override <span className="text-slate-400 dark:text-slate-500">(this store only, leave blank to use the price above)</span>
+                {t.products.priceOverride} <span className="text-slate-400 dark:text-slate-500">{t.products.priceOverrideHint}</span>
               </label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="Same as price"
+                placeholder={t.products.sameAsPrice}
                 value={form.priceOverride}
                 onChange={(e) => setForm({ ...form, priceOverride: e.target.value })}
                 className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
@@ -678,7 +687,7 @@ export default function ProductsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Stock</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.colStock}</label>
                 <input
                   type="number"
                   step="1"
@@ -688,7 +697,7 @@ export default function ProductsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Low-stock threshold</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.lowStockThreshold}</label>
                 <input
                   type="number"
                   step="1"
@@ -699,20 +708,20 @@ export default function ProductsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Supplier</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.colSupplier}</label>
               <SearchableSelect
                 value={form.supplierId}
                 onChange={(supplierId) => setForm({ ...form, supplierId })}
                 options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
-                emptyLabel="No supplier"
+                emptyLabel={t.products.noSupplier}
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 py-1.5 cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-                Save
+                {t.common.save}
               </button>
             </div>
           </form>
@@ -729,44 +738,48 @@ export default function ProductsPage() {
       )}
 
       {viewingSupplierFor && (
-        <Modal title="Supplier" onClose={() => setViewingSupplierFor(null)}>
+        <Modal title={t.products.supplierTitle} onClose={() => setViewingSupplierFor(null)}>
           {viewingSupplier?.deleted ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-[var(--text-h)]">{viewingSupplier.name}</span> has been removed, so its contact details
-              are no longer available.
+              {t.products.supplierRemoved.split('{name}').map((part, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="font-medium text-[var(--text-h)]">{viewingSupplier.name}</span>}
+                  {part}
+                </span>
+              ))}
             </p>
           ) : (
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Name</dt>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.common.name}</dt>
                 <dd className="text-[var(--text-h)]">{viewingSupplier?.name}</dd>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Phone 1</dt>
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.products.phone1}</dt>
                   <dd>{viewingSupplier?.phone1}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Phone 2</dt>
+                  <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.products.phone2}</dt>
                   <dd>{viewingSupplier?.phone2 ?? '—'}</dd>
                 </div>
               </div>
               <div>
-                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Email</dt>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.products.email}</dt>
                 <dd>{viewingSupplier?.email ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Address</dt>
+                <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.products.address}</dt>
                 <dd>{viewingSupplier?.address ?? '—'}</dd>
               </div>
             </dl>
           )}
           <div className="flex justify-between items-center pt-4 mt-1">
             <Link to="/suppliers" className="text-sm text-[var(--accent)] font-medium">
-              Manage suppliers
+              {t.products.manageSuppliers}
             </Link>
             <button onClick={() => setViewingSupplierFor(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-              Close
+              {t.common.close}
             </button>
           </div>
         </Modal>

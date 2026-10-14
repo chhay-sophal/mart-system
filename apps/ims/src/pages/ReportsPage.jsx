@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 
 // Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
@@ -29,6 +30,7 @@ export default function ReportsPage() {
   // Not scoped to the AppShell's single current store — "All stores" is a
   // first-class option here, sourced from the full list in AuthContext.
   const { stores } = useAuth();
+  const { t } = useLocale();
   const [storeId, setStoreId] = useState('');
   const [dateFrom, setDateFrom] = useState(todayStr());
   const [dateTo, setDateTo] = useState(todayStr());
@@ -50,25 +52,25 @@ export default function ReportsPage() {
   });
   const report = reportQuery.data ?? null;
   const loading = reportQuery.isPending;
-  const error = reportQuery.isError ? 'Failed to load the report.' : '';
+  const error = reportQuery.isError ? t.reports.loadFailed : '';
 
   const singleStore = report?.byStore?.length === 1 ? report.byStore[0] : null;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Reports</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.reports.title}</h1>
       </div>
 
       <div className="flex items-end gap-3 mb-4 bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Store</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.store}</label>
           <select
             value={storeId}
             onChange={(e) => setStoreId(e.target.value)}
             className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
           >
-            <option value="">All stores</option>
+            <option value="">{t.common.allStores}</option>
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
@@ -77,7 +79,7 @@ export default function ReportsPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">From</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.from}</label>
           <input
             type="date"
             value={dateFrom}
@@ -87,7 +89,7 @@ export default function ReportsPage() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">To</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.to}</label>
           <input
             type="date"
             value={dateTo}
@@ -101,20 +103,21 @@ export default function ReportsPage() {
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">{t.common.loading}</p>
       ) : !report ? null : (
         <>
           <div className="grid grid-cols-4 gap-3 mb-4">
             {[
-              { label: 'Revenue', value: inMainCurrency(report.combined.mainCurrency, report.combined.totalRevenue, report.combined.totalRevenueKhr) },
-              { label: 'Orders', value: { primary: report.combined.orderCount } },
-              { label: 'Avg order', value: inMainCurrency(report.combined.mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr) },
+              { key: 'revenue', label: t.reports.revenue, value: inMainCurrency(report.combined.mainCurrency, report.combined.totalRevenue, report.combined.totalRevenueKhr) },
+              { key: 'orders', label: t.reports.orders, value: { primary: report.combined.orderCount } },
+              { key: 'avgOrder', label: t.reports.avgOrder, value: inMainCurrency(report.combined.mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr) },
               {
-                label: 'Gross profit',
+                key: 'grossProfit',
+                label: t.reports.grossProfit,
                 value: inMainCurrency(report.combined.mainCurrency, report.combined.grossProfit, report.combined.grossProfitKhr),
               },
             ].map((card) => (
-              <div key={card.label} className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
+              <div key={card.key} className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
                 <p className="text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
                 <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{card.value.primary}</p>
                 {card.value.secondary && <p className="text-xs text-slate-500 dark:text-slate-400">{card.value.secondary}</p>}
@@ -127,10 +130,10 @@ export default function ReportsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
                   <tr>
-                    <th className="px-4 py-2">Store</th>
-                    <th className="px-4 py-2">Orders</th>
-                    <th className="px-4 py-2">Revenue</th>
-                    <th className="px-4 py-2">Gross profit</th>
+                    <th className="px-4 py-2">{t.common.store}</th>
+                    <th className="px-4 py-2">{t.reports.orders}</th>
+                    <th className="px-4 py-2">{t.reports.revenue}</th>
+                    <th className="px-4 py-2">{t.reports.grossProfit}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -150,14 +153,14 @@ export default function ReportsPage() {
           {singleStore && (
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-                <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">Payment breakdown</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">{t.reports.paymentBreakdown}</h2>
                 {singleStore.byMethod.length === 0 ? (
-                  <p className="text-sm text-slate-400 dark:text-slate-500">No orders.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">{t.reports.noOrders}</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm">
                     {singleStore.byMethod.map((m) => (
                       <li key={m.paymentMethod} className="flex justify-between">
-                        <span>{m.paymentMethod}</span>
+                        <span>{t.sales.methods[m.paymentMethod] ?? m.paymentMethod}</span>
                         <span>
                           {money(singleStore, m.total, m.totalKhr).primary} <span className="text-slate-400 dark:text-slate-500">({m.count})</span>
                         </span>
@@ -167,9 +170,9 @@ export default function ReportsPage() {
                 )}
               </div>
               <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-                <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">Top products</h2>
+                <h2 className="text-sm font-semibold text-[var(--text-h)] mb-3">{t.reports.topProducts}</h2>
                 {singleStore.topProducts.length === 0 ? (
-                  <p className="text-sm text-slate-400 dark:text-slate-500">No sales.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">{t.reports.noSales}</p>
                 ) : (
                   <ul className="space-y-1.5 text-sm">
                     {singleStore.topProducts.map((p) => (

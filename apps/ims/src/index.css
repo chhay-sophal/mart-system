@@ -9,7 +9,7 @@
   --accent: #4f46e5;
   --accent-bg: rgba(79, 70, 229, 0.1);
 
-  font: 14px/150% system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/150% system-ui, -apple-system, "Segoe UI", "Noto Sans Khmer", sans-serif;
   color: var(--text);
   background: var(--bg);
   color-scheme: light;

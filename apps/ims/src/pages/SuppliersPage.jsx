@@ -7,12 +7,10 @@ import { useColumnFilter } from '../hooks/useColumnFilter';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
-const STATUS_FILTERS = [
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
-  { value: 'all', label: 'All' },
-];
+const STATUS_FILTERS = ['active', 'archived', 'all'];
 
 // One filters object (search bar + every column's own filter dropdown),
 // mirroring ProductsPage's EMPTY_FILTERS/filterProducts pattern.
@@ -99,6 +97,7 @@ function toRequestBody(form) {
 export default function SuppliersPage() {
   const { storeId } = useOutletContext();
   const confirm = useConfirm();
+  const { t } = useLocale();
   const [error, setError] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
@@ -172,21 +171,24 @@ export default function SuppliersPage() {
       setEditing(null);
       await load();
     } catch (err) {
-      setError(err?.body?.error ?? 'Failed to save supplier.');
+      setError(err?.body?.error ?? t.suppliers.saveFailed);
     }
   }
 
   async function handleDelete(supplier) {
     const message = supplier.productCount === 0
-      ? `Delete "${supplier.name}"? This can't be undone.`
-      : `Archive "${supplier.name}"? It's linked to ${supplier.productCount} product${supplier.productCount === 1 ? '' : 's'}, which will keep their reference to it, but it'll be hidden from the list and the product picker.`;
-    const confirmLabel = supplier.productCount === 0 ? 'Delete' : 'Archive';
+      ? fmt(t.suppliers.confirmDelete, { name: supplier.name })
+      : fmt(plural(supplier.productCount, t.suppliers.confirmArchiveOne, t.suppliers.confirmArchiveMany), {
+          name: supplier.name,
+          count: supplier.productCount,
+        });
+    const confirmLabel = supplier.productCount === 0 ? t.common.delete : t.common.archive;
     if (!(await confirm(message, { confirmLabel, danger: supplier.productCount === 0 }))) return;
     try {
       await apiClient.delete(`/api/stores/${storeId}/suppliers/${supplier.id}`);
       await load();
     } catch {
-      setError('Failed to remove supplier.');
+      setError(t.suppliers.removeFailed);
     }
   }
 
@@ -195,19 +197,19 @@ export default function SuppliersPage() {
       await apiClient.post(`/api/stores/${storeId}/suppliers/${supplier.id}/restore`);
       await load();
     } catch {
-      setError('Failed to restore supplier.');
+      setError(t.suppliers.restoreFailed);
     }
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Suppliers</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.suppliers.title}</h1>
         <button
           onClick={openCreate}
           className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
         >
-          Add supplier
+          {t.suppliers.add}
         </button>
       </div>
 
@@ -216,21 +218,23 @@ export default function SuppliersPage() {
           type="search"
           value={filters.search}
           onChange={(e) => setFilter('search', e.target.value)}
-          placeholder="Search by name, phone, or email…"
+          placeholder={t.suppliers.searchPlaceholder}
           className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 h-9 text-sm bg-white dark:bg-slate-800"
         />
         <span className="text-sm text-slate-500 dark:text-slate-400">
-          {visible.length === suppliers.length ? `${suppliers.length} suppliers` : `${visible.length} of ${suppliers.length} suppliers`}
+          {visible.length === suppliers.length
+            ? fmt(t.suppliers.count, { count: suppliers.length })
+            : fmt(t.suppliers.countFiltered, { visible: visible.length, total: suppliers.length })}
         </span>
         {(filterCount > 0 || filters.search) && (
           <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-            Clear {filterCount > 0 ? `filters (${filterCount})` : 'search'}
+            {filterCount > 0 ? fmt(t.suppliers.clearFilters, { count: filterCount }) : t.suppliers.clearSearch}
           </button>
         )}
       </div>
 
       {(error || suppliersQuery.isError) && (
-        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || 'Failed to load suppliers.'}</p>
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.suppliers.loadFailed}</p>
       )}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
@@ -238,84 +242,84 @@ export default function SuppliersPage() {
           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
             <tr>
               <FilterableHeader
-                col="name" label="Name" sort={sort} onSort={toggleSort}
+                col="name" label={t.common.name} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
               >
                 <input
                   value={filters.name}
                   onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder="Filter name"
+                  placeholder={t.suppliers.filterName}
                   className={filterInput}
                   autoFocus
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="phone1" label="Phone 1" sort={sort} onSort={toggleSort}
+                col="phone1" label={t.suppliers.phone1} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'phone1'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.phone1 !== EMPTY_FILTERS.phone1}
               >
                 <input
                   value={filters.phone1}
                   onChange={(e) => setFilter('phone1', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.suppliers.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="phone2" label="Phone 2" sort={sort} onSort={toggleSort}
+                col="phone2" label={t.suppliers.phone2} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'phone2'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.phone2 !== EMPTY_FILTERS.phone2}
               >
                 <input
                   value={filters.phone2}
                   onChange={(e) => setFilter('phone2', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.suppliers.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="email" label="Email" sort={sort} onSort={toggleSort}
+                col="email" label={t.suppliers.email} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'email'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.email !== EMPTY_FILTERS.email}
               >
                 <input
                   value={filters.email}
                   onChange={(e) => setFilter('email', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.suppliers.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="address" label="Address" sort={sort} onSort={toggleSort}
+                col="address" label={t.suppliers.address} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'address'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.address !== EMPTY_FILTERS.address}
               >
                 <input
                   value={filters.address}
                   onChange={(e) => setFilter('address', e.target.value)}
-                  placeholder="Contains"
+                  placeholder={t.suppliers.contains}
                   className={filterInput}
                 />
               </FilterableHeader>
               <FilterableHeader
-                col="products" label="Products" sort={sort} onSort={toggleSort}
+                col="products" label={t.suppliers.products} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'products'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.productsMin !== EMPTY_FILTERS.productsMin || filters.productsMax !== EMPTY_FILTERS.productsMax}
               >
                 <div className="flex gap-1">
-                  <input type="number" value={filters.productsMin} onChange={(e) => setFilter('productsMin', e.target.value)} placeholder="Min" className={`${filterInput} w-20`} />
-                  <input type="number" value={filters.productsMax} onChange={(e) => setFilter('productsMax', e.target.value)} placeholder="Max" className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.productsMin} onChange={(e) => setFilter('productsMin', e.target.value)} placeholder={t.suppliers.min} className={`${filterInput} w-20`} />
+                  <input type="number" value={filters.productsMax} onChange={(e) => setFilter('productsMax', e.target.value)} placeholder={t.suppliers.max} className={`${filterInput} w-20`} />
                 </div>
               </FilterableHeader>
               <FilterableHeader
-                col="status" label="Status" sort={sort} onSort={toggleSort}
+                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
               >
                 <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                  {STATUS_FILTERS.map((value) => (
+                    <option key={value} value={value}>{t.common[value]}</option>
                   ))}
                 </select>
               </FilterableHeader>
@@ -326,13 +330,13 @@ export default function SuppliersPage() {
             {loading ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
-                  Loading…
+                  {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
                 <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
-                  {suppliers.length === 0 ? 'No suppliers yet.' : 'No suppliers match the search.'}
+                  {suppliers.length === 0 ? t.suppliers.noSuppliers : t.suppliers.noMatch}
                 </td>
               </tr>
             ) : (
@@ -346,26 +350,26 @@ export default function SuppliersPage() {
                   <td className="px-4 py-2 text-center">{s.productCount}</td>
                   <td className="px-4 py-2">
                     {s.isDeleted ? (
-                      <span className="text-slate-500 dark:text-slate-400">Archived</span>
+                      <span className="text-slate-500 dark:text-slate-400">{t.common.archived}</span>
                     ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.common.active}</span>
                     )}
                   </td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     {s.isDeleted ? (
                       <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium cursor-pointer">
-                        Restore
+                        {t.common.restore}
                       </button>
                     ) : (
                       <>
                         <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                          Edit
+                          {t.common.edit}
                         </button>
                         <button
                           onClick={() => handleDelete(s)}
                           className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
                         >
-                          {s.productCount === 0 ? 'Delete' : 'Archive'}
+                          {s.productCount === 0 ? t.common.delete : t.common.archive}
                         </button>
                       </>
                     )}
@@ -380,21 +384,25 @@ export default function SuppliersPage() {
       {pageCount > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
           <span>
-            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, visible.length)} of {visible.length}
+            {fmt(t.suppliers.range, {
+              from: (page - 1) * PAGE_SIZE + 1,
+              to: Math.min(page * PAGE_SIZE, visible.length),
+              total: visible.length,
+            })}
           </span>
           <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Prev</button>
-            <span>Page {page} / {pageCount}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">Next</button>
+            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.previous}</button>
+            <span>{fmt(t.common.page, { page, pages: pageCount })}</span>
+            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
           </div>
         </div>
       )}
 
       {editing && (
-        <Modal title={editing === 'new' ? 'Add supplier' : 'Edit supplier'} onClose={() => setEditing(null)}>
+        <Modal title={editing === 'new' ? t.suppliers.add : t.suppliers.editTitle} onClose={() => setEditing(null)}>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Name</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.name}</label>
               <input
                 required
                 value={form.name}
@@ -404,7 +412,7 @@ export default function SuppliersPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Phone 1</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.suppliers.phone1}</label>
                 <input
                   required
                   value={form.phone1}
@@ -413,7 +421,7 @@ export default function SuppliersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Phone 2</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.suppliers.phone2}</label>
                 <input
                   value={form.phone2}
                   onChange={(e) => setForm({ ...form, phone2: e.target.value })}
@@ -422,7 +430,7 @@ export default function SuppliersPage() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Email</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.suppliers.email}</label>
               <input
                 type="email"
                 value={form.email}
@@ -431,7 +439,7 @@ export default function SuppliersPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Address</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.suppliers.address}</label>
               <input
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
@@ -440,10 +448,10 @@ export default function SuppliersPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setEditing(null)} className="text-sm px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-                Cancel
+                {t.common.cancel}
               </button>
               <button type="submit" className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-                Save
+                {t.common.save}
               </button>
             </div>
           </form>

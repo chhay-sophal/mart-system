@@ -2,22 +2,14 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useColumnFilter } from '../hooks/useColumnFilter';
 import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—');
 
-const ROLE_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'ADMIN', label: 'Admin' },
-  { value: 'INVENTORY', label: 'Inventory' },
-  { value: 'CASHIER', label: 'Cashier' },
-  { value: 'none', label: 'No role' },
-];
+const ROLE_FILTERS = ['all', 'ADMIN', 'INVENTORY', 'CASHIER', 'none'];
 
-const STATUS_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
+const STATUS_FILTERS = ['all', 'active', 'inactive'];
 
 const EMPTY_FILTERS = {
   name: '',
@@ -103,6 +95,9 @@ const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, emp
 // filtered and sorted in the browser.
 export default function StoresPage() {
   const { stores } = useAuth();
+  const { t } = useLocale();
+  const roleLabel = (value) =>
+    value === 'all' ? t.common.all : value === 'none' ? t.stores.noRole : (t.stores.roles[value] ?? value);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
   const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
@@ -116,14 +111,16 @@ export default function StoresPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-[var(--text-h)]">Stores</h1>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.stores.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === stores.length ? `${stores.length} store${stores.length === 1 ? '' : 's'}` : `${visible.length} of ${stores.length} stores`}
+            {visible.length === stores.length
+              ? fmt(plural(stores.length, t.stores.countOne, t.stores.countMany), { count: stores.length })
+              : fmt(t.stores.countFiltered, { visible: visible.length, total: stores.length })}
           </span>
           {filterCount > 0 && (
             <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              Clear filters ({filterCount})
+              {fmt(t.stores.clearFilters, { count: filterCount })}
             </button>
           )}
         </div>
@@ -135,100 +132,100 @@ export default function StoresPage() {
             <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
               <tr>
                 <FilterableHeader
-                  col="name" label="Name" sort={sort} onSort={toggleSort}
+                  col="name" label={t.common.name} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
                 >
                   <input
                     value={filters.name}
                     onChange={(e) => setFilter('name', e.target.value)}
-                    placeholder="Filter name"
+                    placeholder={t.stores.filterName}
                     className={filterInput}
                     autoFocus
                   />
                 </FilterableHeader>
                 <FilterableHeader
-                  col="code" label="Code" sort={sort} onSort={toggleSort}
+                  col="code" label={t.stores.code} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'code'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.code !== EMPTY_FILTERS.code}
                 >
                   <input
                     value={filters.code}
                     onChange={(e) => setFilter('code', e.target.value)}
-                    placeholder="Contains"
+                    placeholder={t.stores.contains}
                     className={filterInput}
                   />
                 </FilterableHeader>
                 <FilterableHeader
-                  col="address" label="Address" sort={sort} onSort={toggleSort}
+                  col="address" label={t.stores.address} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'address'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.address !== EMPTY_FILTERS.address}
                 >
                   <input
                     value={filters.address}
                     onChange={(e) => setFilter('address', e.target.value)}
-                    placeholder="Contains"
+                    placeholder={t.stores.contains}
                     className={filterInput}
                   />
                 </FilterableHeader>
                 <FilterableHeader
-                  col="phone" label="Phone" sort={sort} onSort={toggleSort}
+                  col="phone" label={t.stores.phone} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'phone'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.phone !== EMPTY_FILTERS.phone}
                 >
                   <input
                     value={filters.phone}
                     onChange={(e) => setFilter('phone', e.target.value)}
-                    placeholder="Contains"
+                    placeholder={t.stores.contains}
                     className={filterInput}
                   />
                 </FilterableHeader>
                 <FilterableHeader
-                  col="timezone" label="Timezone" sort={sort} onSort={toggleSort}
+                  col="timezone" label={t.stores.timezone} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'timezone'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.timezone !== EMPTY_FILTERS.timezone}
                 >
                   <input
                     value={filters.timezone}
                     onChange={(e) => setFilter('timezone', e.target.value)}
-                    placeholder="Contains"
+                    placeholder={t.stores.contains}
                     className={filterInput}
                   />
                 </FilterableHeader>
                 <FilterableHeader
-                  col="role" label="Your role" sort={sort} onSort={toggleSort}
+                  col="role" label={t.stores.yourRole} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'role'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.role !== EMPTY_FILTERS.role}
                 >
                   <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)} className={filterInput}>
-                    {ROLE_FILTERS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                    {ROLE_FILTERS.map((value) => (
+                      <option key={value} value={value}>{roleLabel(value)}</option>
                     ))}
                   </select>
                 </FilterableHeader>
                 <FilterableHeader
-                  col="status" label="Status" sort={sort} onSort={toggleSort}
+                  col="status" label={t.common.status} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
                 >
                   <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                    {STATUS_FILTERS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                    {STATUS_FILTERS.map((value) => (
+                      <option key={value} value={value}>{t.common[value]}</option>
                     ))}
                   </select>
                 </FilterableHeader>
                 <FilterableHeader
-                  col="createdAt" label="Created" sort={sort} onSort={toggleSort}
+                  col="createdAt" label={t.stores.created} sort={sort} onSort={toggleSort}
                   isOpen={openFilterCol === 'createdAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                   hasActiveFilter={filters.createdFrom !== EMPTY_FILTERS.createdFrom || filters.createdTo !== EMPTY_FILTERS.createdTo}
                 >
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs text-slate-500 dark:text-slate-400">
-                      From
+                      {t.common.from}
                       <input type="date" value={filters.createdFrom} onChange={(e) => setFilter('createdFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
                     </label>
                     <label className="text-xs text-slate-500 dark:text-slate-400">
-                      To
+                      {t.common.to}
                       <input type="date" value={filters.createdTo} onChange={(e) => setFilter('createdTo', e.target.value)} className={`${filterInput} mt-0.5`} />
                     </label>
                   </div>
@@ -239,7 +236,7 @@ export default function StoresPage() {
               {visible.length === 0 ? (
                 <tr>
                   <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={8}>
-                    {stores.length === 0 ? 'No store access. Contact an administrator.' : 'No stores match the filters.'}
+                    {stores.length === 0 ? t.stores.noAccess : t.stores.noMatch}
                   </td>
                 </tr>
               ) : (
@@ -250,12 +247,12 @@ export default function StoresPage() {
                     <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{store.address ?? '—'}</td>
                     <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{store.phone ?? '—'}</td>
                     <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{store.timezone}</td>
-                    <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{store.role ?? '—'}</td>
+                    <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{store.role ? roleLabel(store.role) : '—'}</td>
                     <td className="px-4 py-2">
                       {store.isActive ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">Active</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.common.active}</span>
                       ) : (
-                        <span className="text-slate-500 dark:text-slate-400">Inactive</span>
+                        <span className="text-slate-500 dark:text-slate-400">{t.common.inactive}</span>
                       )}
                     </td>
                     <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(store.createdAt)}</td>

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocale } from '../i18n/LocaleContext.jsx';
 
 /**
  * A searchable dropdown for picking one of many options by typing part of
@@ -11,7 +12,10 @@ import { createPortal } from 'react-dom';
  * it's used inside a scrolling modal, where a normal absolutely-positioned
  * child could get clipped by the modal's own overflow-y-auto.
  */
-export default function SearchableSelect({ value, onChange, options, emptyLabel = 'None', placeholder = 'Select…' }) {
+export default function SearchableSelect({ value, onChange, options, emptyLabel, placeholder }) {
+  const { t } = useLocale();
+  emptyLabel ??= t.common.none;
+  placeholder ??= t.common.select;
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [pos, setPos] = useState(null);
@@ -101,7 +105,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel 
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search…"
+            placeholder={t.common.searchPlaceholder}
             className="w-full px-3 py-2 text-sm border-b border-[var(--border)] outline-none bg-transparent text-slate-900 dark:text-white"
           />
           <div className="max-h-56 overflow-y-auto">
@@ -115,7 +119,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel 
               {emptyLabel}
             </button>
             {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">No matches.</p>
+              <p className="px-3 py-2 text-sm text-slate-400 dark:text-slate-500">{t.common.noMatches}</p>
             ) : (
               filtered.map((o) => (
                 <button

@@ -1,15 +1,17 @@
 import { Sun, Monitor, Moon } from 'lucide-react';
+import { useLocale } from '../i18n/LocaleContext.jsx';
 
 const OPTIONS = [
-  { value: 'light', Icon: Sun, label: 'Light' },
-  { value: 'system', Icon: Monitor, label: 'System' },
-  { value: 'dark', Icon: Moon, label: 'Dark' },
+  { value: 'light', Icon: Sun },
+  { value: 'system', Icon: Monitor },
+  { value: 'dark', Icon: Moon },
 ];
 
 export default function ThemeToggle({ theme, onChange }) {
+  const { t } = useLocale();
   return (
     <div className="flex gap-0.5 bg-slate-100 dark:bg-slate-700 p-0.5 rounded-lg">
-      {OPTIONS.map(({ value, Icon, label }) => (
+      {OPTIONS.map(({ value, Icon, label = t.shell.theme[value] }) => (
         <button
           key={value}
           type="button"

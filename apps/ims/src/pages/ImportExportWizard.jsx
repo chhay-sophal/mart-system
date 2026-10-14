@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Modal from '../components/Modal.jsx';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt, plural } from '../i18n/translate';
 import { openOnlinePosDb, readProducts } from '../lib/onlinePosFile';
 import { importProductsInBatches } from '../lib/productImport';
 
@@ -9,12 +11,12 @@ import { importProductsInBatches } from '../lib/productImport';
 // is dropped; the plain <input type="file"> + HTML5 drag-drop path already
 // covers every browser, including inside a Tauri webview if this ever needs it.
 const IMPORT_FIELDS = [
-  { key: 'name', label: 'Name', required: true },
-  { key: 'price', label: 'Price', required: true },
-  { key: 'barcode', label: 'Barcode', required: false },
-  { key: 'cost_price', label: 'Cost price', required: false },
-  { key: 'currency', label: 'Currency', required: false },
-  { key: 'stock', label: 'Stock', required: false },
+  { key: 'name', required: true },
+  { key: 'price', required: true },
+  { key: 'barcode', required: false },
+  { key: 'cost_price', required: false },
+  { key: 'currency', required: false },
+  { key: 'stock', required: false },
 ];
 
 const IMPORT_HINTS = {
@@ -48,6 +50,8 @@ function autoDetectMapping(headers) {
 // IMPORT_HINTS auto-detects, so it goes through the usual mapping step.
 const SQLITE_EXTENSIONS = /\.(sqlite3?|db)$/i;
 
+// `header` is the exported file's column name -- part of the file format
+// (auto-detected again on import), so it stays untranslated.
 const EXPORT_COLUMNS = [
   { key: 'name', header: 'Name', wch: 28, val: (p) => p.name },
   { key: 'barcode', header: 'Barcode', wch: 16, val: (p) => p.barcode ?? '' },
@@ -59,6 +63,8 @@ const EXPORT_COLUMNS = [
 ];
 
 export default function ImportExportWizard({ storeId, products, onClose, onImported }) {
+  const { t } = useLocale();
+  const ie = t.importExport;
   const [tab, setTab] = useState('import'); // 'import' | 'export'
 
   const [step, setStep] = useState('upload'); // 'upload' | 'map' | 'result'
@@ -84,7 +90,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
       if (raw.length < 2) {
-        setError('The file has no data rows.');
+        setError(ie.noDataRows);
         return;
       }
       const detectedHeaders = raw[0].map(String).filter((h) => h.trim() !== '');
@@ -94,7 +100,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
         .map((r) => Object.fromEntries(detectedHeaders.map((h, i) => [h, r[i] ?? ''])));
       showMappingStep(detectedHeaders, detectedRows, '');
     } catch {
-      setError('Could not read that file. Make sure it is a valid Excel/CSV file.');
+      setError(ie.unreadableSpreadsheet);
     }
   }
 
@@ -118,16 +124,20 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       }
       const { headers: sqliteHeaders, rows: sqliteRows, deletedSkipped } = read;
       if (sqliteRows.length === 0) {
-        setError('The online-pos database has no products to import.');
+        setError(ie.noSqliteProducts);
         return;
       }
       showMappingStep(
         sqliteHeaders,
         sqliteRows,
-        `Read from an online-pos database${deletedSkipped ? ` (${deletedSkipped} deleted products left out)` : ''}.`
+        deletedSkipped
+          ? fmt(plural(deletedSkipped, ie.readFromOnlinePosDeletedOne, ie.readFromOnlinePosDeletedMany), {
+              count: deletedSkipped,
+            })
+          : ie.readFromOnlinePos
       );
     } catch (err) {
-      setError(err?.message?.includes('online-pos') ? err.message : 'Could not read that SQLite file.');
+      setError(err?.message?.includes('online-pos') ? err.message : ie.unreadableSqlite);
     }
   }
 
@@ -163,8 +173,13 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
       const done = totals.imported + totals.updated + totals.skipped + totals.errors;
       setError(
         done > 0
-          ? `Import stopped after ${done} of ${productsPayload.length} rows (${totals.imported} imported, ${totals.updated} updated). Re-run with "Update existing" to finish.`
-          : 'Import failed.'
+          ? fmt(ie.importStopped, {
+              done,
+              total: productsPayload.length,
+              imported: totals.imported,
+              updated: totals.updated,
+            })
+          : ie.importFailed
       );
     } finally {
       setImporting(false);
@@ -197,7 +212,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
   const canSubmitImport = Boolean(mapping.name) && Boolean(mapping.price);
 
   return (
-    <Modal title="Import / Export products" onClose={onClose} width="max-w-2xl">
+    <Modal title={ie.title} onClose={onClose} width="max-w-2xl">
       <div className="flex gap-2 mb-4 border-b border-[var(--border)]">
         <button
           onClick={() => setTab('import')}
@@ -205,7 +220,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
             tab === 'import' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
-          Import
+          {ie.tabImport}
         </button>
         <button
           onClick={() => setTab('export')}
@@ -213,7 +228,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
             tab === 'export' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-slate-500 dark:text-slate-400'
           }`}
         >
-          Export
+          {ie.tabExport}
         </button>
       </div>
 
@@ -229,7 +244,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
           onClick={() => fileInputRef.current?.click()}
           className="border-2 border-dashed border-[var(--border)] rounded-xl p-10 text-center text-sm text-slate-500 dark:text-slate-400 cursor-pointer hover:border-[var(--accent)]"
         >
-          Drop an Excel/CSV file or an online-pos database (.sqlite) here, or click to choose one.
+          {ie.dropHint}
           <input
             ref={fileInputRef}
             type="file"
@@ -244,12 +259,12 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
         <div className="space-y-3">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {sourceNote && `${sourceNote} `}
-            {rows.length} rows found. Map columns below.
+            {fmt(plural(rows.length, ie.rowsFoundOne, ie.rowsFoundMany), { count: rows.length })}
           </p>
           {IMPORT_FIELDS.map((field) => (
             <div key={field.key} className="flex items-center gap-3">
               <label className="w-32 text-sm text-slate-600 dark:text-slate-300">
-                {field.label}
+                {ie.fields[field.key]}
                 {field.required && <span className="text-red-500 dark:text-red-400">*</span>}
               </label>
               <select
@@ -257,7 +272,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
                 onChange={(e) => setMapping({ ...mapping, [field.key]: e.target.value })}
                 className="flex-1 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
               >
-                <option value="">— not mapped —</option>
+                <option value="">{ie.notMapped}</option>
                 {headers.map((h) => (
                   <option key={h} value={h}>
                     {h}
@@ -269,7 +284,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
           {!mapping.currency && (
             <div className="flex items-center gap-3">
-              <label className="w-32 text-sm text-slate-600 dark:text-slate-300">Default currency</label>
+              <label className="w-32 text-sm text-slate-600 dark:text-slate-300">{ie.defaultCurrency}</label>
               <select
                 value={defaultCurrency}
                 onChange={(e) => setDefaultCurrency(e.target.value)}
@@ -283,19 +298,21 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
           <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
-            Update existing products matched by barcode
+            {ie.updateExisting}
           </label>
 
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={() => setStep('upload')} disabled={importing} className="text-sm px-3 py-1.5 cursor-pointer disabled:opacity-50">
-              Back
+              {t.common.back}
             </button>
             <button
               onClick={handleImportSubmit}
               disabled={!canSubmitImport || importing}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer disabled:opacity-50"
             >
-              {importing ? `Importing… ${progress} / ${rows.length}` : `Import ${rows.length} rows`}
+              {importing
+                ? fmt(ie.importingProgress, { done: progress, total: rows.length })
+                : fmt(plural(rows.length, ie.importRowsOne, ie.importRowsMany), { count: rows.length })}
             </button>
           </div>
         </div>
@@ -303,19 +320,19 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
       {tab === 'import' && step === 'result' && result && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-700 dark:text-slate-200">Import complete.</p>
+          <p className="text-sm text-slate-700 dark:text-slate-200">{ie.importComplete}</p>
           <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
-            <li>Imported: {result.imported}</li>
-            <li>Updated: {result.updated}</li>
-            <li>Skipped: {result.skipped}</li>
-            <li>Errors: {result.errors}</li>
+            <li>{fmt(ie.imported, { count: result.imported })}</li>
+            <li>{fmt(ie.updated, { count: result.updated })}</li>
+            <li>{fmt(ie.skipped, { count: result.skipped })}</li>
+            <li>{fmt(ie.errors, { count: result.errors })}</li>
           </ul>
           <div className="flex justify-end">
             <button
               onClick={onClose}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
-              Done
+              {t.common.done}
             </button>
           </div>
         </div>
@@ -323,7 +340,9 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
 
       {tab === 'export' && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Exports the {products.length} currently loaded products.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {fmt(plural(products.length, ie.exportsLoadedOne, ie.exportsLoadedMany), { count: products.length })}
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {EXPORT_COLUMNS.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
@@ -332,7 +351,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
                   checked={exportCols[c.key]}
                   onChange={(e) => setExportCols({ ...exportCols, [c.key]: e.target.checked })}
                 />
-                {c.header}
+                {ie.exportColumns[c.key]}
               </label>
             ))}
           </div>
@@ -341,7 +360,7 @@ export default function ImportExportWizard({ storeId, products, onClose, onImpor
               onClick={exportToExcel}
               className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
             >
-              Export to Excel
+              {ie.exportToExcel}
             </button>
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { useLocale } from '../i18n/LocaleContext.jsx';
+import { fmt } from '../i18n/translate';
 
 export const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200';
 
@@ -16,6 +18,7 @@ function FilterIcon({ className }) {
 // filter button on the right opens a dropdown with that column's filter
 // controls. Pairs with the useColumnFilter hook, which owns isOpen/panelRef.
 export default function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, hasActiveFilter, panelRef, className = '', children }) {
+  const { t } = useLocale();
   const active = sort.col === col;
   const buttonRef = useRef(null);
   // Screen coordinates for the portaled panel below, in state (not read at
@@ -62,7 +65,7 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
           ref={buttonRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFilter(col); }}
-          aria-label={`Filter ${label}`}
+          aria-label={fmt(t.common.filterColumn, { label })}
           aria-expanded={isOpen}
           className={`p-1 rounded-md transition-colors cursor-pointer ${
             hasActiveFilter ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[var(--accent)]' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-600 dark:hover:text-slate-300'
