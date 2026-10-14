@@ -49,7 +49,7 @@ export default function CustomerDisplay() {
 
   const locale        = payload?.locale        || 'km';
   const cd            = t[locale]?.customerDisplay || t['km'].customerDisplay;
-  const storeName     = payload?.storeName     || (locale === 'km' ? 'សូសូ បេប៊ី ម៉ាត' : 'SOSO Baby Mart');
+  const storeName     = payload?.storeName     || cd.defaultStoreName;
   const storeIcon     = payload?.storeIcon     || '';
   const cart          = payload?.cart          || [];
   const rawSubtotalUsd = payload?.rawSubtotalUsd || 0;
@@ -180,7 +180,7 @@ export default function CustomerDisplay() {
         </div>
         <p className="text-slate-900 dark:text-white text-4xl font-black text-center">{staticQrBank}</p>
         <p className="text-slate-600 dark:text-slate-300 text-lg font-bold uppercase tracking-widest text-center">
-          {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay'}
+          {cd.scanToPay}
         </p>
       </div>
     );
@@ -325,7 +325,7 @@ export default function CustomerDisplay() {
           {/* Per transaction discount */}
           {txDiscountAmt > 0 && (
             <div className="flex-0 flex flex-col items-center justify-center px-6 py-3 border-b border-slate-200 dark:border-slate-800">
-              <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-widest mb-1">{locale === 'km' ? 'បញ្ចុះតម្លៃ' : 'Discount'}</p>
+              <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-widest mb-1">{cd.discount}</p>
               <p className="text-slate-900 dark:text-white font-black text-4xl leading-none tracking-tight text-center">
                 −{mainCurrency === 'USD' ? `$${txDiscountAmt.toFixed(2)}` : `${usdToKhr(txDiscountAmt, dynamicRate).toLocaleString()} ៛`}
               </p>
@@ -352,7 +352,7 @@ export default function CustomerDisplay() {
                   <QRCodeCanvas value={qrString} size={160} level="M" includeMargin={false} />
                 </div>
                 <p className="text-slate-500 dark:text-slate-300 text-xs font-bold uppercase tracking-widest text-center">
-                  {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay via KHQR'}
+                  {cd.scanToPayKhqr}
                 </p>
               </>
             )}
@@ -364,7 +364,7 @@ export default function CustomerDisplay() {
                 </div>
                 <p className="text-slate-900 dark:text-white text-lg font-black text-center">{staticQrBank}</p>
                 <p className="text-slate-500 dark:text-slate-300 text-xs font-bold uppercase tracking-widest text-center">
-                  {locale === 'km' ? 'ស្កេនដើម្បីទូទាត់' : 'Scan to pay'}
+                  {cd.scanToPay}
                 </p>
               </>
             )}
@@ -374,7 +374,7 @@ export default function CustomerDisplay() {
                 {tenderedKhr > 0 && (
                   <div className="flex justify-between items-baseline">
                     <span className="text-slate-500 dark:text-slate-300 text-xl font-bold uppercase tracking-wide">
-                      {locale === 'km' ? 'ទទួល (KHR)' : 'Tendered (KHR)'}
+                      {cd.tenderedKhr}
                     </span>
                     <span className="text-slate-700 dark:text-slate-200 font-black text-3xl">{tenderedKhr.toLocaleString()} ៛</span>
                   </div>
@@ -382,7 +382,7 @@ export default function CustomerDisplay() {
                 {tenderedUsd > 0 && (
                   <div className="flex justify-between items-baseline">
                     <span className="text-slate-500 dark:text-slate-300 text-xl font-bold uppercase tracking-wide">
-                      {locale === 'km' ? 'ទទួល (USD)' : 'Tendered (USD)'}
+                      {cd.tenderedUsd}
                     </span>
                     <span className="text-slate-700 dark:text-slate-200 font-black text-3xl">${tenderedUsd.toFixed(2)}</span>
                   </div>
@@ -399,7 +399,7 @@ export default function CustomerDisplay() {
             {!showKhqr && !showStaticQr && !showTendered && (
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest text-center">
                 {paymentMethod === 'STATIC_QR'
-                  ? (locale === 'km' ? 'QR ធនាគារ' : 'Bank QR')
+                  ? cd.bankQr
                   : cd.awaitingPayment}
               </p>
             )}
