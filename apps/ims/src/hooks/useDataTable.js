@@ -18,8 +18,11 @@ import { useMemo, useState } from 'react';
  *   { type: 'numberRange', minPlaceholder?, maxPlaceholder? }  inclusive.
  *   { type: 'dateRange' }  'YYYY-MM-DD' bounds, local time, inclusive of the
  *     whole day; a null value never matches a set bound.
- *   { type: 'custom', empty, match(row, v), render({ value, onChange }) }
+ *   { type: 'custom', empty, match(row, v), render({ value, onChange }), describe?(v) }
  * A filter counts as active whenever its value differs from its empty value.
+ * Each type's describe() gives the short text for its active-filter chip
+ * (components/FilterChips.jsx); a custom filter supplies its own, or its chip
+ * shows just the column label.
  */
 
 const ALL = 'all';
@@ -35,14 +38,22 @@ function inDateRange(value, from, to) {
   return true;
 }
 
+/** "5 – 10", "≥ 5" or "≤ 10" -- the chip text for a range with either bound blank. */
+export function rangeText(min, max) {
+  if (min !== '' && max !== '') return `${min} – ${max}`;
+  return min !== '' ? `≥ ${min}` : `≤ ${max}`;
+}
+
 export const FILTER_TYPES = {
   text: {
     empty: () => '',
     match: (col, row, v) => norm(rowValue(col, row)).includes(norm(v)),
+    describe: (filter, v) => v.trim(),
   },
   select: {
     empty: (filter) => filter.defaultValue ?? ALL,
     match: (col, row, v) => v === ALL || (col.filter.match ? col.filter.match(row, v) : String(rowValue(col, row)) === v),
+    describe: (filter, v) => filter.options.find((o) => o.value === v)?.label ?? v,
   },
   numberRange: {
     empty: () => ({ min: '', max: '' }),
@@ -50,14 +61,17 @@ export const FILTER_TYPES = {
       const n = Number(rowValue(col, row));
       return (min === '' || n >= Number(min)) && (max === '' || n <= Number(max));
     },
+    describe: (filter, { min, max }) => rangeText(min, max),
   },
   dateRange: {
     empty: () => ({ from: '', to: '' }),
     match: (col, row, { from, to }) => inDateRange(rowValue(col, row), from, to),
+    describe: (filter, { from, to }) => rangeText(from, to),
   },
   custom: {
     empty: (filter) => filter.empty,
     match: (col, row, v) => col.filter.match(row, v),
+    describe: (filter, v) => filter.describe?.(v) ?? '',
   },
 };
 

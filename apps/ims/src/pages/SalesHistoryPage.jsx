@@ -10,6 +10,7 @@ import Modal from '../components/Modal.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
+import FilterChips from '../components/FilterChips.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { apiClient } from '../lib/apiClient';
@@ -337,6 +338,7 @@ export default function SalesHistoryPage() {
 
       {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.sales.loadFailed}</p>}
 
+      <FilterChips table={table} />
       <DataTable
         table={table}
         rows={pageRows}

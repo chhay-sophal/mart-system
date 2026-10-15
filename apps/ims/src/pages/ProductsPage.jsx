@@ -14,12 +14,13 @@ import {
   matchesStock,
   matchesTextOrMissing,
 } from '../lib/productFilters';
-import { useDataTable } from '../hooks/useDataTable';
+import { rangeText, useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
+import FilterChips from '../components/FilterChips.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { filterInput } from '../components/ColumnFilter.jsx';
@@ -194,6 +195,7 @@ export default function ProductsPage() {
           type: 'custom',
           empty: { mode: 'any', text: '' },
           match: (p, v) => matchesTextOrMissing(p.barcode, v),
+          describe: (v) => (v.mode === 'missing' ? t.products.noBarcode : v.text.trim()),
           render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
         },
       },
@@ -216,6 +218,8 @@ export default function ProductsPage() {
           type: 'custom',
           empty: { currency: 'all', min: '', max: '' },
           match: (p, v) => (v.currency === 'all' || p.currency === v.currency) && inNumberRange(effectivePrice(p), v.min, v.max),
+          describe: (v) =>
+            [v.currency !== 'all' && v.currency, (v.min !== '' || v.max !== '') && rangeText(v.min, v.max)].filter(Boolean).join(' '),
           render: ({ value, onChange }) => (
             <div className="flex flex-col gap-1.5">
               <select value={value.currency} onChange={(e) => onChange({ ...value, currency: e.target.value })} className={filterInput}>
@@ -255,6 +259,7 @@ export default function ProductsPage() {
           type: 'custom',
           empty: { mode: 'any', text: '' },
           match: (p, v) => matchesTextOrMissing(p.supplierName, v),
+          describe: (v) => (v.mode === 'missing' ? t.products.noSupplier : v.text.trim()),
           render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noSupplier} placeholder={t.products.contains} />,
         },
       },
@@ -522,6 +527,7 @@ export default function ProductsPage() {
         <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.products.loadFailed}</p>
       )}
 
+      <FilterChips table={table} />
       <DataTable
         table={table}
         rows={pageRows}

@@ -8,6 +8,7 @@ import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
+import FilterChips from '../components/FilterChips.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -219,6 +220,7 @@ export default function SuppliersPage() {
         <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.suppliers.loadFailed}</p>
       )}
 
+      <FilterChips table={table} />
       <DataTable
         table={table}
         rows={pageRows}

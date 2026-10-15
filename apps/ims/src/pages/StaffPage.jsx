@@ -7,6 +7,7 @@ import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
+import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
 
@@ -207,6 +208,7 @@ export default function StaffPage() {
 
       {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.staff.loadFailed}</p>}
 
+      <FilterChips table={table} />
       <DataTable
         table={table}
         rowKey={(r) => r.userId}

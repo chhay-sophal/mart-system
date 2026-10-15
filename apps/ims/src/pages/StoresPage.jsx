@@ -2,6 +2,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
+import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
@@ -76,6 +77,7 @@ export default function StoresPage() {
         </div>
       </div>
 
+      <FilterChips table={table} />
       <DataTable
         table={table}
         rowKey={(s) => s.id}
