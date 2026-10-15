@@ -38,6 +38,29 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
 
 No SPA-routing config is needed — Cloudflare Pages auto-serves `index.html` for any unmatched deep-link route (`/staff`, `/products`, etc.) as long as the build output has no `404.html`, which Vite's default output never does.
 
+### Alternative: Direct Upload (no Git integration)
+
+Build locally and push `dist/` with Wrangler instead of letting Cloudflare build from GitHub. Note a Pages project is either Git-connected or Direct Upload — it can't be switched later, so pick one when creating it.
+
+1. One-time setup (`mart-ims` is just an example name — it becomes `https://mart-ims.pages.dev`):
+   ```sh
+   npx wrangler login
+   npx wrangler pages project create [APPLICATION-NAME] --production-branch main
+   ```
+2. Point the build at the real backend. `VITE_API_BASE_URL` is baked into the bundle at build time, so the Cloudflare dashboard's environment variables have no effect here, and `apps/ims/.env` points at `localhost`. Either create `apps/ims/.env.production` (which `vite build` prefers over `.env`):
+   ```sh
+   VITE_API_BASE_URL=https://mart-system-backend-XXXX.onrender.com
+   ```
+   or pass it inline in the next step.
+3. Build and deploy from the repo root (after `pnpm install`, so the `workspace:*` packages resolve; drop the inline variable if you created `.env.production`):
+   ```sh
+   VITE_API_BASE_URL=https://mart-system-backend-XXXX.onrender.com pnpm --filter @mart-system/ims build
+   npx wrangler pages deploy apps/ims/dist --project-name mart-ims --branch main
+   ```
+   Use a different `--branch` (e.g. `--branch staging`) to get a preview URL without touching production.
+
+Repeat step 3 for every subsequent deploy. Without the CLI, the dashboard's Workers & Pages → Create → Pages → Upload assets accepts a drag-and-dropped `dist/` folder instead.
+
 ## 3. Close the loop
 
 Go back to Render's dashboard and update the backend's `CORS_ALLOWED_ORIGINS` env var to the real Cloudflare Pages URL from step 2. This triggers a redeploy automatically.
