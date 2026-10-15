@@ -13,8 +13,10 @@ import { useMemo, useState } from 'react';
  * - filter is one of (value(row) defaults to sortValue, then row[key]):
  *   { type: 'text', placeholder? }  case-insensitive "contains".
  *   { type: 'select', options: [{ value, label }], defaultValue?, match?(row, v) }
- *     exact match on value(row) (or match), with an "All" option prepended
- *     unless defaultValue is set -- then options must include its own "all".
+ *     multi-choice (checkboxes): the value is an array of option values, and a
+ *     row passes when it matches any of them -- value(row) === v, or match(row, v).
+ *     Nothing checked means no filter. defaultValue (an array) is what's
+ *     checked initially and what "clear" goes back to.
  *   { type: 'numberRange', minPlaceholder?, maxPlaceholder? }  inclusive.
  *   { type: 'dateRange' }  'YYYY-MM-DD' bounds, local time, inclusive of the
  *     whole day; a null value never matches a set bound.
@@ -25,7 +27,6 @@ import { useMemo, useState } from 'react';
  * shows just the column label.
  */
 
-const ALL = 'all';
 const norm = (value) => String(value ?? '').trim().toLowerCase();
 const rowValue = (col, row) => (col.filter?.value ?? col.sortValue ?? ((r) => r[col.key]))(row);
 
@@ -51,9 +52,11 @@ export const FILTER_TYPES = {
     describe: (filter, v) => v.trim(),
   },
   select: {
-    empty: (filter) => filter.defaultValue ?? ALL,
-    match: (col, row, v) => v === ALL || (col.filter.match ? col.filter.match(row, v) : String(rowValue(col, row)) === v),
-    describe: (filter, v) => filter.options.find((o) => o.value === v)?.label ?? v,
+    empty: (filter) => filter.defaultValue ?? [],
+    match: (col, row, values) =>
+      values.length === 0 ||
+      values.some((v) => (col.filter.match ? col.filter.match(row, v) : String(rowValue(col, row)) === v)),
+    describe: (filter, values) => values.map((v) => filter.options.find((o) => o.value === v)?.label ?? v).join(', '),
   },
   numberRange: {
     empty: () => ({ min: '', max: '' }),

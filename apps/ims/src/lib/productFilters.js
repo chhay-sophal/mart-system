@@ -8,7 +8,6 @@ import { getT } from '../i18n/translate';
 const option = (value, key) => ({ value, get label() { return getT().products[key]; } });
 
 export const STOCK_FILTERS = [
-  option('all', 'stockAll'),
   option('low', 'stockLow'),
   option('out', 'stockOut'),
   option('negative', 'stockNegative'),
@@ -18,7 +17,6 @@ export const STOCK_FILTERS = [
 export const STATUS_FILTERS = [
   option('active', 'statusActive'),
   option('archived', 'statusArchived'),
-  option('all', 'statusAll'),
 ];
 
 /** The price a register sells at: the store's override if set, else the default. */
@@ -51,8 +49,6 @@ export function matchesStatus(p, mode) {
   switch (mode) {
     case 'archived':
       return p.isDeleted;
-    case 'all':
-      return true;
     default: // 'active'
       return !p.isDeleted;
   }

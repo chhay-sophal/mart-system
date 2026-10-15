@@ -23,7 +23,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
-import { filterInput } from '../components/ColumnFilter.jsx';
+import ColumnFilter, { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
@@ -76,18 +76,26 @@ const fmtPrice = (amount, currency) =>
   currency === 'KHR' ? `${Math.round(Number(amount)).toLocaleString()} ៛` : `${Number(amount).toFixed(2)}`;
 const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—');
 const muted = 'text-slate-500 dark:text-slate-400';
+const CURRENCY_OPTIONS = ['USD', 'KHR'].map((c) => ({ value: c, label: c }));
 
-// A "contains" text box plus an any/missing mode, for barcode and supplier.
-function TextOrMissingFilter({ value, onChange, missingLabel, placeholder, anyLabel }) {
+// A "contains" text box plus a "missing only" checkbox, for barcode and
+// supplier. The value keeps its { mode: 'any' | 'missing', text } shape.
+function TextOrMissingFilter({ value, onChange, missingLabel, placeholder }) {
+  const missing = value.mode === 'missing';
   return (
     <div className="flex flex-col gap-1.5">
-      <select value={value.mode} onChange={(e) => onChange({ ...value, mode: e.target.value })} className={filterInput}>
-        <option value="any">{anyLabel}</option>
-        <option value="missing">{missingLabel}</option>
-      </select>
-      {value.mode === 'any' && (
+      {!missing && (
         <input value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} placeholder={placeholder} className={filterInput} />
       )}
+      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={missing}
+          onChange={() => onChange({ ...value, mode: missing ? 'any' : 'missing' })}
+          className="accent-indigo-600 cursor-pointer"
+        />
+        {missingLabel}
+      </label>
     </div>
   );
 }
@@ -108,7 +116,7 @@ export default function ProductsPage() {
   // Mirrors the table's status filter (kept in step by `table` below): the
   // products query needs it before the table hook can run, since the hook
   // needs the query's rows.
-  const [statusFilter, setStatusFilter] = useState('active');
+  const [statusFilter, setStatusFilter] = useState(['active']);
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
@@ -120,8 +128,8 @@ export default function ProductsPage() {
   const [selected, setSelected] = useState(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   // The status column's own filter drives this -- anything but the default
-  // "active" needs archived rows included in what the backend returns at all.
-  const includeDeleted = statusFilter !== 'active';
+  // "active only" needs archived rows included in what the backend returns at all.
+  const includeDeleted = !(statusFilter.length === 1 && statusFilter[0] === 'active');
 
   // Seeds the view filter from the header's current store the first time it's
   // available, but never again -- once the user's picked a store (or "All
@@ -196,7 +204,7 @@ export default function ProductsPage() {
           empty: { mode: 'any', text: '' },
           match: (p, v) => matchesTextOrMissing(p.barcode, v),
           describe: (v) => (v.mode === 'missing' ? t.products.noBarcode : v.text.trim()),
-          render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
+          render: (props) => <TextOrMissingFilter {...props} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
         },
       },
       {
@@ -216,17 +224,19 @@ export default function ProductsPage() {
         ),
         filter: {
           type: 'custom',
-          empty: { currency: 'all', min: '', max: '' },
-          match: (p, v) => (v.currency === 'all' || p.currency === v.currency) && inNumberRange(effectivePrice(p), v.min, v.max),
+          // currencies: checked currency codes, none checked = any currency.
+          empty: { currencies: [], min: '', max: '' },
+          match: (p, v) =>
+            (v.currencies.length === 0 || v.currencies.includes(p.currency)) && inNumberRange(effectivePrice(p), v.min, v.max),
           describe: (v) =>
-            [v.currency !== 'all' && v.currency, (v.min !== '' || v.max !== '') && rangeText(v.min, v.max)].filter(Boolean).join(' '),
+            [v.currencies.join(', '), (v.min !== '' || v.max !== '') && rangeText(v.min, v.max)].filter(Boolean).join(' '),
           render: ({ value, onChange }) => (
             <div className="flex flex-col gap-1.5">
-              <select value={value.currency} onChange={(e) => onChange({ ...value, currency: e.target.value })} className={filterInput}>
-                <option value="all">{t.products.allCurrencies}</option>
-                <option value="USD">USD</option>
-                <option value="KHR">KHR</option>
-              </select>
+              <ColumnFilter
+                filter={{ type: 'select', options: CURRENCY_OPTIONS }}
+                value={value.currencies}
+                onChange={(currencies) => onChange({ ...value, currencies })}
+              />
               <div className="flex gap-1">
                 <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={t.products.min} className={`${filterInput} flex-1 min-w-0`} />
                 <input type="number" value={value.max} onChange={(e) => onChange({ ...value, max: e.target.value })} placeholder={t.products.max} className={`${filterInput} flex-1 min-w-0`} />
@@ -243,7 +253,7 @@ export default function ProductsPage() {
             {p.stock <= p.lowStockThreshold && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">{t.products.lowBadge}</span>}
           </>
         ),
-        filter: { type: 'select', defaultValue: 'all', options: STOCK_FILTERS, match: matchesStock },
+        filter: { type: 'select', options: STOCK_FILTERS, match: matchesStock },
       },
       {
         key: 'supplier', label: t.products.colSupplier, sortValue: (p) => p.supplierName,
@@ -260,7 +270,7 @@ export default function ProductsPage() {
           empty: { mode: 'any', text: '' },
           match: (p, v) => matchesTextOrMissing(p.supplierName, v),
           describe: (v) => (v.mode === 'missing' ? t.products.noSupplier : v.text.trim()),
-          render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noSupplier} placeholder={t.products.contains} />,
+          render: (props) => <TextOrMissingFilter {...props} missingLabel={t.products.noSupplier} placeholder={t.products.contains} />,
         },
       },
       {
@@ -271,7 +281,7 @@ export default function ProductsPage() {
           ) : (
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.products.statusActive}</span>
           ),
-        filter: { type: 'select', defaultValue: 'active', options: STATUS_FILTERS, match: matchesStatus },
+        filter: { type: 'select', defaultValue: ['active'], options: STATUS_FILTERS, match: matchesStatus },
       },
       {
         key: 'createdAt', label: t.products.colCreated, cellClassName: `${muted} whitespace-nowrap`, render: (p) => formatDate(p.createdAt),
@@ -337,7 +347,7 @@ export default function ProductsPage() {
       baseTable.setFilter(key, value);
     },
     clearFilters: () => {
-      setStatusFilter('active');
+      setStatusFilter(['active']);
       baseTable.clearFilters();
     },
   };

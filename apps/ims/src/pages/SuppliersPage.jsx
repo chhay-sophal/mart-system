@@ -87,8 +87,8 @@ export default function SuppliersPage() {
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.common.active}</span>
           ),
         filter: {
-          type: 'select', defaultValue: 'active',
-          options: ['active', 'archived', 'all'].map((value) => ({ value, label: t.common[value] })),
+          type: 'select', defaultValue: ['active'],
+          options: ['active', 'archived'].map((value) => ({ value, label: t.common[value] })),
           match: (s, v) => (v === 'archived' ? s.isDeleted : !s.isDeleted),
         },
       },
@@ -115,7 +115,7 @@ export default function SuppliersPage() {
       },
     ],
   });
-  const wantDeleted = table.filters.status !== 'active';
+  const wantDeleted = !(table.filters.status.length === 1 && table.filters.status[0] === 'active');
   if (wantDeleted !== includeDeleted) setIncludeDeleted(wantDeleted);
   const visible = table.visible;
   const filterCount = table.filterCount;

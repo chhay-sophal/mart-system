@@ -299,15 +299,6 @@ export default function SalesHistoryPage() {
             />
           </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.payment}</label>
-          <select value={table.filters.payment} onChange={(e) => table.setFilter('payment', e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-            <option value="all">{t.sales.allMethods}</option>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>{t.sales.methods[m]}</option>
-            ))}
-          </select>
-        </div>
         <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.search}</label>
           <SearchInput value={search.query} onChange={search.setQuery} placeholder={t.sales.searchPlaceholder} className="w-full" />

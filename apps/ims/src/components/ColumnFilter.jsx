@@ -8,15 +8,19 @@ export default function ColumnFilter({ filter, value, onChange }) {
   const { t } = useLocale();
 
   switch (filter.type) {
-    case 'select':
+    case 'select': {
+      const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
       return (
-        <select value={value} onChange={(e) => onChange(e.target.value)} className={filterInput}>
-          {filter.defaultValue === undefined && <option value="all">{t.common.all}</option>}
+        <div className="flex flex-col gap-1">
           {filter.options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <label key={o.value} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={value.includes(o.value)} onChange={() => toggle(o.value)} className="accent-indigo-600 cursor-pointer" />
+              {o.label}
+            </label>
           ))}
-        </select>
+        </div>
       );
+    }
     case 'numberRange':
       return (
         <div className="flex gap-1">
@@ -26,7 +30,7 @@ export default function ColumnFilter({ filter, value, onChange }) {
       );
     case 'dateRange':
       return (
-        <div className="flex flex-col gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <label className="text-xs text-slate-500 dark:text-slate-400">
             {t.common.from}
             <input type="date" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} className={`${filterInput} mt-0.5`} />
