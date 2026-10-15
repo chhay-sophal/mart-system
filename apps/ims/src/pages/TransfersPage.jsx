@@ -3,56 +3,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { useColumnFilter } from '../hooks/useColumnFilter';
+import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
-import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import DataTable from '../components/DataTable.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
 const EMPTY_CREATE_FORM = { fromStoreId: '', toStoreId: '', items: [] };
 
-const STATUS_FILTERS = ['all', 'REQUESTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED'];
+const STATUSES = ['REQUESTED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED'];
 
 const itemsSummary = (t) => t.items.map((i) => `${i.quantity}× ${i.productName}`).join(', ');
-
-const EMPTY_FILTERS = {
-  from: '',
-  to: '',
-  items: '',
-  status: 'all', // all | REQUESTED | IN_TRANSIT | COMPLETED | CANCELLED
-};
-
-const norm = (value) => String(value ?? '').trim().toLowerCase();
-
-function filterTransfers(transfers, f) {
-  const from = norm(f.from);
-  const to = norm(f.to);
-  const items = norm(f.items);
-  return transfers.filter((t) => {
-    if (from && !norm(t.fromStoreName).includes(from)) return false;
-    if (to && !norm(t.toStoreName).includes(to)) return false;
-    if (items && !norm(itemsSummary(t)).includes(items)) return false;
-    if (f.status !== 'all' && t.status !== f.status) return false;
-    return true;
-  });
-}
-
-const COMPARE = {
-  from: (a, b) => a.fromStoreName.localeCompare(b.fromStoreName),
-  to: (a, b) => a.toStoreName.localeCompare(b.toStoreName),
-  items: (a, b) => a.items.length - b.items.length,
-  status: (a, b) => a.status.localeCompare(b.status),
-};
-
-function sortTransfers(transfers, { col, dir }) {
-  const compare = COMPARE[col];
-  if (!compare) return transfers;
-  const sign = dir === 'desc' ? -1 : 1;
-  // Ties fall back to from-store, so the order is stable and predictable.
-  return [...transfers].sort((a, b) => sign * compare(a, b) || COMPARE.from(a, b));
-}
-
-const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
 
 export default function TransfersPage() {
   // Not scoped to the AppShell's single current store — a transfer inherently
@@ -65,13 +26,6 @@ export default function TransfersPage() {
   const [fromStoreProducts, setFromStoreProducts] = useState([]);
   const [pendingProductId, setPendingProductId] = useState('');
   const [pendingQuantity, setPendingQuantity] = useState('1');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [sort, setSort] = useState({ col: 'from', dir: 'asc' });
-  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
-  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
-  const toggleSort = (col) =>
-    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
-  const filterCount = activeFilterCount(filters);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -79,7 +33,50 @@ export default function TransfersPage() {
   const transfersQuery = useQuery({ queryKey: queryKeys.transfers(), queryFn: () => apiClient.get('/api/stock-transfers') });
   const transfers = useMemo(() => transfersQuery.data ?? [], [transfersQuery.data]);
   const loading = transfersQuery.isPending;
-  const visible = useMemo(() => sortTransfers(filterTransfers(transfers, filters), sort), [transfers, filters, sort]);
+  const table = useDataTable({
+    rows: transfers,
+    // Ties fall back to from-store, so the order is stable and predictable.
+    initialSort: { col: 'from', dir: 'asc' },
+    columns: [
+      { key: 'from', label: t.common.from, render: (r) => r.fromStoreName, sortValue: (r) => r.fromStoreName, filter: { type: 'text', placeholder: t.transfers.filterStore } },
+      { key: 'to', label: t.common.to, render: (r) => r.toStoreName, sortValue: (r) => r.toStoreName, filter: { type: 'text', placeholder: t.transfers.filterStore } },
+      {
+        key: 'items', label: t.transfers.items, cellClassName: 'text-slate-500 dark:text-slate-400 text-xs', render: itemsSummary,
+        sortValue: (r) => r.items.length, filter: { type: 'text', placeholder: t.transfers.contains, value: itemsSummary },
+      },
+      {
+        key: 'status', label: t.common.status, sortValue: (r) => r.status,
+        render: (r) => (
+          <span
+            className={
+              r.status === 'COMPLETED'
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : r.status === 'CANCELLED'
+                  ? 'text-slate-400 dark:text-slate-500'
+                  : 'text-amber-600 dark:text-amber-400'
+            }
+          >
+            {t.transfers.status[r.status] ?? r.status}
+          </span>
+        ),
+        filter: { type: 'select', options: STATUSES.map((s) => ({ value: s, label: t.transfers.status[s] })) },
+      },
+      {
+        key: 'actions', label: '', cellClassName: 'text-right space-x-3',
+        render: (r) =>
+          r.status === 'REQUESTED' && (
+            <>
+              <button onClick={() => handleComplete(r)} className="text-[var(--accent)] font-medium cursor-pointer">
+                {t.transfers.complete}
+              </button>
+              <button onClick={() => handleCancel(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
+                {t.common.cancel}
+              </button>
+            </>
+          ),
+      },
+    ],
+  });
   // After a save: shipping/receiving moves stock between stores, so product
   // lists and reports are out of date too.
   const load = () =>
@@ -173,13 +170,13 @@ export default function TransfersPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.transfers.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === transfers.length
+            {table.visible.length === transfers.length
               ? fmt(t.transfers.count, { count: transfers.length, transfers: plural(transfers.length, t.transfers.transfer, t.transfers.transfersWord) })
-              : fmt(t.transfers.countFiltered, { visible: visible.length, total: transfers.length, transfers: plural(transfers.length, t.transfers.transfer, t.transfers.transfersWord) })}
+              : fmt(t.transfers.countFiltered, { visible: table.visible.length, total: transfers.length, transfers: plural(transfers.length, t.transfers.transfer, t.transfers.transfersWord) })}
           </span>
-          {filterCount > 0 && (
-            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              {fmt(t.transfers.clearFilters, { count: filterCount })}
+          {table.filterCount > 0 && (
+            <button onClick={table.clearFilters} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              {fmt(t.transfers.clearFilters, { count: table.filterCount })}
             </button>
           )}
           <button
@@ -193,113 +190,13 @@ export default function TransfersPage() {
 
       {(error || transfersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.transfers.loadFailed}</p>}
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
-            <tr>
-              <FilterableHeader
-                col="from" label={t.common.from} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'from'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.from !== EMPTY_FILTERS.from}
-              >
-                <input
-                  value={filters.from}
-                  onChange={(e) => setFilter('from', e.target.value)}
-                  placeholder={t.transfers.filterStore}
-                  className={filterInput}
-                  autoFocus
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="to" label={t.common.to} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'to'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.to !== EMPTY_FILTERS.to}
-              >
-                <input
-                  value={filters.to}
-                  onChange={(e) => setFilter('to', e.target.value)}
-                  placeholder={t.transfers.filterStore}
-                  className={filterInput}
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="items" label={t.transfers.items} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.items !== EMPTY_FILTERS.items}
-              >
-                <input
-                  value={filters.items}
-                  onChange={(e) => setFilter('items', e.target.value)}
-                  placeholder={t.transfers.contains}
-                  className={filterInput}
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
-              >
-                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((value) => (
-                    <option key={value} value={value}>{value === 'all' ? t.common.all : t.transfers.status[value]}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  {t.common.loading}
-                </td>
-              </tr>
-            ) : visible.length === 0 ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={5}>
-                  {transfers.length === 0 ? t.transfers.noTransfers : t.transfers.noMatches}
-                </td>
-              </tr>
-            ) : (
-              visible.map((tr) => (
-                <tr key={tr.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2">{tr.fromStoreName}</td>
-                  <td className="px-4 py-2">{tr.toStoreName}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 text-xs">
-                    {itemsSummary(tr)}
-                  </td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={
-                        tr.status === 'COMPLETED'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : tr.status === 'CANCELLED'
-                            ? 'text-slate-400 dark:text-slate-500'
-                            : 'text-amber-600 dark:text-amber-400'
-                      }
-                    >
-                      {t.transfers.status[tr.status] ?? tr.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-3">
-                    {tr.status === 'REQUESTED' && (
-                      <>
-                        <button onClick={() => handleComplete(tr)} className="text-[var(--accent)] font-medium cursor-pointer">
-                          {t.transfers.complete}
-                        </button>
-                        <button onClick={() => handleCancel(tr)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                          {t.common.cancel}
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        table={table}
+        rowKey={(r) => r.id}
+        loading={loading}
+        emptyText={t.transfers.noTransfers}
+        noMatchText={t.transfers.noMatches}
+      />
 
       {showCreate && (
         <Modal title={t.transfers.modalTitle} onClose={() => setShowCreate(false)}>

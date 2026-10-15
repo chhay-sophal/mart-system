@@ -4,12 +4,23 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
-import { EMPTY_FILTERS, STATUS_FILTERS, STOCK_FILTERS, activeFilterCount, effectivePrice, filterProducts, sortProducts } from '../lib/productFilters';
-import { useColumnFilter } from '../hooks/useColumnFilter';
+import {
+  STATUS_FILTERS,
+  STOCK_FILTERS,
+  comparePriceBy,
+  effectivePrice,
+  inNumberRange,
+  matchesSearch,
+  matchesStatus,
+  matchesStock,
+  matchesTextOrMissing,
+} from '../lib/productFilters';
+import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
-import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import DataTable from '../components/DataTable.jsx';
+import { filterInput } from '../components/FilterableHeader.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
@@ -61,6 +72,22 @@ const PAGE_SIZE = 50;
 const fmtPrice = (amount, currency) =>
   currency === 'KHR' ? `${Math.round(Number(amount)).toLocaleString()} ៛` : `${Number(amount).toFixed(2)}`;
 const formatDate = (value) => (value ? new Date(value).toLocaleString() : '—');
+const muted = 'text-slate-500 dark:text-slate-400';
+
+// A "contains" text box plus an any/missing mode, for barcode and supplier.
+function TextOrMissingFilter({ value, onChange, missingLabel, placeholder, anyLabel }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <select value={value.mode} onChange={(e) => onChange({ ...value, mode: e.target.value })} className={filterInput}>
+        <option value="any">{anyLabel}</option>
+        <option value="missing">{missingLabel}</option>
+      </select>
+      {value.mode === 'any' && (
+        <input value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} placeholder={placeholder} className={filterInput} />
+      )}
+    </div>
+  );
+}
 
 export default function ProductsPage() {
   const { storeId } = useOutletContext();
@@ -72,13 +99,15 @@ export default function ProductsPage() {
   // switcher. '' means "All stores"; null means "not initialized yet" (stores
   // haven't loaded), which keeps the products query disabled below.
   const [viewStoreId, setViewStoreId] = useState(null);
-  // Search, per-column filters and sort (issue #8), applied in the browser.
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
+  // Search bar (issue #8), applied in the browser before the table's own
+  // per-column filters/sort (useDataTable below).
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const searchRef = useRef(null);
-  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
-  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
+  // Mirrors the table's status filter (kept in step by `table` below): the
+  // products query needs it before the table hook can run, since the hook
+  // needs the query's rows.
+  const [statusFilter, setStatusFilter] = useState('active');
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
@@ -91,7 +120,7 @@ export default function ProductsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   // The status column's own filter drives this -- anything but the default
   // "active" needs archived rows included in what the backend returns at all.
-  const includeDeleted = filters.status !== 'active';
+  const includeDeleted = statusFilter !== 'active';
 
   // Seeds the view filter from the header's current store the first time it's
   // available, but never again -- once the user's picked a store (or "All
@@ -137,11 +166,140 @@ export default function ProductsPage() {
     : null;
 
   // Deferred, so typing stays responsive while a long list re-filters.
-  const deferredFilters = useDeferredValue(filters);
-  const visible = useMemo(
-    () => sortProducts(filterProducts(products, deferredFilters), sort),
-    [products, deferredFilters, sort]
-  );
+  const deferredSearch = useDeferredValue(search);
+  const searched = useMemo(() => products.filter((p) => matchesSearch(p, deferredSearch)), [products, deferredSearch]);
+
+  const baseTable = useDataTable({
+    rows: searched,
+    initialSort: { col: 'name', dir: 'asc' },
+    columns: [
+      {
+        key: 'select',
+        className: 'w-8',
+        header: null, // the select-all checkbox -- filled in below, once the page's rows are known
+        render: (p) => (
+          <input
+            type="checkbox"
+            checked={selected.has(p.storeProductId)}
+            onChange={() => toggleSelected(p.storeProductId)}
+            disabled={p.isDeleted}
+            className="accent-indigo-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          />
+        ),
+      },
+      { key: 'name', label: t.products.colName, sortValue: (p) => p.name, filter: { type: 'text', placeholder: t.products.filterName } },
+      ...(viewStoreId === '' ? [{ key: 'store', label: t.products.colStore, cellClassName: muted, render: (p) => p.storeName }] : []),
+      {
+        key: 'barcode', label: t.products.colBarcode, cellClassName: muted, render: (p) => p.barcode ?? '—', sortValue: (p) => p.barcode,
+        filter: {
+          type: 'custom',
+          empty: { mode: 'any', text: '' },
+          match: (p, v) => matchesTextOrMissing(p.barcode, v),
+          render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
+        },
+      },
+      {
+        key: 'costPrice', label: t.products.colCostPrice, cellClassName: muted, render: (p) => fmtPrice(p.costPrice, p.currency),
+        compare: comparePriceBy((p) => Number(p.costPrice)),
+        filter: { type: 'numberRange', value: (p) => Number(p.costPrice), minPlaceholder: t.products.min, maxPlaceholder: t.products.max },
+      },
+      {
+        key: 'price', label: t.products.colPrice, compare: comparePriceBy(effectivePrice),
+        render: (p) => (
+          <>
+            {fmtPrice(effectivePrice(p), p.currency)}
+            {p.priceOverride != null && (
+              <span className="ml-2 text-xs text-slate-400 dark:text-slate-500 line-through">{fmtPrice(p.defaultPrice, p.currency)}</span>
+            )}
+          </>
+        ),
+        filter: {
+          type: 'custom',
+          empty: { currency: 'all', min: '', max: '' },
+          match: (p, v) => (v.currency === 'all' || p.currency === v.currency) && inNumberRange(effectivePrice(p), v.min, v.max),
+          render: ({ value, onChange }) => (
+            <div className="flex flex-col gap-1.5">
+              <select value={value.currency} onChange={(e) => onChange({ ...value, currency: e.target.value })} className={filterInput}>
+                <option value="all">{t.products.allCurrencies}</option>
+                <option value="USD">USD</option>
+                <option value="KHR">KHR</option>
+              </select>
+              <div className="flex gap-1">
+                <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={t.products.min} className={`${filterInput} w-20`} />
+                <input type="number" value={value.max} onChange={(e) => onChange({ ...value, max: e.target.value })} placeholder={t.products.max} className={`${filterInput} w-20`} />
+              </div>
+            </div>
+          ),
+        },
+      },
+      {
+        key: 'stock', label: t.products.colStock, sortValue: (p) => p.stock,
+        render: (p) => (
+          <>
+            {p.stock}
+            {p.stock <= p.lowStockThreshold && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">{t.products.lowBadge}</span>}
+          </>
+        ),
+        filter: { type: 'select', defaultValue: 'all', options: STOCK_FILTERS, match: matchesStock },
+      },
+      {
+        key: 'supplier', label: t.products.colSupplier, sortValue: (p) => p.supplierName,
+        render: (p) =>
+          p.supplierName ? (
+            <button onClick={() => setViewingSupplierFor(p)} className="text-[var(--accent)] hover:underline cursor-pointer">
+              {p.supplierName}
+            </button>
+          ) : (
+            <span className="text-slate-400 dark:text-slate-500">—</span>
+          ),
+        filter: {
+          type: 'custom',
+          empty: { mode: 'any', text: '' },
+          match: (p, v) => matchesTextOrMissing(p.supplierName, v),
+          render: (props) => <TextOrMissingFilter {...props} anyLabel={t.products.any} missingLabel={t.products.noSupplier} placeholder={t.products.contains} />,
+        },
+      },
+      {
+        key: 'status', label: t.products.colStatus, sortValue: (p) => p.isDeleted,
+        render: (p) =>
+          p.isDeleted ? (
+            <span className={muted}>{t.products.statusArchived}</span>
+          ) : (
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.products.statusActive}</span>
+          ),
+        filter: { type: 'select', defaultValue: 'active', options: STATUS_FILTERS, match: matchesStatus },
+      },
+      {
+        key: 'createdAt', label: t.products.colCreated, cellClassName: `${muted} whitespace-nowrap`, render: (p) => formatDate(p.createdAt),
+        sortValue: (p) => new Date(p.createdAt).getTime(), filter: { type: 'dateRange', value: (p) => p.createdAt },
+      },
+      {
+        key: 'updatedAt', label: t.products.colUpdated, cellClassName: `${muted} whitespace-nowrap`, render: (p) => formatDate(p.updatedAt),
+        sortValue: (p) => new Date(p.updatedAt).getTime(), filter: { type: 'dateRange', value: (p) => p.updatedAt },
+      },
+      {
+        key: 'actions', label: '', cellClassName: 'text-right',
+        render: (p) =>
+          p.isDeleted ? (
+            <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
+              {t.common.restore}
+            </button>
+          ) : (
+            <>
+              <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
+                {t.common.edit}
+              </button>
+              <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
+                {t.common.archive}
+              </button>
+            </>
+          ),
+      },
+    ],
+  });
+  const visible = baseTable.visible;
+  const filterCount = baseTable.filterCount;
+
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   // Archived rows aren't selectable (their own checkbox is disabled), so
@@ -151,12 +309,39 @@ export default function ProductsPage() {
   const pageIds = pageRows.filter((p) => !p.isDeleted).map((p) => p.storeProductId);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = !allPageSelected && pageIds.some((id) => selected.has(id));
-  const filterCount = activeFilterCount(filters);
+
+  const table = {
+    ...baseTable,
+    columns: baseTable.columns.map((c) =>
+      c.key === 'select'
+        ? {
+            ...c,
+            header: (
+              <SelectAllCheckbox
+                checked={allPageSelected}
+                indeterminate={somePageSelected}
+                onChange={() => toggleSelectPage(pageIds, !allPageSelected)}
+              />
+            ),
+          }
+        : c
+    ),
+    // Keeps statusFilter (which drives the query's includeDeleted) in step
+    // with the table's own status filter, in the same event -- no lag.
+    setFilter: (key, value) => {
+      if (key === 'status') setStatusFilter(value);
+      baseTable.setFilter(key, value);
+    },
+    clearFilters: () => {
+      setStatusFilter('active');
+      baseTable.clearFilters();
+    },
+  };
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [filters, sort, viewStoreId]);
+  }, [table.filters, table.sort, search, viewStoreId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -175,9 +360,6 @@ export default function ProductsPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-
-  const toggleSort = (col) =>
-    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
   // After a save: refresh every product list (full, low-stock, every store
   // and the "All stores" view alike) and reports, whose negative-stock list
   // depends on stock. Prefix match (no storeId/includeDeleted in the key
@@ -317,8 +499,8 @@ export default function ProductsPage() {
         <input
           ref={searchRef}
           type="search"
-          value={filters.search}
-          onChange={(e) => setFilter('search', e.target.value)}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder={t.products.searchPlaceholder}
           className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800"
         />
@@ -327,8 +509,13 @@ export default function ProductsPage() {
             ? fmt(plural(products.length, t.products.countOne, t.products.count), { count: products.length })
             : fmt(t.products.countFiltered, { visible: visible.length, total: products.length })}
         </span>
-        {(filterCount > 0 || filters.search) && (
-          <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+        {(filterCount > 0 || search) && (
+          <button
+            onClick={() => {
+              setSearch('');
+              table.clearFilters();
+            }}
+            className="text-sm text-[var(--accent)] font-medium cursor-pointer">
             {filterCount > 0 ? fmt(t.products.clearFilters, { count: filterCount }) : t.products.clearSearch}
           </button>
         )}
@@ -354,232 +541,15 @@ export default function ProductsPage() {
         <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.products.loadFailed}</p>
       )}
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
-            <tr>
-              <th className="px-4 py-2 w-8">
-                <SelectAllCheckbox
-                  checked={allPageSelected}
-                  indeterminate={somePageSelected}
-                  onChange={() => toggleSelectPage(pageIds, !allPageSelected)}
-                />
-              </th>
-              <FilterableHeader
-                col="name" label={t.products.colName} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
-              >
-                <input
-                  value={filters.name}
-                  onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder={t.products.filterName}
-                  className={filterInput}
-                  autoFocus
-                />
-              </FilterableHeader>
-              {viewStoreId === '' && <th className="px-4 py-2 font-medium">{t.products.colStore}</th>}
-              <FilterableHeader
-                col="barcode" label={t.products.colBarcode} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'barcode'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.barcodeMode !== EMPTY_FILTERS.barcodeMode || filters.barcode !== EMPTY_FILTERS.barcode}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <select value={filters.barcodeMode} onChange={(e) => setFilter('barcodeMode', e.target.value)} className={filterInput}>
-                    <option value="any">{t.products.any}</option>
-                    <option value="missing">{t.products.noBarcode}</option>
-                  </select>
-                  {filters.barcodeMode === 'any' && (
-                    <input value={filters.barcode} onChange={(e) => setFilter('barcode', e.target.value)} placeholder={t.products.contains} className={filterInput} />
-                  )}
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="costPrice" label={t.products.colCostPrice} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'costPrice'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.costPriceMin !== EMPTY_FILTERS.costPriceMin || filters.costPriceMax !== EMPTY_FILTERS.costPriceMax}
-              >
-                <div className="flex gap-1">
-                  <input type="number" value={filters.costPriceMin} onChange={(e) => setFilter('costPriceMin', e.target.value)} placeholder={t.products.min} className={`${filterInput} w-20`} />
-                  <input type="number" value={filters.costPriceMax} onChange={(e) => setFilter('costPriceMax', e.target.value)} placeholder={t.products.max} className={`${filterInput} w-20`} />
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="price" label={t.products.colPrice} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'price'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={
-                  filters.currency !== EMPTY_FILTERS.currency ||
-                  filters.priceMin !== EMPTY_FILTERS.priceMin ||
-                  filters.priceMax !== EMPTY_FILTERS.priceMax
-                }
-              >
-                <div className="flex flex-col gap-1.5">
-                  <select value={filters.currency} onChange={(e) => setFilter('currency', e.target.value)} className={filterInput}>
-                    <option value="all">{t.products.allCurrencies}</option>
-                    <option value="USD">USD</option>
-                    <option value="KHR">KHR</option>
-                  </select>
-                  <div className="flex gap-1">
-                    <input type="number" value={filters.priceMin} onChange={(e) => setFilter('priceMin', e.target.value)} placeholder={t.products.min} className={`${filterInput} w-20`} />
-                    <input type="number" value={filters.priceMax} onChange={(e) => setFilter('priceMax', e.target.value)} placeholder={t.products.max} className={`${filterInput} w-20`} />
-                  </div>
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="stock" label={t.products.colStock} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'stock'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.stock !== EMPTY_FILTERS.stock}
-              >
-                <select value={filters.stock} onChange={(e) => setFilter('stock', e.target.value)} className={filterInput}>
-                  {STOCK_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <FilterableHeader
-                col="supplier" label={t.products.colSupplier} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'supplier'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.supplierMode !== EMPTY_FILTERS.supplierMode || filters.supplier !== EMPTY_FILTERS.supplier}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <select value={filters.supplierMode} onChange={(e) => setFilter('supplierMode', e.target.value)} className={filterInput}>
-                    <option value="any">{t.products.any}</option>
-                    <option value="missing">{t.products.noSupplier}</option>
-                  </select>
-                  {filters.supplierMode === 'any' && (
-                    <input value={filters.supplier} onChange={(e) => setFilter('supplier', e.target.value)} placeholder={t.products.contains} className={filterInput} />
-                  )}
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="status" label={t.products.colStatus} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
-              >
-                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <FilterableHeader
-                col="createdAt" label={t.products.colCreated} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'createdAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.createdFrom !== EMPTY_FILTERS.createdFrom || filters.createdTo !== EMPTY_FILTERS.createdTo}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-slate-500 dark:text-slate-400">
-                    {t.common.from}
-                    <input type="date" value={filters.createdFrom} onChange={(e) => setFilter('createdFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
-                  </label>
-                  <label className="text-xs text-slate-500 dark:text-slate-400">
-                    {t.common.to}
-                    <input type="date" value={filters.createdTo} onChange={(e) => setFilter('createdTo', e.target.value)} className={`${filterInput} mt-0.5`} />
-                  </label>
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="updatedAt" label={t.products.colUpdated} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'updatedAt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.updatedFrom !== EMPTY_FILTERS.updatedFrom || filters.updatedTo !== EMPTY_FILTERS.updatedTo}
-              >
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-slate-500 dark:text-slate-400">
-                    {t.common.from}
-                    <input type="date" value={filters.updatedFrom} onChange={(e) => setFilter('updatedFrom', e.target.value)} className={`${filterInput} mt-0.5`} />
-                  </label>
-                  <label className="text-xs text-slate-500 dark:text-slate-400">
-                    {t.common.to}
-                    <input type="date" value={filters.updatedTo} onChange={(e) => setFilter('updatedTo', e.target.value)} className={`${filterInput} mt-0.5`} />
-                  </label>
-                </div>
-              </FilterableHeader>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
-                  {t.common.loading}
-                </td>
-              </tr>
-            ) : visible.length === 0 ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={viewStoreId === '' ? 12 : 11}>
-                  {products.length === 0 ? t.products.noProducts : t.products.noMatches}
-                </td>
-              </tr>
-            ) : (
-              pageRows.map((p) => (
-                <tr key={p.storeProductId} className={`border-t border-[var(--border)] ${selected.has(p.storeProductId) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}>
-                  <td className="px-4 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(p.storeProductId)}
-                      onChange={() => toggleSelected(p.storeProductId)}
-                      disabled={p.isDeleted}
-                      className="accent-indigo-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    />
-                  </td>
-                  <td className="px-4 py-2">{p.name}</td>
-                  {viewStoreId === '' && <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.storeName}</td>}
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{p.barcode ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{fmtPrice(p.costPrice, p.currency)}</td>
-                  <td className="px-4 py-2">
-                    {fmtPrice(effectivePrice(p), p.currency)}
-                    {p.priceOverride != null && (
-                      <span className="ml-2 text-xs text-slate-400 dark:text-slate-500 line-through">{fmtPrice(p.defaultPrice, p.currency)}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">
-                    {p.stock}
-                    {p.stock <= p.lowStockThreshold && (
-                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">{t.products.lowBadge}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">
-                    {p.supplierName ? (
-                      <button onClick={() => setViewingSupplierFor(p)} className="text-[var(--accent)] hover:underline cursor-pointer">
-                        {p.supplierName}
-                      </button>
-                    ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">
-                    {p.isDeleted ? (
-                      <span className="text-slate-500 dark:text-slate-400">{t.products.statusArchived}</span>
-                    ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t.products.statusActive}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(p.createdAt)}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatDate(p.updatedAt)}</td>
-                  <td className="px-4 py-2 text-right">
-                    {p.isDeleted ? (
-                      <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
-                        {t.common.restore}
-                      </button>
-                    ) : (
-                      <>
-                        <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                          {t.common.edit}
-                        </button>
-                        <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
-                          {t.common.archive}
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        </div>
-      </div>
+      <DataTable
+        table={table}
+        rows={pageRows}
+        rowKey={(p) => p.storeProductId}
+        loading={loading}
+        emptyText={products.length === 0 ? t.products.noProducts : t.products.noMatches}
+        noMatchText={t.products.noMatches}
+        rowClassName={(p) => (selected.has(p.storeProductId) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : '')}
+      />
 
       {pageCount > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">

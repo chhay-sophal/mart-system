@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { ApiError } from '@mart-system/api-client';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt as fill } from '../i18n/translate';
 import Modal from '../components/Modal.jsx';
-import { useColumnFilter } from '../hooks/useColumnFilter';
-import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import { useDataTable } from '../hooks/useDataTable';
+import DataTable from '../components/DataTable.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
@@ -87,31 +86,16 @@ const DEFAULT_EXPORT_COLUMNS = ['receipt', 'date', 'time', 'branch', 'items', 't
 export default function SalesHistoryPage() {
   const { storeId: currentStoreId } = useOutletContext();
   const { stores } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const [storeFilter, setStoreFilter] = useState(currentStoreId ?? '');
   // Free-form date range, not a fixed set of periods -- defaults to today.
   const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
-  const [payFilter, setPayFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showVoided, setShowVoided] = useState(false);
-  const [sort, setSort] = useState({ col: 'date', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
-  // Per-column header filters, on top of the filter bar above: branch/register
-  // narrow further within the already-fetched rows (the Branch select above
-  // still drives which branch's data is fetched at all); items/total are new,
-  // with no bar equivalent. Payment's column filter reads/writes the same
-  // payFilter state as its select above, just a second entry point onto it.
-  const [receiptFilter, setReceiptFilter] = useState('');
-  const [branchFilter, setBranchFilter] = useState('');
-  const [registerFilter, setRegisterFilter] = useState('');
-  const [itemsMin, setItemsMin] = useState('');
-  const [itemsMax, setItemsMax] = useState('');
-  const [totalMin, setTotalMin] = useState('');
-  const [totalMax, setTotalMax] = useState('');
-  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
 
   const [error, setError] = useState('');
   const [voidTarget, setVoidTarget] = useState(null);
@@ -155,32 +139,14 @@ export default function SalesHistoryPage() {
     return r.from === dateFrom && r.to === dateTo;
   });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPage(1);
-  }, [storeFilter, dateFrom, dateTo, payFilter, search, showVoided, sort, receiptFilter, branchFilter, registerFilter, itemsMin, itemsMax, totalMin, totalMax]);
-
-  const filtered = useMemo(() => {
+  // The filter bar's search and show-voided toggle narrow the fetched rows
+  // first; the per-column header filters below narrow further. Branch/register
+  // header filters work within the already-fetched rows (the Branch select
+  // above still drives which branch's data is fetched at all).
+  const barFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const receiptQ = receiptFilter.trim().toLowerCase();
-    const branchQ = branchFilter.trim().toLowerCase();
-    const registerQ = registerFilter.trim().toLowerCase();
-    const iMin = itemsMin === '' ? null : Number(itemsMin);
-    const iMax = itemsMax === '' ? null : Number(itemsMax);
-    const tMin = totalMin === '' ? null : Number(totalMin);
-    const tMax = totalMax === '' ? null : Number(totalMax);
-    const dir = sort.dir === 'asc' ? 1 : -1;
-    const byDate = (a, b) => new Date(a.created_at) - new Date(b.created_at);
     return orders
       .filter((o) => showVoided || !isVoided(o))
-      .filter((o) => payFilter === 'all' || o.payment_method === payFilter)
-      .filter((o) => !receiptQ || o.receipt_no.toLowerCase().includes(receiptQ))
-      .filter((o) => !branchQ || (o.store_name ?? '').toLowerCase().includes(branchQ))
-      .filter((o) => !registerQ || (o.terminal_name ?? '').toLowerCase().includes(registerQ))
-      .filter((o) => iMin === null || itemCount(o) >= iMin)
-      .filter((o) => iMax === null || itemCount(o) <= iMax)
-      .filter((o) => tMin === null || Number(o.total_amount) >= tMin)
-      .filter((o) => tMax === null || Number(o.total_amount) <= tMax)
       .filter(
         (o) =>
           !q ||
@@ -188,19 +154,68 @@ export default function SalesHistoryPage() {
           (o.terminal_name ?? '').toLowerCase().includes(q) ||
           (o.store_name ?? '').toLowerCase().includes(q) ||
           (o.items || []).some((i) => i.product_name?.toLowerCase().includes(q) || i.barcode?.includes(q))
-      )
-      .sort((a, b) => {
-        switch (sort.col) {
-          case 'receipt': return dir * a.receipt_no.localeCompare(b.receipt_no);
-          case 'branch': return dir * (a.store_name ?? '').localeCompare(b.store_name ?? '') || -byDate(a, b);
-          case 'register': return dir * (a.terminal_name ?? '').localeCompare(b.terminal_name ?? '') || -byDate(a, b);
-          case 'items': return dir * (itemCount(a) - itemCount(b));
-          case 'total': return dir * (a.total_amount - b.total_amount);
-          case 'payment': return dir * a.payment_method.localeCompare(b.payment_method);
-          default: return dir * byDate(a, b);
-        }
-      });
-  }, [orders, showVoided, payFilter, search, sort, receiptFilter, branchFilter, registerFilter, itemsMin, itemsMax, totalMin, totalMax]);
+      );
+  }, [orders, showVoided, search]);
+
+  const nowrap = 'whitespace-nowrap';
+  const table = useDataTable({
+    rows: barFiltered,
+    initialSort: { col: 'date', dir: 'desc' },
+    columns: [
+      {
+        key: 'receipt', label: t.sales.receiptNo, cellClassName: `font-medium ${nowrap}`, sortValue: (o) => o.receipt_no,
+        filter: { type: 'text', placeholder: t.sales.contains },
+        render: (o) => (
+          <>
+            #{o.receipt_no}
+            {isVoided(o) && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5">{t.sales.voided}</span>}
+          </>
+        ),
+      },
+      // Date stays sort-only: the filter bar above already drives the actual
+      // date range this page fetches (with quick presets), so a second date
+      // filter here would just duplicate it.
+      {
+        key: 'date', label: t.common.date, cellClassName: nowrap, sortValue: (o) => new Date(o.created_at).getTime(),
+        render: (o) => fmtDateTime(o.created_at, locale),
+      },
+      ...(allBranches
+        ? [{ key: 'branch', label: t.sales.branch, sortValue: (o) => o.store_name, render: (o) => o.store_name, filter: { type: 'text', placeholder: t.sales.contains } }]
+        : []),
+      { key: 'register', label: t.sales.register, sortValue: (o) => o.terminal_name, render: (o) => o.terminal_name, filter: { type: 'text', placeholder: t.sales.contains } },
+      {
+        key: 'items', label: t.sales.items, className: 'text-center', sortValue: itemCount, render: itemCount,
+        filter: { type: 'numberRange', minPlaceholder: t.sales.min, maxPlaceholder: t.sales.max },
+      },
+      {
+        key: 'total', label: t.common.total, className: 'text-right', sortValue: (o) => Number(o.total_amount),
+        filter: { type: 'numberRange', minPlaceholder: t.sales.min, maxPlaceholder: t.sales.max },
+        render: (o) => (
+          <span className={`${nowrap} ${isVoided(o) ? 'line-through' : ''}`}>
+            <span className="font-medium">{orderTotal(o).primary}</span>
+            <span className="block text-xs text-slate-500 dark:text-slate-400">{orderTotal(o).secondary}</span>
+          </span>
+        ),
+      },
+      // Its filter is also driven by the Payment select in the filter bar above.
+      {
+        key: 'payment', label: t.sales.payment, cellClassName: nowrap, sortValue: (o) => o.payment_method,
+        filter: { type: 'select', value: (o) => o.payment_method, options: PAYMENT_METHODS.map((m) => ({ value: m, label: t.sales.methods[m] })) },
+        render: (o) => (
+          <>
+            {t.sales.methods[o.payment_method] ?? o.payment_method}
+            {o.bank_name && <span className="text-xs text-slate-500 dark:text-slate-400"> · {o.bank_name}</span>}
+          </>
+        ),
+      },
+    ],
+  });
+  const filtered = table.visible;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [storeFilter, dateFrom, dateTo, search, showVoided, table.sort, table.filters]);
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -218,9 +233,6 @@ export default function SalesHistoryPage() {
   const voidBody = voidTarget
     ? t.sales.voidBody.split('{receipt}').map((part) => fill(part, { total: orderTotal(voidTarget).primary, store: voidTarget.store_name }))
     : [];
-
-  const toggleSort = (col) =>
-    setSort((s) => (s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: col === 'date' ? 'desc' : 'asc' }));
 
   async function confirmVoid() {
     setVoiding(true);
@@ -292,7 +304,7 @@ export default function SalesHistoryPage() {
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.payment}</label>
-          <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
+          <select value={table.filters.payment} onChange={(e) => table.setFilter('payment', e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
             <option value="all">{t.sales.allMethods}</option>
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>{t.sales.methods[m]}</option>
@@ -333,107 +345,18 @@ export default function SalesHistoryPage() {
 
       {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.sales.loadFailed}</p>}
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
-            <tr>
-              <FilterableHeader
-                col="receipt" label={t.sales.receiptNo} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'receipt'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={receiptFilter !== ''}
-              >
-                <input
-                  value={receiptFilter}
-                  onChange={(e) => setReceiptFilter(e.target.value)}
-                  placeholder={t.sales.contains}
-                  className={filterInput}
-                  autoFocus
-                />
-              </FilterableHeader>
-              {/* Date stays sort-only: the filter bar above already drives the
-                  actual date range this page fetches (with quick presets), so
-                  a second date filter here would just duplicate it. */}
-              <SortTh sort={sort} onSort={toggleSort} col="date">{t.common.date}</SortTh>
-              {allBranches && (
-                <FilterableHeader
-                  col="branch" label={t.sales.branch} sort={sort} onSort={toggleSort}
-                  isOpen={openFilterCol === 'branch'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                  hasActiveFilter={branchFilter !== ''}
-                >
-                  <input
-                    value={branchFilter}
-                    onChange={(e) => setBranchFilter(e.target.value)}
-                    placeholder={t.sales.contains}
-                    className={filterInput}
-                  />
-                </FilterableHeader>
-              )}
-              <FilterableHeader
-                col="register" label={t.sales.register} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'register'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={registerFilter !== ''}
-              >
-                <input
-                  value={registerFilter}
-                  onChange={(e) => setRegisterFilter(e.target.value)}
-                  placeholder={t.sales.contains}
-                  className={filterInput}
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="items" label={t.sales.items} sort={sort} onSort={toggleSort} className="text-center"
-                isOpen={openFilterCol === 'items'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={itemsMin !== '' || itemsMax !== ''}
-              >
-                <div className="flex gap-1">
-                  <input type="number" value={itemsMin} onChange={(e) => setItemsMin(e.target.value)} placeholder={t.sales.min} className={`${filterInput} w-20`} />
-                  <input type="number" value={itemsMax} onChange={(e) => setItemsMax(e.target.value)} placeholder={t.sales.max} className={`${filterInput} w-20`} />
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="total" label={t.common.total} sort={sort} onSort={toggleSort} className="text-right"
-                isOpen={openFilterCol === 'total'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={totalMin !== '' || totalMax !== ''}
-              >
-                <div className="flex gap-1">
-                  <input type="number" value={totalMin} onChange={(e) => setTotalMin(e.target.value)} placeholder={t.sales.min} className={`${filterInput} w-20`} />
-                  <input type="number" value={totalMax} onChange={(e) => setTotalMax(e.target.value)} placeholder={t.sales.max} className={`${filterInput} w-20`} />
-                </div>
-              </FilterableHeader>
-              <FilterableHeader
-                col="payment" label={t.sales.payment} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'payment'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={payFilter !== 'all'}
-              >
-                <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)} className={filterInput}>
-                  <option value="all">{t.sales.allMethods}</option>
-                  {PAYMENT_METHODS.map((m) => (
-                    <option key={m} value={m}>{t.sales.methods[m]}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>{t.common.loading}</td></tr>
-            ) : pageRows.length === 0 ? (
-              <tr><td className="px-3 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>{t.sales.noSales}</td></tr>
-            ) : (
-              pageRows.map((o) => (
-                <OrderRow
-                  key={o.id}
-                  order={o}
-                  showBranch={allBranches}
-                  expanded={expandedId === o.id}
-                  onToggle={() => setExpandedId(expandedId === o.id ? null : o.id)}
-                  onVoid={() => setVoidTarget(o)}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        table={table}
+        rows={pageRows}
+        rowKey={(o) => o.id}
+        loading={loading}
+        emptyText={t.sales.noSales}
+        noMatchText={t.sales.noSales}
+        rowClassName={(o) => `hover:bg-slate-50 dark:hover:bg-slate-800 ${isVoided(o) ? 'text-slate-400 dark:text-slate-500' : ''}`}
+        onRowClick={(o) => setExpandedId(expandedId === o.id ? null : o.id)}
+        isExpanded={(o) => expandedId === o.id}
+        renderExpanded={(o) => <OrderDetail order={o} onVoid={() => setVoidTarget(o)} />}
+      />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
@@ -471,97 +394,58 @@ export default function SalesHistoryPage() {
   );
 }
 
-function SortTh({ col, sort, onSort, children, className = '' }) {
-  const active = sort.col === col;
-  return (
-    <th className={`px-3 py-2 font-medium cursor-pointer select-none whitespace-nowrap ${className}`} onClick={() => onSort(col)}>
-      <span className="inline-flex items-center gap-1">
-        {children}
-        {active ? (
-          sort.dir === 'asc' ? <ChevronUp size={12} className="text-[var(--accent)]" /> : <ChevronDown size={12} className="text-[var(--accent)]" />
-        ) : (
-          <ChevronsUpDown size={12} className="text-slate-300 dark:text-slate-600" />
-        )}
-      </span>
-    </th>
-  );
-}
-
-function OrderRow({ order: o, showBranch, expanded, onToggle, onVoid }) {
-  const { t, locale } = useLocale();
+// The line items, payment breakdown and actions shown under an expanded row.
+function OrderDetail({ order: o, onVoid }) {
+  const { t } = useLocale();
   const voided = isVoided(o);
   return (
     <>
-      <tr onClick={onToggle} className={`border-t border-[var(--border)] cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 ${voided ? 'text-slate-400 dark:text-slate-500' : ''}`}>
-        <td className="px-3 py-2 font-medium whitespace-nowrap">
-          #{o.receipt_no}
-          {voided && <span className="ml-2 text-[10px] font-semibold uppercase bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded px-1.5 py-0.5">{t.sales.voided}</span>}
-        </td>
-        <td className="px-3 py-2 whitespace-nowrap">{fmtDateTime(o.created_at, locale)}</td>
-        {showBranch && <td className="px-3 py-2">{o.store_name}</td>}
-        <td className="px-3 py-2">{o.terminal_name}</td>
-        <td className="px-3 py-2 text-center">{itemCount(o)}</td>
-        <td className={`px-3 py-2 text-right whitespace-nowrap ${voided ? 'line-through' : ''}`}>
-          <span className="font-medium">{orderTotal(o).primary}</span>
-          <span className="block text-xs text-slate-500 dark:text-slate-400">{orderTotal(o).secondary}</span>
-        </td>
-        <td className="px-3 py-2 whitespace-nowrap">
-          {t.sales.methods[o.payment_method] ?? o.payment_method}
-          {o.bank_name && <span className="text-xs text-slate-500 dark:text-slate-400"> · {o.bank_name}</span>}
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="bg-slate-50/60 dark:bg-slate-900/60">
-          <td colSpan={7} className="px-4 py-3">
-            <table className="w-full text-xs mb-3">
-              <thead className="text-slate-500 dark:text-slate-400 text-left">
-                <tr>
-                  <th className="py-1 font-medium">{t.sales.product}</th>
-                  <th className="py-1 font-medium">{t.sales.barcode}</th>
-                  <th className="py-1 font-medium text-right">{t.sales.qty}</th>
-                  <th className="py-1 font-medium text-right">{t.sales.price}</th>
-                  <th className="py-1 font-medium text-right">{t.sales.lineTotal}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {o.items.map((i, idx) => {
-                  const fmt = i.currency === 'KHR' ? fmtKhr : fmtUsd;
-                  return (
-                    <tr key={idx} className="border-t border-[var(--border)]">
-                      <td className="py-1">{i.product_name}</td>
-                      <td className="py-1 text-slate-500 dark:text-slate-400">{i.barcode ?? ''}</td>
-                      <td className="py-1 text-right">{i.quantity}</td>
-                      <td className="py-1 text-right">{fmt(i.price)}</td>
-                      <td className="py-1 text-right">
-                        {/* What the line charged, less its item discount. */}
-                        {fmt(i.price * i.quantity - (i.discount || 0))}
-                        {i.discount > 0 && <span className="block text-xs text-amber-600 dark:text-amber-400">−{fmt(i.discount)}</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4">
-                {o.amount_paid_usd > 0 && <span>{fill(t.sales.paidUsd, { amount: fmtUsd(o.amount_paid_usd) })}</span>}
-                {o.amount_paid_khr > 0 && <span>{fill(t.sales.paidKhr, { amount: fmtKhr(o.amount_paid_khr) })}</span>}
-                {o.change_given_khr > 0 && <span>{fill(t.sales.changeAmount, { amount: fmtKhr(o.change_given_khr) })}</span>}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
-                  {t.sales.printReceipt}
-                </button>
-                {!voided && (
-                  <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer">
-                    {t.sales.voidSale}
-                  </button>
-                )}
-              </div>
-            </div>
-          </td>
-        </tr>
-      )}
+      <table className="w-full text-xs mb-3">
+        <thead className="text-slate-500 dark:text-slate-400 text-left">
+          <tr>
+            <th className="py-1 font-medium">{t.sales.product}</th>
+            <th className="py-1 font-medium">{t.sales.barcode}</th>
+            <th className="py-1 font-medium text-right">{t.sales.qty}</th>
+            <th className="py-1 font-medium text-right">{t.sales.price}</th>
+            <th className="py-1 font-medium text-right">{t.sales.lineTotal}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {o.items.map((i, idx) => {
+            const fmt = i.currency === 'KHR' ? fmtKhr : fmtUsd;
+            return (
+              <tr key={idx} className="border-t border-[var(--border)]">
+                <td className="py-1">{i.product_name}</td>
+                <td className="py-1 text-slate-500 dark:text-slate-400">{i.barcode ?? ''}</td>
+                <td className="py-1 text-right">{i.quantity}</td>
+                <td className="py-1 text-right">{fmt(i.price)}</td>
+                <td className="py-1 text-right">
+                  {/* What the line charged, less its item discount. */}
+                  {fmt(i.price * i.quantity - (i.discount || 0))}
+                  {i.discount > 0 && <span className="block text-xs text-amber-600 dark:text-amber-400">−{fmt(i.discount)}</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-slate-600 dark:text-slate-300 flex flex-wrap gap-x-4">
+          {o.amount_paid_usd > 0 && <span>{fill(t.sales.paidUsd, { amount: fmtUsd(o.amount_paid_usd) })}</span>}
+          {o.amount_paid_khr > 0 && <span>{fill(t.sales.paidKhr, { amount: fmtKhr(o.amount_paid_khr) })}</span>}
+          {o.change_given_khr > 0 && <span>{fill(t.sales.changeAmount, { amount: fmtKhr(o.change_given_khr) })}</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
+            {t.sales.printReceipt}
+          </button>
+          {!voided && (
+            <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer">
+              {t.sales.voidSale}
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 }

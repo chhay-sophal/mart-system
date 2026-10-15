@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
-import { useColumnFilter } from '../hooks/useColumnFilter';
+import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
-import FilterableHeader, { filterInput } from '../components/FilterableHeader.jsx';
+import DataTable from '../components/DataTable.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
 
@@ -18,69 +18,10 @@ const toUsername = (value) => value.toLowerCase().replace(/\s/g, '');
 
 const CREATE_FORM = { username: '', email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
-const PIN_FILTERS = ['all', 'set', 'unset'];
-
-const STATUS_FILTERS = ['all', 'active', 'inactive'];
-
-const EMPTY_FILTERS = {
-  name: '',
-  username: '',
-  email: '',
-  role: 'all', // all | CASHIER | INVENTORY | ADMIN
-  pin: 'all', // all | set | unset
-  status: 'all', // all | active | inactive
-};
-
-const norm = (value) => String(value ?? '').trim().toLowerCase();
-
-function matchesPin(row, mode) {
-  if (mode === 'all') return true;
-  return mode === 'set' ? row.hasPinSet : !row.hasPinSet;
-}
-
-function matchesStatus(row, mode) {
-  if (mode === 'all') return true;
-  return mode === 'active' ? row.isActive : !row.isActive;
-}
-
-function filterStaff(staff, f) {
-  const name = norm(f.name);
-  const username = norm(f.username);
-  const email = norm(f.email);
-  return staff.filter((row) => {
-    if (name && !norm(row.name).includes(name)) return false;
-    if (username && !norm(row.username).includes(username)) return false;
-    if (email && !norm(row.email).includes(email)) return false;
-    if (f.role !== 'all' && row.role !== f.role) return false;
-    if (!matchesPin(row, f.pin)) return false;
-    return matchesStatus(row, f.status);
-  });
-}
-
-const COMPARE = {
-  name: (a, b) => a.name.localeCompare(b.name),
-  username: (a, b) => (a.username ?? '').localeCompare(b.username ?? ''),
-  email: (a, b) => (a.email ?? '').localeCompare(b.email ?? ''),
-  role: (a, b) => a.role.localeCompare(b.role),
-  pin: (a, b) => Number(a.hasPinSet) - Number(b.hasPinSet),
-  status: (a, b) => Number(a.isActive) - Number(b.isActive),
-};
-
-function sortStaff(staff, { col, dir }) {
-  const compare = COMPARE[col];
-  if (!compare) return staff;
-  const sign = dir === 'desc' ? -1 : 1;
-  // Ties fall back to name, so the order is stable and predictable.
-  return [...staff].sort((a, b) => sign * compare(a, b) || COMPARE.name(a, b));
-}
-
-const activeFilterCount = (f) => Object.entries(EMPTY_FILTERS).filter(([key, empty]) => f[key] !== empty).length;
-
 export default function StaffPage() {
   const { storeId } = useOutletContext();
   const { t } = useLocale();
   const roleLabel = (role) => t.staff.roles[role] ?? role;
-  const pinFilterLabel = { all: t.common.all, set: t.staff.pinSet, unset: t.staff.pinNotSet };
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(CREATE_FORM);
@@ -90,13 +31,6 @@ export default function StaffPage() {
   const [editing, setEditing] = useState(null); // staff row being edited
   const [editForm, setEditForm] = useState(null);
   const [showEditPassword, setShowEditPassword] = useState(false);
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
-  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
-  const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
-  const toggleSort = (col) =>
-    setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' }));
-  const filterCount = activeFilterCount(filters);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -108,7 +42,59 @@ export default function StaffPage() {
   });
   const staff = useMemo(() => listQuery.data ?? [], [listQuery.data]);
   const loading = listQuery.isPending;
-  const visible = useMemo(() => sortStaff(filterStaff(staff, filters), sort), [staff, filters, sort]);
+  const muted = 'text-slate-500 dark:text-slate-400';
+  const table = useDataTable({
+    rows: staff,
+    initialSort: { col: 'name', dir: 'asc' },
+    columns: [
+      { key: 'name', label: t.common.name, sortValue: (r) => r.name, filter: { type: 'text', placeholder: t.staff.filterName } },
+      {
+        key: 'username', label: t.staff.username, cellClassName: muted, render: (r) => r.username ?? '—',
+        sortValue: (r) => r.username, filter: { type: 'text', placeholder: t.staff.contains },
+      },
+      {
+        key: 'email', label: t.staff.email, cellClassName: muted, render: (r) => r.email ?? '—',
+        sortValue: (r) => r.email, filter: { type: 'text', placeholder: t.staff.contains },
+      },
+      {
+        key: 'role', label: t.staff.role, cellClassName: muted, render: (r) => roleLabel(r.role), sortValue: (r) => r.role,
+        filter: { type: 'select', options: ROLES.map((r) => ({ value: r, label: roleLabel(r) })) },
+      },
+      {
+        key: 'pin', label: t.staff.pin, cellClassName: muted, render: (r) => (r.hasPinSet ? t.staff.pinSet : t.staff.pinNotSet),
+        sortValue: (r) => r.hasPinSet,
+        filter: {
+          type: 'select', value: (r) => (r.hasPinSet ? 'set' : 'unset'),
+          options: [{ value: 'set', label: t.staff.pinSet }, { value: 'unset', label: t.staff.pinNotSet }],
+        },
+      },
+      {
+        key: 'status', label: t.common.status, sortValue: (r) => r.isActive,
+        render: (r) => (
+          <span className={r.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+            {r.isActive ? t.common.active : t.common.inactive}
+          </span>
+        ),
+        filter: {
+          type: 'select', value: (r) => (r.isActive ? 'active' : 'inactive'),
+          options: [{ value: 'active', label: t.common.active }, { value: 'inactive', label: t.common.inactive }],
+        },
+      },
+      {
+        key: 'actions', label: '', cellClassName: 'text-right space-x-3',
+        render: (r) => (
+          <>
+            <button onClick={() => openEdit(r)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
+              {t.common.edit}
+            </button>
+            <button onClick={() => handleToggleActive(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
+              {r.isActive ? t.staff.deactivate : t.staff.reactivate}
+            </button>
+          </>
+        ),
+      },
+    ],
+  });
   // After a save: refresh the cached list.
   const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.staff(storeId) });
 
@@ -199,13 +185,13 @@ export default function StaffPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.staff.title}</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            {visible.length === staff.length
+            {table.visible.length === staff.length
               ? fmt(t.staff.count, { count: staff.length })
-              : fmt(t.staff.countFiltered, { shown: visible.length, total: staff.length })}
+              : fmt(t.staff.countFiltered, { shown: table.visible.length, total: staff.length })}
           </span>
-          {filterCount > 0 && (
-            <button onClick={() => setFilters(EMPTY_FILTERS)} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
-              {fmt(t.staff.clearFilters, { count: filterCount })}
+          {table.filterCount > 0 && (
+            <button onClick={table.clearFilters} className="text-sm text-[var(--accent)] font-medium cursor-pointer">
+              {fmt(t.staff.clearFilters, { count: table.filterCount })}
             </button>
           )}
           <button
@@ -219,146 +205,13 @@ export default function StaffPage() {
 
       {(error || listQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.staff.loadFailed}</p>}
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-left">
-            <tr>
-              <FilterableHeader
-                col="name" label={t.common.name} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'name'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.name !== EMPTY_FILTERS.name}
-              >
-                <input
-                  value={filters.name}
-                  onChange={(e) => setFilter('name', e.target.value)}
-                  placeholder={t.staff.filterName}
-                  className={filterInput}
-                  autoFocus
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="username" label={t.staff.username} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'username'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.username !== EMPTY_FILTERS.username}
-              >
-                <input
-                  value={filters.username}
-                  onChange={(e) => setFilter('username', e.target.value)}
-                  placeholder={t.staff.contains}
-                  className={filterInput}
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="email" label={t.staff.email} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'email'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.email !== EMPTY_FILTERS.email}
-              >
-                <input
-                  value={filters.email}
-                  onChange={(e) => setFilter('email', e.target.value)}
-                  placeholder={t.staff.contains}
-                  className={filterInput}
-                />
-              </FilterableHeader>
-              <FilterableHeader
-                col="role" label={t.staff.role} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'role'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.role !== EMPTY_FILTERS.role}
-              >
-                <select value={filters.role} onChange={(e) => setFilter('role', e.target.value)} className={filterInput}>
-                  <option value="all">{t.common.all}</option>
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>{roleLabel(r)}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <FilterableHeader
-                col="pin" label={t.staff.pin} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'pin'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.pin !== EMPTY_FILTERS.pin}
-              >
-                <select value={filters.pin} onChange={(e) => setFilter('pin', e.target.value)} className={filterInput}>
-                  {PIN_FILTERS.map((value) => (
-                    <option key={value} value={value}>{pinFilterLabel[value]}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <FilterableHeader
-                col="status" label={t.common.status} sort={sort} onSort={toggleSort}
-                isOpen={openFilterCol === 'status'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                hasActiveFilter={filters.status !== EMPTY_FILTERS.status}
-              >
-                <select value={filters.status} onChange={(e) => setFilter('status', e.target.value)} className={filterInput}>
-                  {STATUS_FILTERS.map((value) => (
-                    <option key={value} value={value}>{t.common[value]}</option>
-                  ))}
-                </select>
-              </FilterableHeader>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
-                  {t.common.loading}
-                </td>
-              </tr>
-            ) : visible.length === 0 ? (
-              <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
-                  {staff.length === 0 ? t.staff.empty : t.staff.noMatch}
-                </td>
-              </tr>
-            ) : (
-              visible.map((row) => (
-                <tr key={row.userId} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2">{row.name}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.username ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email ?? '—'}</td>
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{roleLabel(row.role)}</td>
-                  {/* <td className="px-4 py-2">
-                    <select
-                      value={row.role}
-                      onChange={(e) => handleRoleChange(row, e.target.value)}
-                      className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </td> */}
-                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.hasPinSet ? t.staff.pinSet : t.staff.pinNotSet}</td>
-                  <td className="px-4 py-2">
-                    <span className={row.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                      {row.isActive ? t.common.active : t.common.inactive}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-3">
-                    <button onClick={() => openEdit(row)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                      {t.common.edit}
-                    </button>
-                    {/* <button
-                      onClick={() => {
-                        setPinTarget(row);
-                        setPinValue('');
-                      }}
-                      className="text-[var(--accent)] font-medium cursor-pointer"
-                    >
-                      Reset PIN
-                    </button> */}
-                    <button onClick={() => handleToggleActive(row)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                      {row.isActive ? t.staff.deactivate : t.staff.reactivate}
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        table={table}
+        rowKey={(r) => r.userId}
+        loading={loading}
+        emptyText={t.staff.empty}
+        noMatchText={t.staff.noMatch}
+      />
 
       {showCreate && (
         <Modal title={t.staff.addStaff} onClose={() => setShowCreate(false)}>

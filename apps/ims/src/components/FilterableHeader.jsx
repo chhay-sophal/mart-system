@@ -17,9 +17,11 @@ function FilterIcon({ className }) {
 // Column header: clicking the label text sorts (unchanged); a separate
 // filter button on the right opens a dropdown with that column's filter
 // controls. Pairs with the useColumnFilter hook, which owns isOpen/panelRef.
+// With no children there's no filter button; with no onSort the label is
+// plain text -- so one header covers sort-only and label-only columns too.
 export default function FilterableHeader({ col, label, sort, onSort, isOpen, onToggleFilter, hasActiveFilter, panelRef, className = '', children }) {
   const { t } = useLocale();
-  const active = sort.col === col;
+  const active = sort?.col === col;
   const buttonRef = useRef(null);
   // Screen coordinates for the portaled panel below, in state (not read at
   // render time) so a resize/scroll while open re-renders it at the right spot.
@@ -53,15 +55,19 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
   return (
     <th className={`px-4 py-2 ${className}`}>
       <div className={`flex items-center gap-2 ${justify}`}>
-        <button type="button" onClick={() => onSort(col)} className="inline-flex items-center font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
-          {label}
-          {active ? (
-            sort.dir === 'asc' ? <ChevronUp size={12} className="ml-1 text-[var(--accent)]" /> : <ChevronDown size={12} className="ml-1 text-[var(--accent)]" />
-          ) : (
-            <ChevronsUpDown size={12} className="ml-1 text-slate-300 dark:text-slate-600" />
-          )}
-        </button>
-        <button
+        {onSort ? (
+          <button type="button" onClick={() => onSort(col)} className="inline-flex items-center font-medium hover:text-slate-800 dark:hover:text-slate-100 select-none cursor-pointer">
+            {label}
+            {active ? (
+              sort.dir === 'asc' ? <ChevronUp size={12} className="ml-1 text-[var(--accent)]" /> : <ChevronDown size={12} className="ml-1 text-[var(--accent)]" />
+            ) : (
+              <ChevronsUpDown size={12} className="ml-1 text-slate-300 dark:text-slate-600" />
+            )}
+          </button>
+        ) : (
+          <span className="font-medium">{label}</span>
+        )}
+        {children && <button
           ref={buttonRef}
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFilter(col); }}
@@ -72,9 +78,9 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
           }`}
         >
           <FilterIcon className="w-3.5 h-3.5" />
-        </button>
+        </button>}
       </div>
-      {isOpen && pos && createPortal(
+      {children && isOpen && pos && createPortal(
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, right: pos.right }}
