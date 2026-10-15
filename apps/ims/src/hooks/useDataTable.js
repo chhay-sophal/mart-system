@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useColumnFilter } from './useColumnFilter';
 
 /**
  * Filter + sort state for a <DataTable>, driven entirely by its column
@@ -84,7 +83,6 @@ export function useDataTable({ rows, columns, initialSort }) {
   const emptyFilters = useMemo(() => Object.fromEntries(filterable.map((c) => [c.key, emptyOf(c.filter)])), [filterable]);
   const [filters, setFilters] = useState(emptyFilters);
   const [sort, setSort] = useState(initialSort);
-  const columnFilter = useColumnFilter();
   const valueOf = (c) => filters[c.key] ?? emptyOf(c.filter);
 
   const visible = useMemo(() => {
@@ -117,6 +115,5 @@ export function useDataTable({ rows, columns, initialSort }) {
     sort,
     toggleSort: (col) =>
       setSort((prev) => (prev.col === col ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })),
-    ...columnFilter,
   };
 }

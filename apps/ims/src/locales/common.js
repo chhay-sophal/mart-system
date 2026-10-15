@@ -52,7 +52,6 @@ export default {
     previous: 'Previous',
     page: 'Page {page} of {pages}',
     unexpectedError: 'Something went wrong. Please try again.',
-    filterColumn: 'Filter {label}',
     noMatches: 'No matches.',
   },
   km: {
@@ -106,7 +105,6 @@ export default {
     previous: 'មុន',
     page: 'ទំព័រ {page} នៃ {pages}',
     unexpectedError: 'មានបញ្ហាអ្វីមួយ។ សូមព្យាយាមម្ដងទៀត។',
-    filterColumn: 'ត្រង {label}',
     noMatches: 'រកមិនឃើញទេ។',
   },
 };

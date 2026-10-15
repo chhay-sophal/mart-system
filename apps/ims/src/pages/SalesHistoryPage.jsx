@@ -142,8 +142,8 @@ export default function SalesHistoryPage() {
   });
 
   // The filter bar's search and show-voided toggle narrow the fetched rows
-  // first; the per-column header filters below narrow further. Branch/register
-  // header filters work within the already-fetched rows (the Branch select
+  // first; the table's filters (Filter button) narrow further. Its branch/register
+  // filters work within the already-fetched rows (the Branch select
   // above still drives which branch's data is fetched at all).
   const shownOrders = useMemo(() => orders.filter((o) => showVoided || !isVoided(o)), [orders, showVoided]);
   const search = useSearch(shownOrders, [

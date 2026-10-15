@@ -22,7 +22,7 @@ import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
-import { filterInput } from '../components/FilterableHeader.jsx';
+import { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
@@ -224,8 +224,8 @@ export default function ProductsPage() {
                 <option value="KHR">KHR</option>
               </select>
               <div className="flex gap-1">
-                <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={t.products.min} className={`${filterInput} w-20`} />
-                <input type="number" value={value.max} onChange={(e) => onChange({ ...value, max: e.target.value })} placeholder={t.products.max} className={`${filterInput} w-20`} />
+                <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={t.products.min} className={`${filterInput} flex-1 min-w-0`} />
+                <input type="number" value={value.max} onChange={(e) => onChange({ ...value, max: e.target.value })} placeholder={t.products.max} className={`${filterInput} flex-1 min-w-0`} />
               </div>
             </div>
           ),

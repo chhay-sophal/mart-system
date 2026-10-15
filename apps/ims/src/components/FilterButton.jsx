@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SlidersHorizontal } from 'lucide-react';
 import { useAnchoredPosition } from '../hooks/useAnchoredPosition';
-import { ColumnFilter } from './DataTable.jsx';
+import ColumnFilter from './ColumnFilter.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 
 /**
@@ -10,8 +10,7 @@ import { useLocale } from '../i18n/LocaleContext.jsx';
  * table defines, one per column, labelled by its column. Edits there are a
  * draft: nothing reaches the table until "Apply" (or Enter in a field), and
  * closing the dropdown any other way discards them. "Clear" resets the draft
- * to empty. It writes the same state as the column-header filters, so the
- * two always agree. The button shows how many filters are applied.
+ * to empty. The button shows how many filters are applied.
  *
  *   <FilterButton table={table} />
  *
@@ -102,7 +101,6 @@ export default function FilterButton({ table, only }) {
                 filter={col.filter}
                 value={draft[col.key]}
                 onChange={(v) => setDraft((prev) => ({ ...prev, [col.key]: v }))}
-                autoFocus={false}
               />
             </div>
           ))}
