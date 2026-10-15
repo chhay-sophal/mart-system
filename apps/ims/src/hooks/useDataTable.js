@@ -106,6 +106,7 @@ export function useDataTable({ rows, columns, initialSort }) {
     visible,
     total: rows.length,
     filters,
+    emptyFilters,
     setFilter: (key, value) => setFilters((prev) => ({ ...prev, [key]: value })),
     clearFilters: () => setFilters(emptyFilters),
     filterCount: filterable.filter((c) => !isEmpty(c.filter, valueOf(c))).length,

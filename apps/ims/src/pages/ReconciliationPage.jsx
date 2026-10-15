@@ -5,6 +5,7 @@ import { queryKeys } from '../lib/queryClient';
 import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
@@ -110,6 +111,7 @@ export default function ReconciliationPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <FilterButton table={table} />
           <span className="text-sm text-slate-500 dark:text-slate-400">
             {table.visible.length === rows.length
               ? fmt(t.reconciliation.count, { count: rows.length, rows: plural(rows.length, t.reconciliation.row, t.reconciliation.rowsWord) })

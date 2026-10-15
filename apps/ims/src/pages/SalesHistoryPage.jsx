@@ -9,6 +9,9 @@ import { fmt as fill } from '../i18n/translate';
 import Modal from '../components/Modal.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
+import SearchInput from '../components/SearchInput.jsx';
+import { useSearch } from '../hooks/useSearch';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
@@ -92,7 +95,6 @@ export default function SalesHistoryPage() {
   // Free-form date range, not a fixed set of periods -- defaults to today.
   const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
   const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
-  const [search, setSearch] = useState('');
   const [showVoided, setShowVoided] = useState(false);
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
@@ -143,23 +145,17 @@ export default function SalesHistoryPage() {
   // first; the per-column header filters below narrow further. Branch/register
   // header filters work within the already-fetched rows (the Branch select
   // above still drives which branch's data is fetched at all).
-  const barFiltered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return orders
-      .filter((o) => showVoided || !isVoided(o))
-      .filter(
-        (o) =>
-          !q ||
-          o.receipt_no.toLowerCase().includes(q) ||
-          (o.terminal_name ?? '').toLowerCase().includes(q) ||
-          (o.store_name ?? '').toLowerCase().includes(q) ||
-          (o.items || []).some((i) => i.product_name?.toLowerCase().includes(q) || i.barcode?.includes(q))
-      );
-  }, [orders, showVoided, search]);
+  const shownOrders = useMemo(() => orders.filter((o) => showVoided || !isVoided(o)), [orders, showVoided]);
+  const search = useSearch(shownOrders, [
+    (o) => o.receipt_no,
+    (o) => o.terminal_name,
+    (o) => o.store_name,
+    (o) => (o.items || []).flatMap((i) => [i.product_name, i.barcode]),
+  ]);
 
   const nowrap = 'whitespace-nowrap';
   const table = useDataTable({
-    rows: barFiltered,
+    rows: search.results,
     initialSort: { col: 'date', dir: 'desc' },
     columns: [
       {
@@ -215,7 +211,7 @@ export default function SalesHistoryPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [storeFilter, dateFrom, dateTo, search, showVoided, table.sort, table.filters]);
+  }, [storeFilter, dateFrom, dateTo, search.query, showVoided, table.sort, table.filters]);
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -313,13 +309,9 @@ export default function SalesHistoryPage() {
         </div>
         <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.search}</label>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t.sales.searchPlaceholder}
-            className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-          />
+          <SearchInput value={search.query} onChange={search.setQuery} placeholder={t.sales.searchPlaceholder} className="w-full" />
         </div>
+        <FilterButton table={table} />
         <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 pb-1.5">
           <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)} />
           {t.sales.showVoided}

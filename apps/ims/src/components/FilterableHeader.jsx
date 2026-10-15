@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
+import { useAnchoredPosition } from '../hooks/useAnchoredPosition';
 
 export const filterInput = 'w-full border border-[var(--border)] rounded-md px-3 h-9 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200';
 
@@ -23,29 +24,11 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
   const { t } = useLocale();
   const active = sort?.col === col;
   const buttonRef = useRef(null);
-  // Screen coordinates for the portaled panel below, in state (not read at
-  // render time) so a resize/scroll while open re-renders it at the right spot.
-  const [pos, setPos] = useState(null);
-
-  // The table's wrapper div needs overflow-hidden to clip its background to
-  // the rounded corners, which would also clip this dropdown if it rendered
-  // as a normal descendant -- a short table (few rows) left no room below.
-  // Rendering it through a portal, positioned from the button's own
-  // viewport rect, escapes that clipping entirely.
-  useLayoutEffect(() => {
-    if (!isOpen || !buttonRef.current) return;
-    const updatePos = () => {
-      const r = buttonRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
-    };
-    updatePos();
-    window.addEventListener('resize', updatePos);
-    window.addEventListener('scroll', updatePos, true);
-    return () => {
-      window.removeEventListener('resize', updatePos);
-      window.removeEventListener('scroll', updatePos, true);
-    };
-  }, [isOpen]);
+  // The table's wrapper div clips its overflow (rounded corners, sideways
+  // scroll), which would also clip this dropdown if it rendered as a normal
+  // descendant -- so it's portaled out and positioned from the button,
+  // kept on screen (right-aligned with the button when there's room).
+  const panelStyle = useAnchoredPosition(buttonRef, panelRef, isOpen, { prefer: 'end' });
 
   // Matches the plain SortTh's own className convention (e.g. "text-center",
   // "text-right") so a numeric column's filter icon lands on the same side as
@@ -80,10 +63,10 @@ export default function FilterableHeader({ col, label, sort, onSort, isOpen, onT
           <FilterIcon className="w-3.5 h-3.5" />
         </button>}
       </div>
-      {children && isOpen && pos && createPortal(
+      {children && isOpen && createPortal(
         <div
           ref={panelRef}
-          style={{ position: 'fixed', top: pos.top, right: pos.right }}
+          style={panelStyle}
           className="z-50 min-w-[200px] bg-white dark:bg-slate-800 border border-[var(--border)] rounded-lg shadow-lg p-3 font-normal"
         >
           {children}

@@ -7,20 +7,12 @@ import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
+import SearchInput from '../components/SearchInput.jsx';
+import { useSearch } from '../hooks/useSearch';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
-const norm = (value) => String(value ?? '').trim().toLowerCase();
-
-// The top search bar: name, phone, or email.
-function matchesSearch(s, search) {
-  return (
-    norm(s.name).includes(search) ||
-    s.phone1.includes(search) ||
-    (s.phone2 ?? '').includes(search) ||
-    norm(s.email).includes(search)
-  );
-}
 
 const EMPTY_FORM = { name: '', phone1: '', phone2: '', email: '', address: '' };
 const PAGE_SIZE = 50;
@@ -50,7 +42,6 @@ export default function SuppliersPage() {
   const confirm = useConfirm();
   const { t } = useLocale();
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null); // null | 'new' | supplier object
   const [form, setForm] = useState(EMPTY_FORM);
@@ -68,15 +59,13 @@ export default function SuppliersPage() {
   });
   const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
   const loading = suppliersQuery.isPending;
-  const searched = useMemo(() => {
-    const q = norm(search);
-    return q ? suppliers.filter((s) => matchesSearch(s, q)) : suppliers;
-  }, [suppliers, search]);
+  // The top search bar: name, phone, or email.
+  const search = useSearch(suppliers, [(s) => s.name, (s) => s.phone1, (s) => s.phone2, (s) => s.email]);
 
   const muted = 'text-slate-500 dark:text-slate-400';
   const contains = { type: 'text', placeholder: t.suppliers.contains };
   const table = useDataTable({
-    rows: searched,
+    rows: search.results,
     initialSort: { col: 'name', dir: 'asc' },
     columns: [
       { key: 'name', label: t.common.name, cellClassName: 'font-medium', sortValue: (s) => s.name, filter: { type: 'text', placeholder: t.suppliers.filterName } },
@@ -133,7 +122,7 @@ export default function SuppliersPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search, table.filters, table.sort, storeId]);
+  }, [search.query, table.filters, table.sort, storeId]);
 
   // Prefix match (no includeDeleted in the key here) invalidates both the
   // plain and the show-archived variant, since either one can change a save.
@@ -207,23 +196,18 @@ export default function SuppliersPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t.suppliers.searchPlaceholder}
-          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 h-9 text-sm bg-white dark:bg-slate-800"
-        />
+        <SearchInput value={search.query} onChange={search.setQuery} placeholder={t.suppliers.searchPlaceholder} />
+        <FilterButton table={table} />
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {visible.length === suppliers.length
             ? fmt(t.suppliers.count, { count: suppliers.length })
             : fmt(t.suppliers.countFiltered, { visible: visible.length, total: suppliers.length })}
         </span>
-        {(filterCount > 0 || search) && (
+        {(filterCount > 0 || search.isActive) && (
           <button
             onClick={() => {
               table.clearFilters();
-              setSearch('');
+              search.clear();
             }}
             className="text-sm text-[var(--accent)] font-medium cursor-pointer">
             {filterCount > 0 ? fmt(t.suppliers.clearFilters, { count: filterCount }) : t.suppliers.clearSearch}

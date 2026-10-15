@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -10,7 +10,6 @@ import {
   comparePriceBy,
   effectivePrice,
   inNumberRange,
-  matchesSearch,
   matchesStatus,
   matchesStock,
   matchesTextOrMissing,
@@ -20,6 +19,9 @@ import Modal from '../components/Modal.jsx';
 import SearchableSelect from '../components/SearchableSelect.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
+import SearchInput from '../components/SearchInput.jsx';
+import { useSearch } from '../hooks/useSearch';
 import { filterInput } from '../components/FilterableHeader.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -101,9 +103,7 @@ export default function ProductsPage() {
   const [viewStoreId, setViewStoreId] = useState(null);
   // Search bar (issue #8), applied in the browser before the table's own
   // per-column filters/sort (useDataTable below).
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const searchRef = useRef(null);
   // Mirrors the table's status filter (kept in step by `table` below): the
   // products query needs it before the table hook can run, since the hook
   // needs the query's rows.
@@ -166,11 +166,10 @@ export default function ProductsPage() {
     : null;
 
   // Deferred, so typing stays responsive while a long list re-filters.
-  const deferredSearch = useDeferredValue(search);
-  const searched = useMemo(() => products.filter((p) => matchesSearch(p, deferredSearch)), [products, deferredSearch]);
+  const search = useSearch(products, [(p) => p.name, (p) => p.barcode]);
 
   const baseTable = useDataTable({
-    rows: searched,
+    rows: search.results,
     initialSort: { col: 'name', dir: 'asc' },
     columns: [
       {
@@ -341,24 +340,12 @@ export default function ProductsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [table.filters, table.sort, search, viewStoreId]);
+  }, [table.filters, table.sort, search.query, viewStoreId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(new Set());
   }, [viewStoreId]);
-
-  // "/" jumps to the search box (unless already typing somewhere).
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (e.key !== '/' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      e.preventDefault();
-      searchRef.current?.focus();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
 
   // After a save: refresh every product list (full, low-stock, every store
   // and the "All stores" view alike) and reports, whose negative-stock list
@@ -496,23 +483,17 @@ export default function ProductsPage() {
             </option>
           ))}
         </select>
-        <input
-          ref={searchRef}
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t.products.searchPlaceholder}
-          className="flex-1 min-w-64 border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800"
-        />
+        <SearchInput value={search.query} onChange={search.setQuery} placeholder={t.products.searchPlaceholder} shortcut />
+        <FilterButton table={table} />
         <span className="text-sm text-slate-500 dark:text-slate-400">
           {visible.length === products.length
             ? fmt(plural(products.length, t.products.countOne, t.products.count), { count: products.length })
             : fmt(t.products.countFiltered, { visible: visible.length, total: products.length })}
         </span>
-        {(filterCount > 0 || search) && (
+        {(filterCount > 0 || search.isActive) && (
           <button
             onClick={() => {
-              setSearch('');
+              search.clear();
               table.clearFilters();
             }}
             className="text-sm text-[var(--accent)] font-medium cursor-pointer">

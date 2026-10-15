@@ -26,12 +26,6 @@ export const effectivePrice = (p) => Number(p.priceOverride ?? p.defaultPrice);
 
 const norm = (value) => String(value ?? '').trim().toLowerCase();
 
-/** The top search bar: name or barcode contains the query. */
-export function matchesSearch(p, query) {
-  const q = norm(query);
-  return !q || norm(p.name).includes(q) || norm(p.barcode).includes(q);
-}
-
 /** A { mode: 'any' | 'missing', text } filter: "missing" means the value is blank. */
 export function matchesTextOrMissing(value, { mode, text }) {
   const v = norm(value);

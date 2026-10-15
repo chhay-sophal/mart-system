@@ -96,7 +96,8 @@ export default function DataTable({
   );
 }
 
-function ColumnFilter({ filter, value, onChange }) {
+/** One column's filter controls; also used by FilterButton's dropdown. */
+export function ColumnFilter({ filter, value, onChange, autoFocus = true }) {
   const { t } = useLocale();
 
   switch (filter.type) {
@@ -112,7 +113,7 @@ function ColumnFilter({ filter, value, onChange }) {
     case 'numberRange':
       return (
         <div className="flex gap-1">
-          <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={filter.minPlaceholder} className={`${filterInput} w-20`} autoFocus />
+          <input type="number" value={value.min} onChange={(e) => onChange({ ...value, min: e.target.value })} placeholder={filter.minPlaceholder} className={`${filterInput} w-20`} autoFocus={autoFocus} />
           <input type="number" value={value.max} onChange={(e) => onChange({ ...value, max: e.target.value })} placeholder={filter.maxPlaceholder} className={`${filterInput} w-20`} />
         </div>
       );
@@ -132,6 +133,6 @@ function ColumnFilter({ filter, value, onChange }) {
     case 'custom':
       return filter.render({ value, onChange });
     default:
-      return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={filter.placeholder} className={filterInput} autoFocus />;
+      return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={filter.placeholder} className={filterInput} autoFocus={autoFocus} />;
   }
 }

@@ -6,6 +6,7 @@ import { queryKeys } from '../lib/queryClient';
 import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
 
@@ -184,6 +185,7 @@ export default function StaffPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.staff.title}</h1>
         <div className="flex items-center gap-3">
+          <FilterButton table={table} />
           <span className="text-sm text-slate-500 dark:text-slate-400">
             {table.visible.length === staff.length
               ? fmt(t.staff.count, { count: staff.length })

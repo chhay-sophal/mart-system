@@ -7,6 +7,7 @@ import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
+import FilterButton from '../components/FilterButton.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
@@ -154,6 +155,7 @@ export default function TerminalsPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.terminals.title}</h1>
         <div className="flex items-center gap-3">
+          <FilterButton table={table} />
           <span className="text-sm text-slate-500 dark:text-slate-400">
             {table.visible.length === terminals.length
               ? fmt(plural(terminals.length, t.terminals.countOne, t.terminals.countMany), { count: terminals.length })
