@@ -68,10 +68,10 @@ export function AuthProvider({ children }) {
   }, [applyTokens, clearAuth]);
 
   const login = useCallback(
-    async (email, password) => {
-      const res = await apiClient.post('/api/auth/login', { email, password });
+    async (username, password) => {
+      const res = await apiClient.post('/api/auth/login', { username, password });
       applyTokens(res.accessToken, res.refreshToken);
-      setUser({ email });
+      setUser({ username: username.trim().toLowerCase() });
       await loadStores();
       scheduleProactiveRefresh();
       setStatus('authenticated');

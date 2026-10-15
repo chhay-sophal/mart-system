@@ -2,7 +2,7 @@ import type { UserRole } from "./store";
 
 /** Back-office (IMS) login. */
 export interface LoginRequest {
-  email: string;
+  username: string;
   password: string;
 }
 
@@ -26,7 +26,7 @@ export interface PinLoginResponse {
 
 export interface AuthUser {
   id: string;
-  email: string;
+  username: string;
   name: string;
   isSuperAdmin: boolean;
 }

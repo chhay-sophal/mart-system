@@ -42,6 +42,7 @@ export async function seedFixtures() {
 
   const admin = await prisma.user.create({
     data: {
+      username: "admin",
       email: "admin@test.local",
       name: "Test Admin",
       passwordHash: await hashPassword(FIXTURE_PASSWORD),

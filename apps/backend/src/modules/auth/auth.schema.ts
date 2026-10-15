@@ -2,7 +2,9 @@ import { z } from "zod";
 import { pinSchema } from "../staff/staff.schema";
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  // Only normalized here, not format-checked: a malformed username just fails
+  // as an unknown one, with the same 401 as a wrong password.
+  username: z.string().trim().toLowerCase().min(1),
   password: z.string().min(1),
 });
 

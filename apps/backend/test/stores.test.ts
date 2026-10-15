@@ -11,15 +11,15 @@ beforeEach(async () => {
   await resetDatabase();
 });
 
-async function login(email: string, password: string) {
-  const res = await request(app).post("/api/auth/login").send({ email, password });
+async function login(username: string, password: string) {
+  const res = await request(app).post("/api/auth/login").send({ username, password });
   return res.body.accessToken as string;
 }
 
 describe("GET /api/stores", () => {
   it("reports the caller's own role at each store", async () => {
     const { store } = await seedFixtures();
-    const token = await login("admin@test.local", FIXTURE_PASSWORD);
+    const token = await login("admin", FIXTURE_PASSWORD);
 
     const res = await request(app).get("/api/stores").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
@@ -30,11 +30,11 @@ describe("GET /api/stores", () => {
     const { store } = await seedFixtures();
     const password = "InventoryPassw0rd!";
     const user = await prisma.user.create({
-      data: { email: "inventory@test.local", name: "Inventory Staff", passwordHash: await hashPassword(password) },
+      data: { username: "inventory", name: "Inventory Staff", passwordHash: await hashPassword(password) },
     });
     await prisma.userStoreRole.create({ data: { userId: user.id, storeId: store.id, role: "INVENTORY" } });
 
-    const token = await login("inventory@test.local", password);
+    const token = await login("inventory", password);
     const res = await request(app).get("/api/stores").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject([{ id: store.id, role: "INVENTORY" }]);
@@ -44,10 +44,10 @@ describe("GET /api/stores", () => {
     const { store } = await seedFixtures();
     const password = "SuperPassw0rd!";
     await prisma.user.create({
-      data: { email: "super@test.local", name: "Super Admin", passwordHash: await hashPassword(password), isSuperAdmin: true },
+      data: { username: "super", name: "Super Admin", passwordHash: await hashPassword(password), isSuperAdmin: true },
     });
 
-    const token = await login("super@test.local", password);
+    const token = await login("super", password);
     const res = await request(app).get("/api/stores").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject([{ id: store.id, role: "ADMIN" }]);
@@ -57,11 +57,11 @@ describe("GET /api/stores", () => {
     const { store } = await seedFixtures();
     const password = "LimitedPassw0rd!";
     const user = await prisma.user.create({
-      data: { email: "limited@test.local", name: "Limited", passwordHash: await hashPassword(password) },
+      data: { username: "limited", name: "Limited", passwordHash: await hashPassword(password) },
     });
     await prisma.userStoreRole.create({ data: { userId: user.id, storeId: store.id, role: "CASHIER", isActive: false } });
 
-    const token = await login("limited@test.local", password);
+    const token = await login("limited", password);
     const res = await request(app).get("/api/stores").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);

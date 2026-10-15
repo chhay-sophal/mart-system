@@ -18,8 +18,8 @@ export interface TokenPair {
   refreshToken: string;
 }
 
-async function issueTokenPair(user: { id: string; email: string | null; isSuperAdmin: boolean }): Promise<TokenPair> {
-  const accessToken = signAccessToken({ sub: user.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
+async function issueTokenPair(user: { id: string; username: string | null; isSuperAdmin: boolean }): Promise<TokenPair> {
+  const accessToken = signAccessToken({ sub: user.id, username: user.username, isSuperAdmin: user.isSuperAdmin });
 
   const refreshRow = await prisma.refreshToken.create({
     data: {
@@ -37,7 +37,7 @@ async function issueTokenPair(user: { id: string; email: string | null; isSuperA
 }
 
 export async function registerUserWithPassword(input: {
-  email: string;
+  username: string;
   password: string;
   name: string;
   isSuperAdmin?: boolean;
@@ -45,7 +45,7 @@ export async function registerUserWithPassword(input: {
   const passwordHash = await hashPassword(input.password);
   return prisma.user.create({
     data: {
-      email: input.email,
+      username: input.username,
       passwordHash,
       name: input.name,
       isSuperAdmin: input.isSuperAdmin ?? false,
@@ -53,13 +53,13 @@ export async function registerUserWithPassword(input: {
   });
 }
 
-export async function login(email: string, password: string): Promise<TokenPair> {
-  const user = await prisma.user.findUnique({ where: { email } });
-  // Same error for unknown email and wrong password — don't let the response shape reveal which one it was.
-  if (!user || !user.isActive) throw unauthorized("Invalid email or password");
+export async function login(username: string, password: string): Promise<TokenPair> {
+  const user = await prisma.user.findUnique({ where: { username } });
+  // Same error for unknown username and wrong password — don't let the response shape reveal which one it was.
+  if (!user || !user.isActive) throw unauthorized("Invalid username or password");
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) throw unauthorized("Invalid email or password");
+  if (!valid) throw unauthorized("Invalid username or password");
 
   return issueTokenPair(user);
 }

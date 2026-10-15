@@ -14,7 +14,7 @@ beforeEach(async () => {
 async function loginAsAdmin() {
   const res = await request(app)
     .post("/api/auth/login")
-    .send({ email: "admin@test.local", password: FIXTURE_PASSWORD });
+    .send({ username: "admin", password: FIXTURE_PASSWORD });
   return res.body.accessToken as string;
 }
 
@@ -22,7 +22,7 @@ async function loginAsAdmin() {
 async function seedSecondStore() {
   const store = await prisma.store.create({ data: { code: "BRANCH2", name: "Branch Two" } });
   const admin = await prisma.user.create({
-    data: { email: "branch2admin@test.local", name: "Branch Two Admin", passwordHash: await hashPassword(FIXTURE_PASSWORD) },
+    data: { username: "branch2admin", name: "Branch Two Admin", passwordHash: await hashPassword(FIXTURE_PASSWORD) },
   });
   await prisma.userStoreRole.create({ data: { userId: admin.id, storeId: store.id, role: "ADMIN" } });
   return { store, admin };
@@ -51,7 +51,7 @@ describe("inter-store stock transfers", () => {
       .set("Authorization", `Bearer ${fromToken}`);
     expect(wrongComplete.status).toBe(403);
 
-    const toLogin = await request(app).post("/api/auth/login").send({ email: toAdmin.email, password: FIXTURE_PASSWORD });
+    const toLogin = await request(app).post("/api/auth/login").send({ username: toAdmin.username, password: FIXTURE_PASSWORD });
     const toToken = toLogin.body.accessToken as string;
 
     const complete = await request(app)
@@ -117,7 +117,7 @@ describe("inter-store stock transfers", () => {
     const { store: toStore, admin: toAdmin } = await seedSecondStore();
     const { product } = await addProduct(fromStore.id, { name: "Widget", price: 1, stock: 10 });
 
-    const toLogin = await request(app).post("/api/auth/login").send({ email: toAdmin.email, password: FIXTURE_PASSWORD });
+    const toLogin = await request(app).post("/api/auth/login").send({ username: toAdmin.username, password: FIXTURE_PASSWORD });
     const toToken = toLogin.body.accessToken as string;
 
     const res = await request(app)

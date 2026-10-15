@@ -45,19 +45,23 @@ async function main() {
     update: {},
   });
 
+  const adminUsername = "admin";
   const adminEmail = "admin@mart-system.local";
   const adminPassword = "ChangeMe123!";
   const adminPin = "1234";
 
+  // Keyed by email so a dev DB seeded before usernames existed gets its admin
+  // renamed to "admin" rather than a duplicate account.
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     create: {
+      username: adminUsername,
       email: adminEmail,
       name: "Admin",
       isSuperAdmin: true,
       passwordHash: await hashPassword(adminPassword),
     },
-    update: {},
+    update: { username: adminUsername },
   });
 
   await prisma.userStoreRole.upsert({
@@ -132,7 +136,7 @@ async function main() {
 
   console.log("\nSeed complete.\n");
   console.log(`Store:        ${store.name} (${store.code}) — id ${store.id}`);
-  console.log(`Admin login:  ${adminEmail} / ${adminPassword}`);
+  console.log(`Admin login:  ${adminUsername} / ${adminPassword}`);
   console.log(`Admin PIN:    ${adminPin} (store ${store.code})`);
   console.log(`Terminal:     ${terminal.name} — id ${terminal.id}`);
   if (!existingTerminal) {

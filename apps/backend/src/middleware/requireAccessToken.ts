@@ -9,7 +9,7 @@ export function requireAccessToken(req: Request, _res: Response, next: NextFunct
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { id: payload.sub, email: payload.email, isSuperAdmin: payload.isSuperAdmin };
+    req.user = { id: payload.sub, username: payload.username, isSuperAdmin: payload.isSuperAdmin };
     next();
   } catch {
     next(unauthorized("Invalid or expired access token"));

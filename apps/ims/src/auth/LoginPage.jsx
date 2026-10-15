@@ -7,7 +7,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { t } = useLocale();
   const l = t.shell.login;
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(username, password);
     } catch {
       setError(l.invalid);
     } finally {
@@ -38,16 +38,19 @@ export default function LoginPage() {
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{l.subtitle}</p>
 
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="email">
-          {l.email}
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1" htmlFor="username">
+          {l.username}
         </label>
         <input
-          id="email"
-          type="email"
+          id="username"
+          type="text"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           required
           autoFocus
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
         />
 

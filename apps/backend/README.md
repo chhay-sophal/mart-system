@@ -12,7 +12,7 @@ Runs on [Turso](https://turso.tech) (a hosted libSQL/SQLite-family database) rat
    pnpm db:migrate
    pnpm db:seed
    ```
-   The seed script prints a dev-only terminal device secret and the seeded admin's email/password/PIN once — save it, it isn't recoverable afterward.
+   The seed script prints a dev-only terminal device secret and the seeded admin's username/password/PIN once — save it, it isn't recoverable afterward.
 3. Start the API:
    ```sh
    pnpm dev
@@ -20,7 +20,7 @@ Runs on [Turso](https://turso.tech) (a hosted libSQL/SQLite-family database) rat
 
 ### Creating a real admin (not a seed)
 
-`pnpm db:seed` is dev-only — it hardcodes a known admin password and a terminal secret literally named `dev-terminal-secret-do-not-use-in-prod`, plus 21 fake products. Never run it against a real database. For a real deployment's first store/admin, use `pnpm create-admin` instead — this is a separate, ordinary script (not part of the Prisma seed mechanism, so it can't be triggered accidentally by `prisma db seed`/`migrate reset`, and it's obvious at a glance that it's not a "seed"). It prompts interactively for the store name/code and admin email/name — no env vars to set up front:
+`pnpm db:seed` is dev-only — it hardcodes a known admin password and a terminal secret literally named `dev-terminal-secret-do-not-use-in-prod`, plus 21 fake products. Never run it against a real database. For a real deployment's first store/admin, use `pnpm create-admin` instead — this is a separate, ordinary script (not part of the Prisma seed mechanism, so it can't be triggered accidentally by `prisma db seed`/`migrate reset`, and it's obvious at a glance that it's not a "seed"). It prompts interactively for the store name/code and admin username/name (email optional) — no env vars to set up front:
 
 ```sh
 pnpm create-admin
@@ -28,11 +28,12 @@ pnpm create-admin
 ```
 Store name: My Store
 Store code: MAIN
-Admin email: owner@example.com
+Admin username: owner
 Admin name: Owner Name
+Admin email (optional): owner@example.com
 ```
 
-It creates exactly one store and one admin — no demo data, no demo terminal (pair real terminals through IMS's own pairing flow afterward) — with a randomly generated password and PIN printed once. Safe to re-run: if the admin email already exists, it leaves their credentials untouched instead of regenerating/reprinting them; run it again with a different admin email to add another admin, or a different store code to add another store.
+It creates exactly one store and one admin — no demo data, no demo terminal (pair real terminals through IMS's own pairing flow afterward) — with a randomly generated password and PIN printed once. Safe to re-run: if the admin username already exists, it leaves their credentials untouched instead of regenerating/reprinting them; run it again with a different admin username to add another admin, or a different store code to add another store.
 
 For a real deployment, point `DATABASE_URL` at a real Turso database (`libsql://<db>.turso.io`) and set `TURSO_AUTH_TOKEN` — see `src/env.ts`. `prisma migrate dev`/`deploy` can't be used against it at all (they refuse to even validate a non-`file:` URL) — generate the migration locally as usual (`pnpm db:migrate`, against a local file), then apply it to the real database with:
 
@@ -52,5 +53,5 @@ pnpm test
 
 ## Auth model
 
-- **Back-office (IMS)**: `POST /api/auth/login` (email/password) → short-lived access token + rotating refresh token.
+- **Back-office (IMS)**: `POST /api/auth/login` (username/password; usernames are case-insensitive) → short-lived access token + rotating refresh token.
 - **Cashier terminal**: requests to `/api/auth/pin-login` must carry `X-Terminal-Id`/`X-Terminal-Secret` headers (issued once at terminal pairing) *and* a valid PIN in the body — the device credential is checked first, so PIN attempts from anything that isn't a paired terminal are rejected before the PIN is even looked at.

@@ -10,8 +10,8 @@ export const authRouter: Router = Router();
 authRouter.post(
   "/login",
   asyncHandler(async (req, res) => {
-    const { email, password } = loginSchema.parse(req.body);
-    const tokens = await login(email, password);
+    const { username, password } = loginSchema.parse(req.body);
+    const tokens = await login(username, password);
     res.json(tokens);
   })
 );

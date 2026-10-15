@@ -14,7 +14,7 @@ describe("POST /api/auth/login", () => {
     await seedFixtures();
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin@test.local", password: FIXTURE_PASSWORD });
+      .send({ username: "admin", password: FIXTURE_PASSWORD });
 
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toEqual(expect.any(String));
@@ -25,21 +25,29 @@ describe("POST /api/auth/login", () => {
     await seedFixtures();
     const res = await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin@test.local", password: "wrong-password" });
+      .send({ username: "admin", password: "wrong-password" });
     expect(res.status).toBe(401);
   });
 
-  it("rejects an unknown email with the same 401 (no enumeration)", async () => {
+  it("rejects an unknown username with the same 401 (no enumeration)", async () => {
     await seedFixtures();
     const wrongPassword = await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin@test.local", password: "wrong" });
-    const unknownEmail = await request(app)
+      .send({ username: "admin", password: "wrong" });
+    const unknownUsername = await request(app)
       .post("/api/auth/login")
-      .send({ email: "nobody@test.local", password: "wrong" });
+      .send({ username: "nobody", password: "wrong" });
 
-    expect(unknownEmail.status).toBe(401);
-    expect(unknownEmail.body.error).toBe(wrongPassword.body.error);
+    expect(unknownUsername.status).toBe(401);
+    expect(unknownUsername.body.error).toBe(wrongPassword.body.error);
+  });
+
+  it("matches the username case-insensitively, ignoring surrounding spaces", async () => {
+    await seedFixtures();
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send({ username: "  ADMIN ", password: FIXTURE_PASSWORD });
+    expect(res.status).toBe(200);
   });
 });
 
@@ -48,7 +56,7 @@ describe("POST /api/auth/refresh", () => {
     await seedFixtures();
     const login = await request(app)
       .post("/api/auth/login")
-      .send({ email: "admin@test.local", password: FIXTURE_PASSWORD });
+      .send({ username: "admin", password: FIXTURE_PASSWORD });
 
     const firstRefresh = login.body.refreshToken as string;
 

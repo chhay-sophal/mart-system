@@ -12,10 +12,10 @@
 // products get added through IMS afterward.
 //
 // Usage: pnpm create-admin [--project <name>] -- prompts for the store
-// name/code and admin email/name interactively. With --project lysin, the
-// database is the one in .env.lysin.production instead of .env. Safe to
-// re-run: upserts by store code / admin email, but will NOT reprint a
-// password for a user that already exists.
+// name/code and admin username/name (plus an optional email) interactively.
+// With --project lysin, the database is the one in .env.lysin.production
+// instead of .env. Safe to re-run: upserts by store code / admin username,
+// but will NOT reprint a password for a user that already exists.
 
 import crypto from "node:crypto";
 import { existsSync } from "node:fs";
@@ -25,6 +25,8 @@ import { stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { config } from "dotenv";
+import { z, type ZodType } from "zod";
+import { usernameSchema } from "../src/modules/staff/staff.schema";
 
 const { values: args } = parseArgs({ options: { project: { type: "string" } } });
 
@@ -53,6 +55,16 @@ async function promptRequired(rl: readline.Interface, label: string): Promise<st
   }
 }
 
+async function promptValid<T>(rl: readline.Interface, label: string, schema: ZodType<T>, optional = false): Promise<T | undefined> {
+  while (true) {
+    const value = (await rl.question(`${label}: `)).trim();
+    if (!value && optional) return undefined;
+    const parsed = schema.safeParse(value);
+    if (parsed.success) return parsed.data;
+    console.log(parsed.error.issues[0]?.message ?? "Invalid value.");
+  }
+}
+
 function randomPassword(): string {
   return crypto.randomBytes(18).toString("base64url"); // ~24 chars, URL-safe
 }
@@ -63,12 +75,13 @@ function randomPin(): string {
 
 async function main() {
   const rl = readline.createInterface({ input: stdin, output: stdout });
-  let storeName: string, storeCode: string, adminEmail: string, adminName: string;
+  let storeName: string, storeCode: string, adminUsername: string, adminName: string, adminEmail: string | undefined;
   try {
     storeName = await promptRequired(rl, "Store name");
     storeCode = await promptRequired(rl, "Store code");
-    adminEmail = await promptRequired(rl, "Admin email");
+    adminUsername = (await promptValid(rl, "Admin username", usernameSchema))!;
     adminName = await promptRequired(rl, "Admin name");
+    adminEmail = await promptValid(rl, "Admin email (optional)", z.string().email("Not a valid email."), true);
   } finally {
     rl.close();
   }
@@ -79,7 +92,7 @@ async function main() {
     update: { name: storeName },
   });
 
-  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const existingAdmin = await prisma.user.findUnique({ where: { username: adminUsername } });
 
   if (existingAdmin) {
     await prisma.userStoreRole.upsert({
@@ -88,7 +101,7 @@ async function main() {
       update: { role: "ADMIN", isActive: true },
     });
     console.log(`\nStore ready: ${store.name} (${store.code})`);
-    console.log(`Admin ${adminEmail} already existed -- left their password/PIN untouched.`);
+    console.log(`Admin ${adminUsername} already existed -- left their password/PIN untouched.`);
     return;
   }
 
@@ -97,7 +110,8 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      email: adminEmail,
+      username: adminUsername,
+      email: adminEmail ?? null,
       name: adminName,
       isSuperAdmin: true,
       passwordHash: await hashPassword(password),
@@ -110,7 +124,7 @@ async function main() {
 
   console.log("\nAdmin created.\n");
   console.log(`Store:        ${store.name} (${store.code}) — id ${store.id}`);
-  console.log(`Admin login:  ${adminEmail} / ${password}`);
+  console.log(`Admin login:  ${adminUsername} / ${password}`);
   console.log(`Admin PIN:    ${pin}`);
   console.log("\nThese are shown once and are not recoverable -- save them now, then change the password on first login.");
 }

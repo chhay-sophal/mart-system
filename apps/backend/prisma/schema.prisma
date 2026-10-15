@@ -90,8 +90,11 @@ model Store {
 
 model User {
   id           String   @id @default(cuid())
-  // Null for a cashier-only account: they log in with a store PIN, never an
-  // email/password, so nothing forces a placeholder value to exist here.
+  // IMS login name, stored lowercase. Null for a cashier-only account: they
+  // log in with a store PIN, never a username/password, so nothing forces a
+  // placeholder value to exist here.
+  username     String?  @unique
+  // Optional contact address only -- never used to log in.
   email        String?  @unique
   passwordHash String
   name         String

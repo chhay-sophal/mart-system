@@ -13,7 +13,7 @@ beforeEach(async () => {
 async function loginAsAdmin() {
   const res = await request(app)
     .post("/api/auth/login")
-    .send({ email: "admin@test.local", password: FIXTURE_PASSWORD });
+    .send({ username: "admin", password: FIXTURE_PASSWORD });
   return res.body.accessToken as string;
 }
 
@@ -25,18 +25,33 @@ describe("staff management", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "cashier1@test.local", name: "Cashier One", password: "Passw0rd!!", role: "CASHIER", pin: "4321" });
+      .send({ username: "Cashier1", email: "cashier1@test.local", name: "Cashier One", password: "Passw0rd!!", role: "CASHIER", pin: "4321" });
 
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ email: "cashier1@test.local", role: "CASHIER", isActive: true, hasPinSet: true });
+    expect(res.body).toMatchObject({ username: "cashier1", email: "cashier1@test.local", role: "CASHIER", isActive: true, hasPinSet: true });
 
     const list = await request(app)
       .get(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`);
-    expect(list.body.map((s: { email: string }) => s.email)).toContain("cashier1@test.local");
+    expect(list.body.map((s: { username: string }) => s.username)).toContain("cashier1");
   });
 
-  it("creates a cashier with no email or password, generating a placeholder account", async () => {
+  it("creates an INVENTORY staff member with a username and no email, who can then log in", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    const res = await request(app)
+      .post(`/api/stores/${store.id}/staff`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ username: "stock.keeper", name: "Stock Keeper", password: "Passw0rd!!", role: "INVENTORY" });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ username: "stock.keeper", email: null });
+
+    const login = await request(app).post("/api/auth/login").send({ username: "stock.keeper", password: "Passw0rd!!" });
+    expect(login.status).toBe(200);
+  });
+
+  it("creates a cashier with no username, email or password, generating a placeholder account", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
@@ -46,14 +61,15 @@ describe("staff management", () => {
       .send({ name: "No Email Cashier", role: "CASHIER", pin: "4321" });
 
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ email: null, name: "No Email Cashier", role: "CASHIER", hasPinSet: true });
+    expect(res.body).toMatchObject({ username: null, email: null, name: "No Email Cashier", role: "CASHIER", hasPinSet: true });
 
     const user = await prisma.user.findUnique({ where: { id: res.body.userId } });
+    expect(user?.username).toBeNull();
     expect(user?.email).toBeNull();
     expect(user?.passwordHash).toBeTruthy();
   });
 
-  it("rejects creating an INVENTORY or ADMIN staff member with no email or password", async () => {
+  it("rejects creating an INVENTORY or ADMIN staff member with no username or password", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
 
@@ -63,6 +79,25 @@ describe("staff management", () => {
       .send({ name: "No Email Inventory", role: "INVENTORY" });
 
     expect(res.status).toBe(400);
+
+    const emailOnly = await request(app)
+      .post(`/api/stores/${store.id}/staff`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ email: "inv@test.local", name: "Email Only", password: "Passw0rd!!", role: "INVENTORY" });
+    expect(emailOnly.status).toBe(400);
+  });
+
+  it("rejects a username with spaces or other disallowed characters", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+
+    for (const username of ["ab", "has space", "no/slash"]) {
+      const res = await request(app)
+        .post(`/api/stores/${store.id}/staff`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ username, name: "Bad", password: "Passw0rd!!", role: "INVENTORY" });
+      expect(res.status, `create with "${username}"`).toBe(400);
+    }
   });
 
   it("attaches a new role to an existing user instead of duplicating the account", async () => {
@@ -74,17 +109,17 @@ describe("staff management", () => {
     await request(app)
       .post(`/api/stores/${otherStore.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "multi@test.local", name: "Multi Store", password: "Passw0rd!!", role: "INVENTORY" });
+      .send({ username: "multi", name: "Multi Store", password: "Passw0rd!!", role: "INVENTORY" });
 
     const res = await request(app)
       .post(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "multi@test.local", name: "Multi Store", password: "Passw0rd!!", role: "ADMIN" });
+      .send({ username: "multi", name: "Multi Store", password: "Passw0rd!!", role: "ADMIN" });
 
     expect(res.status).toBe(201);
     expect(res.body.role).toBe("ADMIN");
 
-    const userCount = await prisma.user.count({ where: { email: "multi@test.local" } });
+    const userCount = await prisma.user.count({ where: { username: "multi" } });
     expect(userCount).toBe(1);
   });
 
@@ -95,12 +130,12 @@ describe("staff management", () => {
     await request(app)
       .post(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "dup@test.local", name: "Dup", password: "Passw0rd!!", role: "CASHIER" });
+      .send({ username: "dup", name: "Dup", password: "Passw0rd!!", role: "CASHIER" });
 
     const res = await request(app)
       .post(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "dup@test.local", name: "Dup", password: "Passw0rd!!", role: "INVENTORY" });
+      .send({ username: "dup", name: "Dup", password: "Passw0rd!!", role: "INVENTORY" });
 
     expect(res.status).toBe(409);
   });
@@ -113,7 +148,7 @@ describe("staff management", () => {
     const res = await request(app)
       .post(`/api/stores/${store.id}/staff`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ email: "newpin@test.local", name: "New", password: "Passw0rd!!", role: "CASHIER", pin: "7777" });
+      .send({ username: "newpin", name: "New", password: "Passw0rd!!", role: "CASHIER", pin: "7777" });
 
     expect(res.status).toBe(409);
   });
@@ -127,7 +162,7 @@ describe("staff management", () => {
       const create = await request(app)
         .post(`/api/stores/${store.id}/staff`)
         .set("Authorization", `Bearer ${token}`)
-        .send({ email: `pin${pin.trim()}@test.local`, name: "New", password: "Passw0rd!!", role: "CASHIER", pin });
+        .send({ username: `pin${pin.trim()}`, name: "New", password: "Passw0rd!!", role: "CASHIER", pin });
       expect(create.status, `create with "${pin}"`).toBe(400);
 
       const reset = await request(app)
@@ -157,7 +192,7 @@ describe("staff management", () => {
     expect(reset.body.hasPinSet).toBe(true);
   });
 
-  it("updates name, email, password and PIN together through the one edit endpoint", async () => {
+  it("updates name, username, email, password and PIN together through the one edit endpoint", async () => {
     const { store } = await seedFixtures();
     const token = await loginAsAdmin();
     const cashier = await addCashier(store.id, "5555");
@@ -165,15 +200,15 @@ describe("staff management", () => {
     const update = await request(app)
       .patch(`/api/stores/${store.id}/staff/${cashier.id}`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ name: "Renamed Cashier", email: "renamed@test.local", password: "NewPassw0rd!!", pin: "4242" });
+      .send({ name: "Renamed Cashier", username: "renamed", email: "renamed@test.local", password: "NewPassw0rd!!", pin: "4242" });
     expect(update.status).toBe(200);
-    expect(update.body).toMatchObject({ name: "Renamed Cashier", email: "renamed@test.local", hasPinSet: true });
+    expect(update.body).toMatchObject({ name: "Renamed Cashier", username: "renamed", email: "renamed@test.local", hasPinSet: true });
 
     // The new password actually works, and the new PIN collision-checks like
     // any other (excluding this same staff member's own current PIN).
     const login = await request(app)
       .post("/api/auth/login")
-      .send({ email: "renamed@test.local", password: "NewPassw0rd!!" });
+      .send({ username: "renamed", password: "NewPassw0rd!!" });
     expect(login.status).toBe(200);
   });
 
@@ -188,6 +223,27 @@ describe("staff management", () => {
       .send({ email: "admin@test.local" }); // seedFixtures' own admin account
 
     expect(update.status).toBe(409);
+    expect(update.body.error).toMatch(/email/);
+  });
+
+  it("rejects editing or creating a staff member with a username already used by another account", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const cashier = await addCashier(store.id, "1111");
+
+    const update = await request(app)
+      .patch(`/api/stores/${store.id}/staff/${cashier.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ username: "admin" }); // seedFixtures' own admin account
+    expect(update.status).toBe(409);
+    expect(update.body.error).toMatch(/username/);
+
+    const create = await request(app)
+      .post(`/api/stores/${store.id}/staff`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ username: "fresh", email: "admin@test.local", name: "Fresh", password: "Passw0rd!!", role: "INVENTORY" });
+    expect(create.status).toBe(409);
+    expect(create.body.error).toMatch(/email/);
   });
 
   it("rejects editing a staff member's PIN to one already used by another active staff member", async () => {

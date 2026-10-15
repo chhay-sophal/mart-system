@@ -73,7 +73,7 @@ export default function AppShell() {
                 ))}
               </select>
             )}
-            <span className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{user?.username}</span>
             <LanguageToggle />
             <ThemeToggle theme={theme} onChange={setTheme} />
             <button

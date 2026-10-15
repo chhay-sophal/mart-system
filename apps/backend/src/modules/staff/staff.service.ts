@@ -10,9 +10,18 @@ import type { z } from "zod";
 type CreateStaffInput = z.infer<typeof createStaffSchema>;
 type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 
-function toStaffView(row: { userId: string; role: UserRole; isActive: boolean; pinHash: string | null; user: { email: string | null; name: string } }) {
+const STAFF_USER_FIELDS = { username: true, email: true, name: true } as const;
+
+function toStaffView(row: {
+  userId: string;
+  role: UserRole;
+  isActive: boolean;
+  pinHash: string | null;
+  user: { username: string | null; email: string | null; name: string };
+}) {
   return {
     userId: row.userId,
+    username: row.user.username,
     email: row.user.email,
     name: row.user.name,
     role: row.role,
@@ -24,7 +33,7 @@ function toStaffView(row: { userId: string; role: UserRole; isActive: boolean; p
 export async function listStaff(storeId: string) {
   const rows = await prisma.userStoreRole.findMany({
     where: { storeId },
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: STAFF_USER_FIELDS } },
     orderBy: { user: { name: "asc" } },
   });
   return rows.map(toStaffView);
@@ -51,10 +60,10 @@ async function assertPinAvailable(storeId: string, pin: string, excludeUserId?: 
 export async function createStaff(storeId: string, input: CreateStaffInput) {
   if (input.pin) await assertPinAvailable(storeId, input.pin);
 
-  // Only CASHIER may omit email (enforced by createStaffSchema). They never
+  // Only CASHIER may omit username (enforced by createStaffSchema). They never
   // log into IMS, so nothing needs to find or reuse an existing account by
-  // email, and a random, never-used password is generated in its place.
-  const existingUser = input.email ? await prisma.user.findUnique({ where: { email: input.email } }) : null;
+  // username, and a random, never-used password is generated in its place.
+  const existingUser = input.username ? await prisma.user.findUnique({ where: { username: input.username } }) : null;
 
   if (existingUser) {
     const existingRole = await prisma.userStoreRole.findUnique({
@@ -69,7 +78,7 @@ export async function createStaff(storeId: string, input: CreateStaffInput) {
         role: input.role,
         pinHash: input.pin ? await hashPin(input.pin) : null,
       },
-      include: { user: { select: { email: true, name: true } } },
+      include: { user: { select: STAFF_USER_FIELDS } },
     });
     return toStaffView(role);
   }
@@ -77,30 +86,46 @@ export async function createStaff(storeId: string, input: CreateStaffInput) {
   const passwordHash = await hashPassword(input.password ?? randomUUID());
   const pinHash = input.pin ? await hashPin(input.pin) : null;
 
-  const role = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: { email: input.email ?? null, name: input.name, passwordHash },
+  try {
+    const role = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: { username: input.username ?? null, email: input.email ?? null, name: input.name, passwordHash },
+      });
+      return tx.userStoreRole.create({
+        data: { userId: user.id, storeId, role: input.role, pinHash },
+        include: { user: { select: STAFF_USER_FIELDS } },
+      });
     });
-    return tx.userStoreRole.create({
-      data: { userId: user.id, storeId, role: input.role, pinHash },
-      include: { user: { select: { email: true, name: true } } },
-    });
-  });
-
-  return toStaffView(role);
+    return toStaffView(role);
+  } catch (err) {
+    throw toUniqueConflict(err);
+  }
 }
 
 async function getStaffRoleOrThrow(storeId: string, userId: string) {
   const role = await prisma.userStoreRole.findUnique({
     where: { userId_storeId: { userId, storeId } },
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: STAFF_USER_FIELDS } },
   });
   if (!role) throw notFound("Staff member not found at this store");
   return role;
 }
 
+/** Maps a unique-constraint violation on User to a 409 naming the field that collided. */
+function toUniqueConflict(err: unknown): unknown {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    const target = String(err.meta?.target ?? "");
+    return conflict(
+      target.includes("email")
+        ? "That email is already used by another account"
+        : "That username is already used by another account"
+    );
+  }
+  return err;
+}
+
 /**
- * name/email/password live on the global User row (shared across every store
+ * name/username/email/password live on the global User row (shared across every store
  * that person has a role at); role/isActive/pin are per-store, on
  * UserStoreRole. One call here can touch both, in that order, so a PIN
  * collision (checked first) never leaves the User half of the edit applied.
@@ -110,21 +135,19 @@ export async function updateStaff(storeId: string, userId: string, input: Update
 
   if (input.pin) await assertPinAvailable(storeId, input.pin, userId);
 
-  if (input.name !== undefined || input.email !== undefined || input.password !== undefined) {
+  if (input.name !== undefined || input.username !== undefined || input.email !== undefined || input.password !== undefined) {
     try {
       await prisma.user.update({
         where: { id: userId },
         data: {
           name: input.name,
+          username: input.username,
           email: input.email,
           passwordHash: input.password !== undefined ? await hashPassword(input.password) : undefined,
         },
       });
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        throw conflict("That email is already used by another account");
-      }
-      throw err;
+      throw toUniqueConflict(err);
     }
   }
 
@@ -136,7 +159,7 @@ export async function updateStaff(storeId: string, userId: string, input: Update
   const role = await prisma.userStoreRole.update({
     where: { userId_storeId: { userId, storeId } },
     data: roleData,
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: STAFF_USER_FIELDS } },
   });
   return toStaffView(role);
 }
@@ -148,7 +171,7 @@ export async function resetStaffPin(storeId: string, userId: string, pin: string
   const role = await prisma.userStoreRole.update({
     where: { userId_storeId: { userId, storeId } },
     data: { pinHash: await hashPin(pin) },
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: STAFF_USER_FIELDS } },
   });
   return toStaffView(role);
 }

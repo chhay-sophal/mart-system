@@ -22,7 +22,7 @@ beforeEach(async () => {
 async function loginAsAdmin() {
   const res = await request(app)
     .post("/api/auth/login")
-    .send({ email: "admin@test.local", password: FIXTURE_PASSWORD });
+    .send({ username: "admin", password: FIXTURE_PASSWORD });
   return res.body.accessToken as string;
 }
 

@@ -24,7 +24,7 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
    pnpm db:migrate:turso
    pnpm create-admin
    ```
-   It prompts interactively for the store name/code and admin email/name, then prints a randomly generated admin password/PIN once — save it now, it isn't recoverable afterward.
+   It prompts interactively for the store name/code and admin username/name (email optional), then prints a randomly generated admin password/PIN once — save it now, it isn't recoverable afterward.
 
    **Multiple deployments:** to keep each one's database credentials out of `.env`, put them in `apps/backend/.env.<project>.production` (gitignored) and pass `--project` to both commands — e.g. for `.env.lysin.production`:
    ```sh

@@ -12,8 +12,11 @@ import { fmt } from '../i18n/translate';
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
 // Staff PINs are exactly 4 digits (the POS lock screen has four places).
 const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
+// Mirrors the backend's usernameSchema; usernames are case-insensitive and stored lowercase.
+const USERNAME_PATTERN = '[a-z0-9._@\\-]{3,50}';
+const toUsername = (value) => value.toLowerCase().replace(/\s/g, '');
 
-const CREATE_FORM = { email: '', name: '', password: '', role: 'CASHIER', pin: '' };
+const CREATE_FORM = { username: '', email: '', name: '', password: '', role: 'CASHIER', pin: '' };
 
 const PIN_FILTERS = ['all', 'set', 'unset'];
 
@@ -21,6 +24,7 @@ const STATUS_FILTERS = ['all', 'active', 'inactive'];
 
 const EMPTY_FILTERS = {
   name: '',
+  username: '',
   email: '',
   role: 'all', // all | CASHIER | INVENTORY | ADMIN
   pin: 'all', // all | set | unset
@@ -41,9 +45,11 @@ function matchesStatus(row, mode) {
 
 function filterStaff(staff, f) {
   const name = norm(f.name);
+  const username = norm(f.username);
   const email = norm(f.email);
   return staff.filter((row) => {
     if (name && !norm(row.name).includes(name)) return false;
+    if (username && !norm(row.username).includes(username)) return false;
     if (email && !norm(row.email).includes(email)) return false;
     if (f.role !== 'all' && row.role !== f.role) return false;
     if (!matchesPin(row, f.pin)) return false;
@@ -53,6 +59,7 @@ function filterStaff(staff, f) {
 
 const COMPARE = {
   name: (a, b) => a.name.localeCompare(b.name),
+  username: (a, b) => (a.username ?? '').localeCompare(b.username ?? ''),
   email: (a, b) => (a.email ?? '').localeCompare(b.email ?? ''),
   role: (a, b) => a.role.localeCompare(b.role),
   pin: (a, b) => Number(a.hasPinSet) - Number(b.hasPinSet),
@@ -111,9 +118,10 @@ export default function StaffPage() {
     try {
       await apiClient.post(`/api/stores/${storeId}/staff`, {
         ...createForm,
-        // A cashier only ever logs in with a PIN at the till, never an
-        // email/password in IMS -- the backend generates a placeholder.
-        email: isCashier ? undefined : createForm.email,
+        // A cashier only ever logs in with a PIN at the till, never a
+        // username/password in IMS -- the backend generates a placeholder.
+        username: isCashier ? undefined : createForm.username,
+        email: isCashier || !createForm.email ? undefined : createForm.email,
         password: isCashier ? undefined : createForm.password,
         pin: createForm.pin || undefined,
       });
@@ -148,7 +156,7 @@ export default function StaffPage() {
   }
 
   function openEdit(row) {
-    setEditForm({ name: row.name, email: row.email ?? '', role: row.role, password: '', pin: '' });
+    setEditForm({ name: row.name, username: row.username ?? '', email: row.email ?? '', role: row.role, password: '', pin: '' });
     setShowEditPassword(false);
     setEditing(row);
   }
@@ -159,8 +167,9 @@ export default function StaffPage() {
       await apiClient.patch(`/api/stores/${storeId}/staff/${editing.userId}`, {
         name: editForm.name,
         role: editForm.role,
-        // A cashier may have no email on file yet; leave it alone unless the
-        // admin actually typed one (e.g. to set one up ahead of a promotion).
+        // A cashier may have no username/email on file yet; leave them alone
+        // unless the admin actually typed one (e.g. ahead of a promotion).
+        ...(editForm.username ? { username: editForm.username } : {}),
         ...(editForm.email ? { email: editForm.email } : {}),
         ...(editForm.password ? { password: editForm.password } : {}),
         ...(editForm.pin ? { pin: editForm.pin } : {}),
@@ -228,6 +237,18 @@ export default function StaffPage() {
                 />
               </FilterableHeader>
               <FilterableHeader
+                col="username" label={t.staff.username} sort={sort} onSort={toggleSort}
+                isOpen={openFilterCol === 'username'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                hasActiveFilter={filters.username !== EMPTY_FILTERS.username}
+              >
+                <input
+                  value={filters.username}
+                  onChange={(e) => setFilter('username', e.target.value)}
+                  placeholder={t.staff.contains}
+                  className={filterInput}
+                />
+              </FilterableHeader>
+              <FilterableHeader
                 col="email" label={t.staff.email} sort={sort} onSort={toggleSort}
                 isOpen={openFilterCol === 'email'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                 hasActiveFilter={filters.email !== EMPTY_FILTERS.email}
@@ -279,13 +300,13 @@ export default function StaffPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
                   {t.common.loading}
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={6}>
+                <td className="px-4 py-4 text-slate-400 dark:text-slate-500" colSpan={7}>
                   {staff.length === 0 ? t.staff.empty : t.staff.noMatch}
                 </td>
               </tr>
@@ -293,6 +314,7 @@ export default function StaffPage() {
               visible.map((row) => (
                 <tr key={row.userId} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2">{row.name}</td>
+                  <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.username ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{row.email ?? '—'}</td>
                   <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{roleLabel(row.role)}</td>
                   {/* <td className="px-4 py-2">
@@ -367,9 +389,21 @@ export default function StaffPage() {
             {createForm.role !== 'CASHIER' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.email}</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.username}</label>
                   <input
                     required
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    pattern={USERNAME_PATTERN}
+                    title={t.staff.usernameTitle}
+                    value={createForm.username}
+                    onChange={(e) => setCreateForm({ ...createForm, username: toUsername(e.target.value) })}
+                    className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.emailOptional}</label>
+                  <input
                     type="email"
                     value={createForm.email}
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
@@ -484,9 +518,21 @@ export default function StaffPage() {
             {editForm.role !== 'CASHIER' && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.email}</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.username}</label>
                   <input
                     required
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    pattern={USERNAME_PATTERN}
+                    title={t.staff.usernameTitle}
+                    value={editForm.username}
+                    onChange={(e) => setEditForm({ ...editForm, username: toUsername(e.target.value) })}
+                    className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.staff.emailOptional}</label>
+                  <input
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
