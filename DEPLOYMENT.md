@@ -26,6 +26,14 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
    ```
    It prompts interactively for the store name/code and admin email/name, then prints a randomly generated admin password/PIN once — save it now, it isn't recoverable afterward.
 
+   **Multiple deployments:** to keep each one's database credentials out of `.env`, put them in `apps/backend/.env.<project>.production` (gitignored) and pass `--project` to both commands — e.g. for `.env.lysin.production`:
+   ```sh
+   cd apps/backend
+   pnpm db:migrate:turso --project lysin
+   pnpm create-admin --project lysin
+   ```
+   Both print `Using .env.lysin.production` before connecting, and exit without touching any database if that file doesn't exist. Values in the project file take precedence over your shell environment; `create-admin` still falls back to `.env` for anything the project file leaves out.
+
 ## 2. IMS → Cloudflare Pages (do this second)
 
 1. In Cloudflare Pages, connect the same GitHub repo, and configure:

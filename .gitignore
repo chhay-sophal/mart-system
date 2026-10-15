@@ -7,6 +7,8 @@ build/
 .env
 .env.local
 .env.test
+.env.production
+.env.*.production
 .env.*.local
 !.env.example
 # Checked-in test defaults (no real secrets) so CI can run without a local copy.

@@ -7,18 +7,31 @@
 // (mirroring Prisma's own _prisma_migrations bookkeeping loosely), so
 // running this again after adding a new migration only applies the new one.
 //
-// Usage: node scripts/apply-turso-migrations.mjs
+// Usage: node scripts/apply-turso-migrations.mjs [--project <name>]
 // Requires DATABASE_URL (a real libsql://... URL, not file:) and
-// TURSO_AUTH_TOKEN in the environment (loaded from apps/backend/.env).
+// TURSO_AUTH_TOKEN in the environment (loaded from apps/backend/.env, or from
+// .env.<name>.production with --project <name>).
 
 import { createClient } from "@libsql/client";
 import { config } from "dotenv";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-config({ path: path.join(__dirname, "..", ".env") });
+const { values: args } = parseArgs({ options: { project: { type: "string" } } });
+if (args.project) {
+  const envFile = path.join(__dirname, "..", `.env.${args.project}.production`);
+  if (!existsSync(envFile)) {
+    console.error(`No env file for project "${args.project}": ${envFile}`);
+    process.exit(1);
+  }
+  config({ path: envFile, override: true, quiet: true });
+  console.log(`Using ${path.basename(envFile)}`);
+} else {
+  config({ path: path.join(__dirname, "..", ".env") });
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;

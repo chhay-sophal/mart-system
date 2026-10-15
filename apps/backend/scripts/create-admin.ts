@@ -11,15 +11,39 @@
 // flow (which already generates a real random device secret), and real
 // products get added through IMS afterward.
 //
-// Usage: pnpm create-admin -- prompts for the store name/code and admin
-// email/name interactively. Safe to re-run: upserts by store code / admin
-// email, but will NOT reprint a password for a user that already exists.
+// Usage: pnpm create-admin [--project <name>] -- prompts for the store
+// name/code and admin email/name interactively. With --project lysin, the
+// database is the one in .env.lysin.production instead of .env. Safe to
+// re-run: upserts by store code / admin email, but will NOT reprint a
+// password for a user that already exists.
 
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { hashPassword, hashPin } from "../src/lib/hash";
-import { prisma } from "../src/prisma";
+import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { config } from "dotenv";
+
+const { values: args } = parseArgs({ options: { project: { type: "string" } } });
+
+// Must load before src/env.ts is imported below: its `dotenv/config` never
+// overrides a variable that's already set, so the project's values win and
+// .env only fills in anything the project file leaves out.
+if (args.project) {
+  const envFile = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", `.env.${args.project}.production`);
+  if (!existsSync(envFile)) {
+    console.error(`No env file for project "${args.project}": ${envFile}`);
+    process.exit(1);
+  }
+  config({ path: envFile, override: true, quiet: true });
+  console.log(`Using ${path.basename(envFile)}\n`);
+}
+
+// Dynamic imports so they run after the project env file is loaded above.
+const { hashPassword, hashPin } = await import("../src/lib/hash");
+const { prisma } = await import("../src/prisma");
 
 async function promptRequired(rl: readline.Interface, label: string): Promise<string> {
   while (true) {
