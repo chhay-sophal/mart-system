@@ -47,22 +47,38 @@ export default function ProfitDialog({ client, cart, rate, mainCurrency, subtota
         ? Math.max(0, base - toUsd(item.discount, item.currency))
         : base * (1 - item.discount / 100);
     }
-    const revenue = unit * item.quantity * share;
+    const fullPrice = base * item.quantity;
+    const afterItemDiscount = unit * item.quantity;
+    const revenue = afterItemDiscount * share;
     const cost = costs?.get(item.id);
     const costUsd = cost?.cost != null ? toUsd(cost.cost, cost.currency) * item.quantity : null;
-    return { item, revenue, cost: costUsd, profit: costUsd != null ? revenue - costUsd : null };
+    return {
+      item,
+      fullPrice,
+      itemDiscount: fullPrice - afterItemDiscount,
+      invoiceDiscount: afterItemDiscount - revenue,
+      revenue,
+      cost: costUsd,
+      profit: costUsd != null ? revenue - costUsd : null,
+    };
   });
+  const sum = (rows, key) => rows.reduce((total, line) => total + line[key], 0);
   const costed = lines.filter((line) => line.profit != null);
-  const totalProfit = costed.reduce((sum, line) => sum + line.profit, 0);
-  const costedRevenue = costed.reduce((sum, line) => sum + line.revenue, 0);
+  const totalProfit = sum(costed, 'profit');
+  const costedRevenue = sum(costed, 'revenue');
   const uncosted = lines.length - costed.length;
+  const itemDiscounts = sum(lines, 'itemDiscount');
+  const invoiceDiscount = sum(lines, 'invoiceDiscount');
+  // Below a hundredth of a cent is float noise, not a discount.
+  const some = (usd) => usd > 0.00001;
+  const COLS = 'grid grid-cols-[1fr_32px_72px_72px_72px_72px_72px] gap-2';
 
   const profitColor = (usd) => (usd < 0 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400');
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
+        className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
@@ -82,19 +98,31 @@ export default function ProfitDialog({ client, cart, rate, mainCurrency, subtota
         ) : (
           <>
             <div className="px-5 py-3 overflow-y-auto">
-              <div className="grid grid-cols-[1fr_40px_80px_80px_80px] gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">
+              <div className={`${COLS} text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2`}>
                 <span>{t.item || 'Item'}</span>
                 <span className="text-center">{t.qty || 'Qty'}</span>
+                <span className="text-right">{t.price || 'Price'}</span>
+                <span className="text-right">{t.discount || 'Discount'}</span>
                 <span className="text-right">{t.revenue || 'Revenue'}</span>
                 <span className="text-right">{t.cost || 'Cost'}</span>
                 <span className="text-right">{t.profit || 'Profit'}</span>
               </div>
               <div className="space-y-1.5">
-                {lines.map(({ item, revenue, cost, profit }) => (
-                  <div key={item.lineId} className="grid grid-cols-[1fr_40px_80px_80px_80px] gap-2 text-xs items-baseline">
+                {lines.map(({ item, fullPrice, itemDiscount, invoiceDiscount: lineInvoiceDiscount, revenue, cost, profit }) => (
+                  <div key={item.lineId} className={`${COLS} text-xs items-baseline`}>
                     <span className="text-slate-800 dark:text-slate-100 font-medium truncate">{item.name}</span>
                     <span className="text-center text-slate-600 dark:text-slate-300 font-bold">{item.quantity}</span>
-                    <span className="text-right text-slate-600 dark:text-slate-300">{fmt(revenue)}</span>
+                    <span className="text-right text-slate-600 dark:text-slate-300">{fmt(fullPrice)}</span>
+                    {/* The line's own discount, then its share of the invoice discount underneath. */}
+                    <span className="text-right text-amber-600 dark:text-amber-400">
+                      {some(itemDiscount) || some(lineInvoiceDiscount) ? `−${fmt(itemDiscount + lineInvoiceDiscount)}` : '—'}
+                      {some(itemDiscount) && some(lineInvoiceDiscount) && (
+                        <span className="block text-[10px] text-slate-400 dark:text-slate-500">
+                          {fmt(itemDiscount)} + {fmt(lineInvoiceDiscount)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-right text-slate-800 dark:text-slate-100 font-semibold">{fmt(revenue)}</span>
                     <span className="text-right text-slate-600 dark:text-slate-300">{cost != null ? fmt(cost) : '—'}</span>
                     <span className={`text-right font-bold ${profit != null ? profitColor(profit) : 'text-slate-400 dark:text-slate-500'}`}>
                       {profit != null ? fmt(profit) : '—'}
@@ -105,7 +133,31 @@ export default function ProfitDialog({ client, cart, rate, mainCurrency, subtota
             </div>
 
             <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 space-y-1">
-              <div className="flex justify-between items-baseline">
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>{t.subtotal || 'Subtotal'}</span>
+                <span>{fmt(sum(lines, 'fullPrice'))}</span>
+              </div>
+              {some(itemDiscounts) && (
+                <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+                  <span>{t.itemDiscounts || 'Item discounts'}</span>
+                  <span>−{fmt(itemDiscounts)}</span>
+                </div>
+              )}
+              {some(invoiceDiscount) && (
+                <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+                  <span>{t.invoiceDiscount || 'Invoice discount'}</span>
+                  <span>−{fmt(invoiceDiscount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200">
+                <span>{t.total || 'Total'}</span>
+                <span>{fmt(totalUsd)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>{t.totalCost || 'Cost'}</span>
+                <span>−{fmt(sum(costed, 'cost'))}</span>
+              </div>
+              <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100 dark:border-slate-700">
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t.totalProfit || 'Total profit'}</span>
                 <span className={`text-xl font-black ${profitColor(totalProfit)}`}>{fmt(totalProfit)}</span>
               </div>
@@ -113,14 +165,17 @@ export default function ProfitDialog({ client, cart, rate, mainCurrency, subtota
                 <span>{t.margin || 'Margin'}</span>
                 <span>{costedRevenue > 0 ? `${((totalProfit / costedRevenue) * 100).toFixed(1)}%` : '—'}</span>
               </div>
-              {totalUsd < subtotalUsd - 0.0001 && share < 1 && (
+              {some(invoiceDiscount) && (
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
                   {t.discountNote || "The sale's discount is shared across the items by their price."}
                 </p>
               )}
               {uncosted > 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 pt-1">
-                  {t.uncostedNote || "Items marked — have no cost price, so they aren't in the total."}
+                  {(t.uncostedNote || "Items marked — have no cost price, so they aren't in the cost or profit ({amount} of the total).").replace(
+                    '{amount}',
+                    fmt(totalUsd - costedRevenue)
+                  )}
                 </p>
               )}
             </div>
