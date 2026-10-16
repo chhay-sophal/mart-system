@@ -823,6 +823,11 @@ export default function App() {
       saveDraft: { when: () => onRegister && cart.length > 0, run: () => saveDraft() },
       drafts: { when: () => onRegister, run: () => setShowDrafts(true) },
       openDrawer: { when: () => onRegister && printer.direct, run: () => handleOpenDrawer() },
+      // Same as the button: only when turned on in Settings, and still asks for the PIN.
+      showProfit: {
+        when: () => onRegister && profitButton.enabled && cart.length > 0 && !showProfitPinPrompt && !showProfit,
+        run: () => setShowProfitPinPrompt(true),
+      },
     },
     Boolean(session)
   );
@@ -1447,6 +1452,7 @@ export default function App() {
                     type="button"
                     onClick={() => setShowProfitPinPrompt(true)}
                     disabled={cart.length === 0}
+                    title={`${t[locale]?.profitDialog?.button || 'Show profit'}${keyHint('showProfit')}`}
                     className="w-full mt-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" />

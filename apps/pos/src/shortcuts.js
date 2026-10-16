@@ -25,6 +25,7 @@ export const SHORTCUT_ACTIONS = [
   { id: 'saveDraft', group: 'register' },
   { id: 'drafts', group: 'register' },
   { id: 'openDrawer', group: 'register' },
+  { id: 'showProfit', group: 'register' },
   { id: 'prevDay', group: 'summary' },
   { id: 'nextDay', group: 'summary' },
 ];
@@ -48,6 +49,7 @@ export const SHORTCUTS = [
   { action: 'saveDraft', keys: 'Ctrl+S' },
   { action: 'drafts', keys: 'Ctrl+O' },
   { action: 'openDrawer', keys: 'F11' },
+  { action: 'showProfit', keys: 'F12' },
   { action: 'prevDay', keys: 'ArrowLeft' },
   { action: 'nextDay', keys: 'ArrowRight' },
 ];
