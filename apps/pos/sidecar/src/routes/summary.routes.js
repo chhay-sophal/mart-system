@@ -8,89 +8,171 @@ const router = express.Router();
 
 // The whole store's day, computed from this register's locally synced copy
 // of every terminal's orders (sync.js's background pull, same mirror Order
-// History reads) -- no live backend call on the request path.
+// History reads) -- no live backend call on the request path. Same rules as
+// the backend's computeStoreDailySummary (reports.service.ts); keep the two
+// in step.
 router.get('/api/summary/daily', (req, res) => {
   const range = parseRange(req.query);
   if (!range.from || !range.to) return res.status(400).json({ error: 'date_from and date_to required' });
 
   const base = [toLocalSql(range.from), toLocalSql(range.to)];
 
+  // Today's rate: the fallback for sales from before each order kept its own.
   const rateRow = query("SELECT value FROM store_settings WHERE key = 'exchange_rate'")[0];
-  const rate = parseFloat(rateRow?.value || '4100');
-  // Totals are stored in the store's main currency at the time. Revenue is
-  // reported in USD, and in riel: exact for riel sales, converted (to the 100
-  // note) for the rest -- the same as the backend's store-wide summary.
-  const TOTAL_USD = `CASE WHEN currency = 'KHR' THEN total_amount / ${rate} ELSE total_amount END`;
-  const TOTAL_KHR = `CASE WHEN currency = 'KHR' THEN total_amount ELSE ROUND(total_amount * ${rate} / 100) * 100 END`;
+  const currentRate = parseFloat(rateRow?.value || '4100');
 
-  const stats = query(
-    `SELECT COUNT(*) as order_count, COALESCE(SUM(${TOTAL_USD}), 0) as total_revenue,
-            COALESCE(SUM(${TOTAL_KHR}), 0) as total_revenue_khr
+  // A void sets is_deleted (locally, or via sync.js for a void elsewhere).
+  const orders = query(
+    `SELECT id, total_amount, currency, payment_method, exchange_rate
      FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0`,
     base
-  )[0] || { order_count: 0, total_revenue: 0, total_revenue_khr: 0 };
-
-  const byMethod = query(
-    `SELECT payment_method, COUNT(*) as count, COALESCE(SUM(${TOTAL_USD}), 0) as total,
-            COALESCE(SUM(${TOTAL_KHR}), 0) as total_khr
-     FROM orders WHERE created_at >= ? AND created_at < ? AND is_deleted = 0
-     GROUP BY payment_method ORDER BY total DESC`,
+  );
+  const items = query(
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price_at_sale, oi.discount, oi.currency,
+            oi.cost_at_sale, oi.cost_currency,
+            p.name, p.cost_price, COALESCE(p.cost_currency, p.currency) AS product_cost_currency
+     FROM order_items oi
+     JOIN orders o ON o.id = oi.order_id
+     LEFT JOIN products p ON p.id = oi.product_id
+     WHERE o.created_at >= ? AND o.created_at < ? AND o.is_deleted = 0`,
     base
   );
+  const itemsByOrder = new Map();
+  for (const item of items) {
+    if (!itemsByOrder.has(item.order_id)) itemsByOrder.set(item.order_id, []);
+    itemsByOrder.get(item.order_id).push(item);
+  }
 
-  // Per line-item revenue, in USD and in riel -- same exact-when-riel,
-  // converted-and-rounded-to-the-note-otherwise rule TOTAL_USD/TOTAL_KHR use
-  // above, just at item granularity. Backs per-product revenue below, so a
-  // KHR-main-currency store's figures are backed by the same stored exchange
-  // rate as everything else here, instead of the frontend having to
-  // approximate them from today's live rate.
-  const ITEM_REVENUE_USD = `CASE WHEN oi.currency = 'KHR' THEN (oi.price_at_sale * oi.quantity - oi.discount) / ${rate} ELSE oi.price_at_sale * oi.quantity - oi.discount END`;
-  const ITEM_REVENUE_KHR = `CASE WHEN oi.currency = 'KHR' THEN oi.price_at_sale * oi.quantity - oi.discount ELSE ROUND((oi.price_at_sale * oi.quantity - oi.discount) * ${rate} / 100) * 100 END`;
-  const ITEM_COST_USD = `CASE WHEN p.currency = 'KHR' THEN p.cost_price / ${rate} ELSE p.cost_price END`;
-  // Profit's own riel figures -- exact when the line was priced in riel,
-  // unrounded (no per-line note-rounding) otherwise. Profit isn't cash handed
-  // to anyone like revenue above, so it rounds only once, on the final total
-  // (see profitRow below: nearest cent in USD, nearest riel in KHR).
-  const ITEM_REVENUE_KHR_EXACT = `CASE WHEN oi.currency = 'KHR' THEN oi.price_at_sale * oi.quantity - oi.discount ELSE (oi.price_at_sale * oi.quantity - oi.discount) * ${rate} END`;
-  const ITEM_COST_KHR_EXACT = `CASE WHEN p.currency = 'KHR' THEN p.cost_price ELSE p.cost_price * ${rate} END`;
+  // Each sale converts at the rate it was rung up at. Totals are stored in
+  // the store's main currency at the time. Revenue is reported in USD, and in
+  // riel: exact for riel sales, converted (to the 100 note) for the rest.
+  const rateOf = (order) => (order.exchange_rate > 0 ? order.exchange_rate : currentRate);
+  const toUsd = (amount, currency, rate) => (currency === 'KHR' ? amount / rate : amount);
+  const orderTotalUsd = (order) => toUsd(order.total_amount, order.currency, rateOf(order));
+  const orderTotalKhr = (order) =>
+    order.currency === 'KHR' ? order.total_amount : roundKhrToNote(orderTotalUsd(order) * rateOf(order));
+
+  let totalRevenue = 0;
+  let totalRevenueKhr = 0;
+  const byMethodMap = new Map();
+  for (const order of orders) {
+    totalRevenue += orderTotalUsd(order);
+    totalRevenueKhr += orderTotalKhr(order);
+    const entry = byMethodMap.get(order.payment_method) ?? { payment_method: order.payment_method, count: 0, total: 0, total_khr: 0 };
+    entry.count += 1;
+    entry.total += orderTotalUsd(order);
+    entry.total_khr += orderTotalKhr(order);
+    byMethodMap.set(order.payment_method, entry);
+  }
+  const byMethod = [...byMethodMap.values()].sort((a, b) => b.total - a.total);
+
+  const productAgg = new Map();
+  let grossProfit = 0;
+  let grossProfitKhr = 0;
+  // Sold lines with no known cost: left out of gross profit entirely (rather
+  // than counted as all profit), and reported so the screen can say so.
+  let uncostedRevenue = 0;
+  let uncostedRevenueKhr = 0;
+
+  for (const order of orders) {
+    const rate = rateOf(order);
+    const lines = (itemsByOrder.get(order.id) ?? []).map((item) => {
+      // What the line charged before any sale-wide discount.
+      const charged = item.price_at_sale * item.quantity - (item.discount || 0);
+      const revenueUsd = toUsd(charged, item.currency, rate);
+      // Exact when the line was priced in riel; otherwise the raw (unrounded)
+      // converted figure.
+      const revenueKhrExact = item.currency === 'KHR' ? charged : revenueUsd * rate;
+      return { item, revenueUsd, revenueKhrExact };
+    });
+
+    // A sale-wide discount is only in the order's total, never on its lines:
+    // spread it over the lines in proportion to what each charged, so the
+    // lines add up to what the customer actually paid.
+    const linesUsd = lines.reduce((sum, line) => sum + line.revenueUsd, 0);
+    const linesKhr = lines.reduce((sum, line) => sum + line.revenueKhrExact, 0);
+    const totalKhrExact = order.currency === 'KHR' ? order.total_amount : orderTotalUsd(order) * rate;
+    const shareUsd = linesUsd > 0 ? orderTotalUsd(order) / linesUsd : 1;
+    const shareKhr = linesKhr > 0 ? totalKhrExact / linesKhr : 1;
+
+    for (const { item, revenueUsd, revenueKhrExact } of lines) {
+      const lineRevenue = revenueUsd * shareUsd;
+      const lineRevenueKhrExact = revenueKhrExact * shareKhr;
+      // Revenue (shown as cash) rounds to the note per line, unless it's an
+      // untouched riel price; profit rounds only once, on the final totals.
+      const lineRevenueKhr =
+        item.currency === 'KHR' && shareKhr === 1 ? lineRevenueKhrExact : roundKhrToNote(lineRevenueKhrExact);
+
+      const key = item.product_id ?? `unknown:${item.name ?? ''}`;
+      const agg = productAgg.get(key) ?? {
+        name: item.name ?? '?',
+        total_qty: 0,
+        revenue: 0,
+        revenue_khr: 0,
+        profit: 0,
+        profit_khr: 0,
+        uncosted_qty: 0,
+      };
+      agg.total_qty += item.quantity;
+      agg.revenue += lineRevenue;
+      agg.revenue_khr += lineRevenueKhr;
+      productAgg.set(key, agg);
+
+      // The cost kept on the line when it sold; lines from before that fall
+      // back to the product's current cost. A cost of 0 means "never set".
+      const cost =
+        item.cost_at_sale != null && item.cost_currency
+          ? { amount: item.cost_at_sale, currency: item.cost_currency }
+          : item.cost_price > 0
+            ? { amount: item.cost_price, currency: item.product_cost_currency }
+            : null;
+      if (!cost) {
+        agg.uncosted_qty += item.quantity;
+        uncostedRevenue += lineRevenue;
+        uncostedRevenueKhr += lineRevenueKhr;
+        continue;
+      }
+      const costUsd = toUsd(cost.amount, cost.currency, rate);
+      const costKhrExact = cost.currency === 'KHR' ? cost.amount : costUsd * rate;
+      const lineProfit = lineRevenue - costUsd * item.quantity;
+      const lineProfitKhr = lineRevenueKhrExact - costKhrExact * item.quantity;
+      agg.profit += lineProfit;
+      agg.profit_khr += lineProfitKhr;
+      grossProfit += lineProfit;
+      grossProfitKhr += lineProfitKhr;
+    }
+  }
 
   // Unlimited, ordered by quantity sold -- top_products (below) is just this
   // sliced to 5 for the on-screen card; all_products (the full list) is for
   // the print report, which needs every product sold, not just the top ones.
-  const allProducts = query(
-    `SELECT p.name, SUM(oi.quantity) as total_qty,
-            SUM(${ITEM_REVENUE_USD}) as revenue,
-            SUM(${ITEM_REVENUE_KHR}) as revenue_khr,
-            ROUND(SUM(${ITEM_REVENUE_USD} - ${ITEM_COST_USD} * oi.quantity), 2) as profit,
-            ROUND(SUM(${ITEM_REVENUE_KHR_EXACT} - ${ITEM_COST_KHR_EXACT} * oi.quantity)) as profit_khr
-     FROM order_items oi
-     JOIN orders o ON o.id = oi.order_id
-     JOIN products p ON p.id = oi.product_id
-     WHERE o.created_at >= ? AND o.created_at < ? AND o.is_deleted = 0
-     GROUP BY oi.product_id, p.name
-     ORDER BY total_qty DESC`,
-    base
-  );
+  // Profit: nearest cent in USD, nearest riel in KHR; null when none of a
+  // product's units had a cost.
+  const allProducts = [...productAgg.values()]
+    .map(({ uncosted_qty, ...p }) => {
+      const noCost = uncosted_qty === p.total_qty;
+      return {
+        ...p,
+        profit: noCost ? null : Math.round(p.profit * 100) / 100,
+        profit_khr: noCost ? null : Math.round(p.profit_khr),
+        uncosted_qty,
+      };
+    })
+    .sort((a, b) => b.total_qty - a.total_qty);
   const topProducts = allProducts.slice(0, 5);
 
-  const profitRow = query(
-    `SELECT ROUND(COALESCE(SUM(${ITEM_REVENUE_USD} - ${ITEM_COST_USD} * oi.quantity), 0), 2) as gross_profit,
-            ROUND(COALESCE(SUM(${ITEM_REVENUE_KHR_EXACT} - ${ITEM_COST_KHR_EXACT} * oi.quantity), 0)) as gross_profit_khr
-     FROM order_items oi
-     JOIN orders o ON o.id = oi.order_id
-     JOIN products p ON p.id = oi.product_id
-     WHERE o.created_at >= ? AND o.created_at < ? AND o.is_deleted = 0`,
-    base
-  )[0] || { gross_profit: 0, gross_profit_khr: 0 };
-
+  const orderCount = orders.length;
   res.json({
-    order_count: stats.order_count,
-    total_revenue: stats.total_revenue,
-    total_revenue_khr: stats.total_revenue_khr,
-    avg_order: stats.order_count > 0 ? stats.total_revenue / stats.order_count : 0,
-    avg_order_khr: stats.order_count > 0 ? roundKhrToNote(stats.total_revenue_khr / stats.order_count) : 0,
-    gross_profit: profitRow.gross_profit,
-    gross_profit_khr: profitRow.gross_profit_khr,
+    order_count: orderCount,
+    total_revenue: totalRevenue,
+    total_revenue_khr: totalRevenueKhr,
+    avg_order: orderCount > 0 ? totalRevenue / orderCount : 0,
+    avg_order_khr: orderCount > 0 ? roundKhrToNote(totalRevenueKhr / orderCount) : 0,
+    gross_profit: Math.round(grossProfit * 100) / 100,
+    gross_profit_khr: Math.round(grossProfitKhr),
+    uncosted_revenue: uncostedRevenue,
+    uncosted_revenue_khr: uncostedRevenueKhr,
+    uncosted_product_count: allProducts.filter((p) => p.uncosted_qty > 0).length,
     by_method: byMethod,
     top_products: topProducts,
     all_products: allProducts,
