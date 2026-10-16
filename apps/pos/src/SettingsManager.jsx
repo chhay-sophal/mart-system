@@ -51,6 +51,9 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const DEFAULT_SETTINGS = {
     // General (per register). Stored as 'true'/'false'; on unless turned off.
     show_low_stock_alert: 'true',
+    // Checkout's Show profit button: off unless turned on, behind its own PIN.
+    show_profit_enabled: 'false',
+    show_profit_pin: '',
     // '' = follow the store's language from IMS; 'km' / 'en' = this register only.
     display_language: '',
     ...PRINTER_DEFAULTS,
@@ -538,6 +541,33 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                         checked={settings.show_low_stock_alert !== 'false'}
                         onChange={(on) => setSettings((prev) => ({ ...prev, show_low_stock_alert: on ? 'true' : 'false' }))}
                       />
+                      <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-4">
+                        <ToggleRow
+                          label={s.generalSection?.showProfit || 'Show profit button at checkout'}
+                          help={s.generalSection?.showProfitHelp || 'Shows the profit on each item and on the whole sale, after entering the PIN below.'}
+                          checked={settings.show_profit_enabled === 'true'}
+                          onChange={(on) => setSettings((prev) => ({ ...prev, show_profit_enabled: on ? 'true' : 'false' }))}
+                        />
+                        {settings.show_profit_enabled === 'true' && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                              {s.generalSection?.showProfitPin || 'Profit PIN (4 digits)'}
+                            </label>
+                            {/* Its own PIN, not a staff PIN: required while the button is on. */}
+                            <input
+                              required
+                              inputMode="numeric"
+                              pattern="[0-9]{4}"
+                              title="Exactly 4 digits"
+                              maxLength={4}
+                              placeholder="1234"
+                              value={settings.show_profit_pin || ''}
+                              onChange={(e) => setSettings((prev) => ({ ...prev, show_profit_pin: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) }))}
+                              className={inputNormal}
+                            />
+                          </div>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-400 dark:text-slate-500">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
                     </div>
                   </div>
