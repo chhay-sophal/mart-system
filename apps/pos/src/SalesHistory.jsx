@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { ArrowLeft, ArrowRight, Calendar, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
 import Invoice from './Invoice';
 import { translations as t } from './locales';
-import { orderTotalKhr } from './khr';
+import { orderTotalKhr, roundKhr } from './khr';
 import { invalidateSales, queryKeys } from './queryClient';
 
 const PAGE_SIZE = 10;
@@ -698,6 +698,28 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
   const totalUsd = parseFloat(order.total_amount);
   const totalKhr = orderTotalKhr(order, dynamicRate);
 
+  // Subtotal: every line at full price, before item and sale-wide discounts.
+  // Discount: whatever brought that down to the total actually charged. A
+  // riel sale converts its lines at the same rate its USD total was worked
+  // out with (total / total_amount), so the three figures agree.
+  const lineRate = order.currency === 'KHR' && totalUsd > 0 ? Number(order.total) / totalUsd : dynamicRate;
+  const lines = order.items || [];
+  const fullPrice = (item) => parseFloat(item.price) * item.quantity;
+  const subtotalUsd = lines.reduce((sum, i) => sum + (i.currency === 'KHR' ? fullPrice(i) / lineRate : fullPrice(i)), 0);
+  const subtotalKhrRaw = lines.reduce((sum, i) => sum + (i.currency === 'KHR' ? fullPrice(i) : fullPrice(i) * lineRate), 0);
+  const subtotalKhr = lines.every((i) => i.currency === 'KHR') ? Math.round(subtotalKhrRaw) : roundKhr(subtotalKhrRaw);
+  const discountUsd = subtotalUsd - totalUsd;
+  const discountKhr = subtotalKhr - totalKhr;
+  // Main currency first, the other underneath -- same as the total.
+  const money = (usd, khr) =>
+    mainCurrency === 'USD'
+      ? [`$${usd.toFixed(2)}`, `${khr.toLocaleString()} ៛`]
+      : [`${khr.toLocaleString()} ៛`, `$${usd.toFixed(2)}`];
+  const [subtotalMain, subtotalOther] = money(subtotalUsd, subtotalKhr);
+  const [discountMain, discountOther] = money(Math.abs(discountUsd), Math.abs(discountKhr));
+  // Negative only when the total was rounded up to the note.
+  const discountSign = discountUsd < -0.004 ? '+' : discountUsd > 0.004 ? '−' : '';
+
   return (
     <div className={`bg-white dark:bg-slate-800 rounded-2xl border transition-all overflow-hidden ${expanded ? 'border-indigo-200 dark:border-indigo-800 shadow-sm' : 'border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600'}`}>
       {/* Row summary */}
@@ -785,8 +807,28 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
             </div>
           </div>
 
+          {/* Subtotal and discount */}
+          <div className="border-t-2 border-dashed border-slate-200 dark:border-slate-700 pt-2.5 mb-2 space-y-1.5 text-xs">
+            <div className="flex justify-between items-baseline">
+              <span className="text-slate-500 dark:text-slate-400">{s.subtotal}</span>
+              <div className="text-right">
+                <p className="font-bold text-slate-700 dark:text-slate-200">{subtotalMain}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{subtotalOther}</p>
+              </div>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-slate-500 dark:text-slate-400">{s.discount}</span>
+              <div className="text-right">
+                <p className={`font-bold ${discountSign === '−' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
+                  {discountSign}{discountMain}
+                </p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{discountSign}{discountOther}</p>
+              </div>
+            </div>
+          </div>
+
           {/* Grand total */}
-          <div className="border-t-2 border-dashed border-slate-200 dark:border-slate-700 pt-2.5 mb-2.5 flex justify-between items-baseline">
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-2.5 mb-2.5 flex justify-between items-baseline">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{s.total}</span>
             <div className="text-right">
               <p className="text-sm font-black text-slate-900 dark:text-white">
