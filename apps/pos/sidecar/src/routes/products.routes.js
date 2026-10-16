@@ -28,6 +28,21 @@ router.get('/api/products', (req, res) => {
   );
 });
 
+// Unit costs for the products in the cart, for the register's Show profit
+// popup (PIN-gated on screen). cost_price 0 means "never set" -- sent as null.
+router.get('/api/products/costs', (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map((id) => parseInt(id, 10))
+    .filter((id) => Number.isInteger(id));
+  if (ids.length === 0) return res.json([]);
+  const rows = query(
+    `SELECT id, cost_price, COALESCE(cost_currency, currency) AS cost_currency FROM products WHERE id IN (${ids.map(() => '?').join(',')})`,
+    ids
+  );
+  res.json(rows.map((r) => ({ id: r.id, cost: r.cost_price > 0 ? r.cost_price : null, currency: r.cost_currency })));
+});
+
 router.get('/api/products/low-stock', (req, res) => {
   const threshold = parseInt(req.query.threshold) || 5;
   const items = query(
