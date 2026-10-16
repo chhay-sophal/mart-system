@@ -63,8 +63,8 @@ router.post('/api/orders/checkout', (req, res) => {
 
     const orderId = run(
       `INSERT INTO orders
-        (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, client_order_uuid, terminal_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)`,
+        (customer_id, cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, exchange_rate, status, client_order_uuid, terminal_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)`,
       [
         customer_id || null,
         cashier_user_id || null,
@@ -75,6 +75,7 @@ router.post('/api/orders/checkout', (req, res) => {
         paidUsd,
         paidKhr,
         changeGivenKhr,
+        rate,
         clientOrderUuid,
         getSyncConfig()?.terminalId ?? null,
         localNow(),
@@ -83,14 +84,27 @@ router.post('/api/orders/checkout', (req, res) => {
 
     const backendItems = [];
     for (const item of lines) {
+      const product = query('SELECT backend_product_id, cost_price, COALESCE(cost_currency, currency) AS cost_currency FROM products WHERE id = ?', [item.id])[0];
+      // The unit cost as it stands now, kept on the line so the day's profit
+      // doesn't shift when the cost is changed later. A cost of 0 means
+      // "never set": recorded as unknown, not as free.
+      const costAtSale = product?.cost_price > 0 ? product.cost_price : null;
+      const costCurrency = costAtSale !== null ? product.cost_currency : null;
       run(
-        'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [orderId, item.id, item.quantity, item.price, item.discount, item.currency, localNow(), localNow()]
+        'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, cost_at_sale, cost_currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [orderId, item.id, item.quantity, item.price, item.discount, item.currency, costAtSale, costCurrency, localNow(), localNow()]
       );
       run('UPDATE products SET stock = stock - ?, updated_at = ? WHERE id = ?', [item.quantity, localNow(), item.id]);
 
-      const backendProductId = query('SELECT backend_product_id FROM products WHERE id = ?', [item.id])[0]?.backend_product_id;
-      backendItems.push({ backendProductId, quantity: item.quantity, priceAtSale: item.price, discount: item.discount, currency: item.currency });
+      backendItems.push({
+        backendProductId: product?.backend_product_id,
+        quantity: item.quantity,
+        priceAtSale: item.price,
+        discount: item.discount,
+        currency: item.currency,
+        costAtSale,
+        costCurrency,
+      });
     }
 
     // Only enqueue a sync event if every item resolves to a backend product —
@@ -105,6 +119,7 @@ router.post('/api/orders/checkout', (req, res) => {
           priceAtSale: i.priceAtSale,
           discount: i.discount,
           currency: i.currency,
+          ...(i.costAtSale !== null ? { costAtSale: i.costAtSale, costCurrency: i.costCurrency } : {}),
         })),
         paymentMethod: payment_method,
         totalAmount: total,
@@ -112,6 +127,7 @@ router.post('/api/orders/checkout', (req, res) => {
         amountPaidUsd: paidUsd,
         amountPaidKhr: paidKhr,
         changeGivenKhr,
+        exchangeRate: rate,
         ...(cashier_user_id ? { cashierUserId: cashier_user_id } : {}),
         ...(bank_name ? { bankName: bank_name } : {}),
         ...(khqr_data?.md5_hash
