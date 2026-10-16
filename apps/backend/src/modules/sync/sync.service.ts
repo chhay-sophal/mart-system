@@ -30,6 +30,19 @@ async function applySaleCompleted(
   event: EventEnvelope,
   payload: SaleCompletedPayload
 ): Promise<string> {
+  // Snapshot the store's exchange rate and each product's cost as they stand
+  // now, so later reports keep this sale's figures even after either changes.
+  const productIds = [...new Set(payload.items.map((item) => item.productId))];
+  const [rateSetting, storeProducts] = await Promise.all([
+    tx.storeSetting.findUnique({ where: { storeId_key: { storeId: terminal.storeId, key: "exchange_rate" } } }),
+    tx.storeProduct.findMany({ where: { storeId: terminal.storeId, productId: { in: productIds } } }),
+  ]);
+  const exchangeRate = rateSetting && Number(rateSetting.value) > 0 ? Number(rateSetting.value) : null;
+  // A cost of 0 is the column's default, i.e. "never set" -- recorded as unknown.
+  const costByProductId = new Map(
+    storeProducts.filter((sp) => sp.costPriceMinor > 0).map((sp) => [sp.productId, sp])
+  );
+
   const order = await tx.order.create({
     data: {
       storeId: terminal.storeId,
@@ -43,6 +56,7 @@ async function applySaleCompleted(
       amountPaidUsdMinor: toMinorUnits(payload.amountPaidUsd, "USD"),
       amountPaidKhrMinor: toMinorUnits(payload.amountPaidKhr, "KHR"),
       changeGivenKhrMinor: toMinorUnits(payload.changeGivenKhr, "KHR"),
+      exchangeRate,
       status: "COMPLETED",
       createdAt: new Date(event.createdAt),
       syncedAt: new Date(),
@@ -53,6 +67,8 @@ async function applySaleCompleted(
           priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
           discountMinor: toMinorUnits(item.discount, item.currency),
           currency: item.currency,
+          costAtSaleMinor: costByProductId.get(item.productId)?.costPriceMinor ?? null,
+          costCurrency: costByProductId.get(item.productId)?.currency ?? null,
         })),
       },
     },
