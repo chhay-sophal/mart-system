@@ -92,17 +92,20 @@ function upsertProduct(item) {
   // Same backward-compat shape as currency above: an older backend that
   // doesn't send costPrice leaves whatever this row already had, via the
   // UPDATE's COALESCE; a brand-new row just defaults to 0.
+  // costPrice is in the store's own currency, sent as costCurrency (older
+  // backends don't; NULL then reads as the selling price's currency).
+  const costCurrency = item.costCurrency === 'KHR' || item.costCurrency === 'USD' ? item.costCurrency : null;
   const now = db.localNow();
 
   if (existing) {
     db.run(
-      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), cost_price = COALESCE(?, cost_price), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
-      [item.name, item.barcode, price, currency, item.costPrice ?? null, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
+      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), cost_price = COALESCE(?, cost_price), cost_currency = COALESCE(?, cost_currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
+      [item.name, item.barcode, price, currency, item.costPrice ?? null, costCurrency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
     );
   } else {
     db.run(
-      'INSERT INTO products (name, barcode, price, currency, cost_price, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [item.name, item.barcode, price, currency ?? 'USD', item.costPrice ?? 0, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
+      'INSERT INTO products (name, barcode, price, currency, cost_price, cost_currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [item.name, item.barcode, price, currency ?? 'USD', item.costPrice ?? 0, costCurrency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
     );
   }
 }
@@ -133,8 +136,8 @@ function upsertOrder(config, item) {
 
   const orderId = db.run(
     `INSERT INTO orders
-      (cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, status, is_deleted, client_order_uuid, terminal_id, terminal_name, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cashier_user_id, total_amount, currency, payment_method, bank_name, amount_paid_usd, amount_paid_khr, change_given_khr, exchange_rate, status, is_deleted, client_order_uuid, terminal_id, terminal_name, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.cashierUserId,
       item.total,
@@ -144,6 +147,8 @@ function upsertOrder(config, item) {
       item.amountPaidUsd,
       item.amountPaidKhr,
       item.changeGivenKhr,
+      // Older backends don't send these; the summary falls back then.
+      item.exchangeRate ?? null,
       item.status,
       isDeleted,
       item.clientOrderUuid,
@@ -159,8 +164,8 @@ function upsertOrder(config, item) {
     // register's local row the same way a sale's own items do at checkout.
     const product = db.query('SELECT id FROM products WHERE backend_product_id = ?', [line.productId])[0];
     db.run(
-      'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [orderId, product?.id ?? null, line.quantity, line.priceAtSale, line.discount, line.currency, createdAt, updatedAt]
+      'INSERT INTO order_items (order_id, product_id, quantity, price_at_sale, discount, currency, cost_at_sale, cost_currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [orderId, product?.id ?? null, line.quantity, line.priceAtSale, line.discount, line.currency, line.costAtSale ?? null, line.costCurrency ?? null, createdAt, updatedAt]
     );
   }
 }
