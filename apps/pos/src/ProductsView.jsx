@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Search, Plus, X, PackageSearch } from 'lucide-react';
+import { ArrowLeft, Search, Plus, X, PackageSearch, RotateCcw } from 'lucide-react';
 import { useBackend } from './BackendContext';
+import { useToast } from './Toast';
 import { translations as t } from './locales';
 import { queryKeys } from './queryClient';
 import { usdToKhr } from './khr';
@@ -99,12 +100,28 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
   const [sort, setSort] = useState({ col: 'name', dir: 'asc' });
   const { openFilterCol, toggleFilterCol, filterPanelRef } = useColumnFilter();
   const listRef = useRef(null);
+  const notify = useToast();
+  const [refreshing, setRefreshing] = useState(false);
 
   const productsQuery = useQuery({
     queryKey: queryKeys.products(),
     queryFn: () => client.get('/api/products'),
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
+
+  // Pull the latest catalog from the server now, rather than waiting for the
+  // next background sync, then re-read it. Offline (or not paired yet), the
+  // register's own copy is re-read anyway.
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      await client.post('/api/sync/now');
+    } catch {
+      notify(s.refreshOffline || "Couldn't reach the server. Showing the products saved on this register.");
+    }
+    await productsQuery.refetch();
+    setRefreshing(false);
+  };
   const matches = useMemo(() => {
     const filtered = products.filter((p) => matchesProduct(p, search) && matchesColumnFilters(p, filters));
     return sortProducts(filtered, sort);
@@ -155,6 +172,11 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
           <h1 className="text-base font-bold font-display">{s.title}</h1>
           <p className="text-xs text-slate-400 dark:text-slate-500">{s.subtitle}</p>
         </div>
+        <button onClick={refresh} disabled={refreshing}
+          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors text-slate-500 dark:text-slate-400 cursor-pointer disabled:cursor-not-allowed" title={s.refresh || 'Refresh'} aria-label={s.refresh || 'Refresh'}>
+          {/* Spins the way the icon points while the pull runs. */}
+          <RotateCcw size={18} className={refreshing ? 'animate-spin [animation-direction:reverse]' : ''} />
+        </button>
       </header>
 
       <div className="px-6 pt-4 pb-3 flex-shrink-0">
