@@ -5,6 +5,7 @@ import { queryKeys } from '../lib/queryClient';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
+import { fmt, plural } from '../i18n/translate';
 
 // Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
 // UTC first, so anywhere east of UTC it silently returns yesterday's date for
@@ -124,6 +125,15 @@ export default function ReportsPage() {
               </div>
             ))}
           </div>
+
+          {report.combined.uncostedProductCount > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2 mb-4">
+              {fmt(plural(report.combined.uncostedProductCount, t.reports.uncostedOne, t.reports.uncostedMany), {
+                count: report.combined.uncostedProductCount,
+                amount: inMainCurrency(report.combined.mainCurrency, report.combined.uncostedRevenue, report.combined.uncostedRevenueKhr).primary,
+              })}
+            </p>
+          )}
 
           {!storeId && report.byStore.length > 1 && (
             <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden mb-4">
