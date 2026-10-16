@@ -240,6 +240,10 @@ model Order {
   amountPaidUsdMinor  Int           @default(0)
   amountPaidKhrMinor  Int           @default(0)
   changeGivenKhrMinor Int           @default(0)
+  // The store's exchange rate (riel per US dollar) when the sale was made, so
+  // reports convert it at that day's rate rather than today's. Null for sales
+  // recorded before this was captured; reports fall back to the current rate.
+  exchangeRate        Float?
   status              OrderStatus   @default(COMPLETED)
   isDeleted           Boolean       @default(false)
   createdAt           DateTime
@@ -270,6 +274,12 @@ model OrderItem {
   // isn't spread over lines; it's only in Order.totalAmountMinor.
   discountMinor    Int      @default(0)
   currency         Currency
+  // The store's cost price for one unit when the sale was made, in
+  // `costCurrency` (which can differ from the sale line's `currency`). Null
+  // when the product had no cost set, and for lines recorded before this was
+  // captured -- reports fall back to the current cost for those.
+  costAtSaleMinor  Int?
+  costCurrency     Currency?
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
