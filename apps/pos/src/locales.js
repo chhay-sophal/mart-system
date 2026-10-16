@@ -25,6 +25,29 @@ export const translations = {
       cancel: 'បោះបង់',
     },
 
+    // PROFIT PIN PROMPT + POPUP (Settings > General > Show profit button at checkout)
+    profitPinPrompt: {
+      title: 'បញ្ចូលលេខកូដសម្ងាត់ប្រាក់ចំណេញ',
+      wrongPin: 'កូដសម្ងាត់មិនត្រឹមត្រូវ',
+      cancel: 'បោះបង់',
+    },
+    profitDialog: {
+      button: 'បង្ហាញប្រាក់ចំណេញ',
+      title: 'ប្រាក់ចំណេញលើការលក់នេះ',
+      item: 'ទំនិញ',
+      qty: 'ចំនួន',
+      revenue: 'ចំណូល',
+      cost: 'ថ្លៃដើម',
+      profit: 'ចំណេញ',
+      totalProfit: 'ចំណេញសរុប',
+      margin: 'ភាគរយចំណេញ',
+      discountNote: 'ការបញ្ចុះតម្លៃលើការលក់ទាំងមូល ត្រូវបានចែកទៅលើទំនិញនីមួយៗតាមតម្លៃ។',
+      uncostedNote: 'ទំនិញដែលមានសញ្ញា — គ្មានថ្លៃដើម ដូច្នេះមិនរាប់បញ្ចូលក្នុងចំណេញសរុបទេ។',
+      loading: 'កំពុងដំណើរការ...',
+      loadFailed: 'មិនអាចទាញយកថ្លៃដើមបានទេ។',
+      close: 'បិទ',
+    },
+
     // SETTINGS PIN PROMPT (re-confirms an admin before entering Settings)
     settingsPinPrompt: {
       title: 'បញ្ចូលលេខកូដសម្ងាត់អ្នកគ្រប់គ្រង',
@@ -356,6 +379,9 @@ export const translations = {
         language: "ភាសាបង្ហាញ",
         languageHelp: "សម្រាប់ម៉ាស៊ីននេះប៉ុណ្ណោះ។ លំនាំដើមរបស់ហាង គឺតាមភាសាដែលកំណត់ក្នុង IMS។",
         storeDefault: "លំនាំដើមរបស់ហាង",
+        showProfit: "បង្ហាញប៊ូតុងប្រាក់ចំណេញនៅទំព័រគិតលុយ",
+        showProfitHelp: "បង្ហាញប្រាក់ចំណេញលើទំនិញនីមួយៗ និងលើការលក់ទាំងមូល បន្ទាប់ពីបញ្ចូលលេខកូដសម្ងាត់ខាងក្រោម។",
+        showProfitPin: "លេខកូដសម្ងាត់ប្រាក់ចំណេញ (៤ខ្ទង់)",
       },
       bankQrSection: {
         header: "កូដ QR ធនាគារ",
@@ -534,6 +560,29 @@ export const translations = {
       title: 'Enter drawer PIN',
       wrongPin: 'Incorrect PIN',
       cancel: 'Cancel',
+    },
+
+    // PROFIT PIN PROMPT + POPUP (Settings > General > Show profit button at checkout)
+    profitPinPrompt: {
+      title: 'Enter profit PIN',
+      wrongPin: 'Incorrect PIN',
+      cancel: 'Cancel',
+    },
+    profitDialog: {
+      button: 'Show profit',
+      title: 'Profit on this sale',
+      item: 'Item',
+      qty: 'Qty',
+      revenue: 'Revenue',
+      cost: 'Cost',
+      profit: 'Profit',
+      totalProfit: 'Total profit',
+      margin: 'Margin',
+      discountNote: "The sale's discount is shared across the items by their price.",
+      uncostedNote: "Items marked — have no cost price, so they aren't in the total.",
+      loading: 'Loading…',
+      loadFailed: "Couldn't load cost prices.",
+      close: 'Close',
     },
 
     // SETTINGS PIN PROMPT (re-confirms an admin before entering Settings)
@@ -867,6 +916,9 @@ export const translations = {
         language: "Display language",
         languageHelp: "This register only. Store default follows the language set in IMS.",
         storeDefault: "Store default",
+        showProfit: "Show profit button at checkout",
+        showProfitHelp: "Shows the profit on each item and on the whole sale, after entering the PIN below.",
+        showProfitPin: "Profit PIN (4 digits)",
       },
       bankQrSection: {
         header: "Bank QR codes",

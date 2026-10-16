@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors, PauseCircle, FileClock, Inbox } from 'lucide-react';
+import { Store, Settings, ShoppingCart, X, CheckCircle2, AlertTriangle, Keyboard, Lock, History, Sun, Moon, BarChart3, Keyboard as KeyboardIcon, Printer, Package, Scissors, PauseCircle, FileClock, Inbox, TrendingUp } from 'lucide-react';
 import { useDarkMode } from './hooks/useDarkMode';
 import LockScreen from './LockScreen';
 import FirstRunSetup from './FirstRunSetup';
@@ -26,6 +26,7 @@ import { useShortcuts } from './hooks/useShortcuts';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
 import PinPrompt from './PinPrompt';
+import ProfitDialog from './ProfitDialog';
 import { useToast } from './Toast';
 import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
@@ -93,6 +94,11 @@ export default function App() {
   const [clearCartPrompt, setClearCartPrompt] = useState(false);
   const [showDrawerPinPrompt, setShowDrawerPinPrompt] = useState(false);
   const [showSettingsPinPrompt, setShowSettingsPinPrompt] = useState(false);
+  // Settings > General > Show profit at checkout: off unless turned on, and
+  // always behind its own PIN.
+  const [profitButton, setProfitButton] = useState({ enabled: false, pin: '' });
+  const [showProfitPinPrompt, setShowProfitPinPrompt] = useState(false);
+  const [showProfit, setShowProfit] = useState(false);
   // Locking the register (button or shortcut) drops cached sales data, so the
   // next cashier starts fresh.
   useEffect(() => {
@@ -510,6 +516,7 @@ export default function App() {
         if (data.store_icon !== undefined) setStoreIcon(data.store_icon || '');
         setStandbyImage(data[STANDBY_IMAGE_KEY] || '');
         setShowLowStockAlert(data.show_low_stock_alert !== 'false');
+        setProfitButton({ enabled: data.show_profit_enabled === 'true' && Boolean(data.show_profit_pin), pin: data.show_profit_pin || '' });
         setPrinter(printerConfig(data));
         setStaticQrCodes(parseStaticQrCodes(data[STATIC_QR_KEY]));
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
@@ -946,6 +953,29 @@ export default function App() {
           setShowDrawerPinPrompt(false);
           openDrawerNow();
         }}
+      />
+    )}
+    {showProfitPinPrompt && (
+      <PinPrompt
+        onVerify={(value) => value === profitButton.pin}
+        t={t[locale]?.profitPinPrompt}
+        onCancel={() => setShowProfitPinPrompt(false)}
+        onConfirm={() => {
+          setShowProfitPinPrompt(false);
+          setShowProfit(true);
+        }}
+      />
+    )}
+    {showProfit && cart.length > 0 && (
+      <ProfitDialog
+        client={client}
+        cart={cart}
+        rate={dynamicRate}
+        mainCurrency={mainCurrency}
+        subtotalUsd={subtotalUsd}
+        totalUsd={totalUsd}
+        t={t[locale]?.profitDialog}
+        onClose={() => setShowProfit(false)}
       />
     )}
     {showSettingsPinPrompt && (
@@ -1412,6 +1442,17 @@ export default function App() {
                     {mainCurrency === 'USD' ? `${totalKhr.toLocaleString()} ៛` : `$${totalUsd.toFixed(2)}`}
                   </span>
                 </div>
+                {profitButton.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setShowProfitPinPrompt(true)}
+                    disabled={cart.length === 0}
+                    className="w-full mt-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" />
+                    {t[locale]?.profitDialog?.button || 'Show profit'}
+                  </button>
+                )}
               </div>
             </div>
 
