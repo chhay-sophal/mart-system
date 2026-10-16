@@ -7,6 +7,11 @@ const orderItemSchema = z.object({
   currency: z.enum(["USD", "KHR"]),
   // Item discount for the whole line, in `currency`. Older registers never sent it.
   discount: z.number().nonnegative().default(0),
+  // The register's unit cost for this product when it rang the sale up, in
+  // `costCurrency`. Older registers never sent it; the server's own cost is
+  // used then.
+  costAtSale: z.number().positive().optional(),
+  costCurrency: z.enum(["USD", "KHR"]).optional(),
 });
 
 export const saleCompletedPayloadSchema = z.object({
@@ -20,6 +25,9 @@ export const saleCompletedPayloadSchema = z.object({
   amountPaidUsd: z.number().nonnegative(),
   amountPaidKhr: z.number().nonnegative(),
   changeGivenKhr: z.number().nonnegative(),
+  // The register's exchange rate (riel per US dollar) when it rang the sale
+  // up. Older registers never sent it; the store's rate at sync is used then.
+  exchangeRate: z.number().positive().optional(),
   cashierUserId: z.string().optional(),
   // Which bank's static QR the customer paid to (STATIC_QR sales).
   bankName: z.string().optional(),

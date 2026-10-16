@@ -30,18 +30,28 @@ async function applySaleCompleted(
   event: EventEnvelope,
   payload: SaleCompletedPayload
 ): Promise<string> {
-  // Snapshot the store's exchange rate and each product's cost as they stand
-  // now, so later reports keep this sale's figures even after either changes.
+  // Snapshot the exchange rate and each product's cost, so later reports keep
+  // this sale's figures even after either changes. The register sends what
+  // they were when it rang the sale up; an older register doesn't, so the
+  // store's values as they stand now (at sync) stand in.
   const productIds = [...new Set(payload.items.map((item) => item.productId))];
   const [rateSetting, storeProducts] = await Promise.all([
     tx.storeSetting.findUnique({ where: { storeId_key: { storeId: terminal.storeId, key: "exchange_rate" } } }),
     tx.storeProduct.findMany({ where: { storeId: terminal.storeId, productId: { in: productIds } } }),
   ]);
-  const exchangeRate = rateSetting && Number(rateSetting.value) > 0 ? Number(rateSetting.value) : null;
+  const exchangeRate =
+    payload.exchangeRate ?? (rateSetting && Number(rateSetting.value) > 0 ? Number(rateSetting.value) : null);
   // A cost of 0 is the column's default, i.e. "never set" -- recorded as unknown.
   const costByProductId = new Map(
     storeProducts.filter((sp) => sp.costPriceMinor > 0).map((sp) => [sp.productId, sp])
   );
+  const costAtSale = (item: SaleCompletedPayload["items"][number]) => {
+    if (item.costAtSale !== undefined && item.costCurrency !== undefined) {
+      return { costAtSaleMinor: toMinorUnits(item.costAtSale, item.costCurrency), costCurrency: item.costCurrency };
+    }
+    const sp = costByProductId.get(item.productId);
+    return { costAtSaleMinor: sp?.costPriceMinor ?? null, costCurrency: sp?.currency ?? null };
+  };
 
   const order = await tx.order.create({
     data: {
@@ -67,8 +77,7 @@ async function applySaleCompleted(
           priceAtSaleMinor: toMinorUnits(item.priceAtSale, item.currency),
           discountMinor: toMinorUnits(item.discount, item.currency),
           currency: item.currency,
-          costAtSaleMinor: costByProductId.get(item.productId)?.costPriceMinor ?? null,
-          costCurrency: costByProductId.get(item.productId)?.currency ?? null,
+          ...costAtSale(item),
         })),
       },
     },
@@ -229,6 +238,8 @@ export interface ProductUpsert {
   currency: "USD" | "KHR";
   /** This store's cost price, in StoreProduct's own currency (not necessarily the same as `currency` above). */
   costPrice: number;
+  /** Currency of costPrice. */
+  costCurrency: "USD" | "KHR";
   stock: number;
   isDeleted: boolean;
 }
@@ -314,6 +325,8 @@ async function getOrderUpserts(storeId: string, sinceDate: Date | null): Promise
     amountPaidUsd: fromMinorUnits(order.amountPaidUsdMinor, "USD"),
     amountPaidKhr: fromMinorUnits(order.amountPaidKhrMinor, "KHR"),
     changeGivenKhr: fromMinorUnits(order.changeGivenKhrMinor, "KHR"),
+    // Null for sales recorded before the rate was kept per sale.
+    exchangeRate: order.exchangeRate,
     status: order.status,
     isDeleted: order.isDeleted,
     createdAt: order.createdAt.toISOString(),
@@ -324,6 +337,9 @@ async function getOrderUpserts(storeId: string, sinceDate: Date | null): Promise
       priceAtSale: fromMinorUnits(item.priceAtSaleMinor, item.currency),
       discount: fromMinorUnits(item.discountMinor, item.currency),
       currency: item.currency,
+      // Null when the product had no cost, or the line predates cost snapshots.
+      costAtSale: item.costCurrency !== null ? fromMinorUnits(item.costAtSaleMinor, item.costCurrency) : null,
+      costCurrency: item.costCurrency,
     })),
   }));
 
@@ -387,6 +403,7 @@ export async function pullCatalog(
     defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
     currency: row.priceOverrideMinor !== null ? row.currency : row.product.currency,
     costPrice: fromMinorUnits(row.costPriceMinor, row.currency),
+    costCurrency: row.currency,
     stock: row.stock,
     isDeleted: row.product.isDeleted,
   }));

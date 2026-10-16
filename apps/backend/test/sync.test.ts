@@ -3,6 +3,7 @@ import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
 import { FIXTURE_TERMINAL_SECRET, addCashier, addProduct, resetDatabase, seedFixtures } from "./helpers";
+import { toMinorUnits } from "../src/lib/money";
 
 const app = buildApp();
 
@@ -89,6 +90,31 @@ describe("POST /api/sync/push", () => {
     expect(order?.items.find((i) => i.productId === costed.id)).toMatchObject({ costAtSaleMinor: 3000, costCurrency: "KHR" });
     // A cost of 0 is "never set": recorded as unknown, not as free.
     expect(order?.items.find((i) => i.productId === uncosted.id)).toMatchObject({ costAtSaleMinor: null, costCurrency: null });
+  });
+
+  it("keeps the rate and cost the register rang the sale up with over the store's current ones", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await prisma.storeProduct.update({
+      where: { storeId_productId: { storeId: store.id, productId: product.id } },
+      data: { costPriceMinor: toMinorUnits(1.2, "USD") },
+    });
+    await prisma.storeSetting.create({ data: { storeId: store.id, key: "exchange_rate", value: "4100" } });
+
+    // Rung up offline, back when the rate was 4000 and the cost $1.
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD", costAtSale: 1, costCurrency: "USD" }],
+        exchangeRate: 4000,
+      },
+    });
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(res.body.results[0].status).toBe("applied");
+
+    const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid }, include: { items: true } });
+    expect(order?.exchangeRate).toBe(4000);
+    expect(order?.items[0]).toMatchObject({ costAtSaleMinor: 100, costCurrency: "USD" });
   });
 
   it("applies a STATIC_QR sale and keeps which bank it was paid to", async () => {
@@ -385,7 +411,8 @@ describe("GET /api/sync/pull", () => {
 
     const res = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
     const row = res.body.productUpserts.find((p: { barcode: string }) => p.barcode === "cost-1");
-    expect(row).toMatchObject({ costPrice: 2500 });
+    // The selling price is in USD, so the cost says its own currency.
+    expect(row).toMatchObject({ currency: "USD", costPrice: 2500, costCurrency: "KHR" });
   });
 
   it("rejects a request without valid terminal credentials", async () => {
@@ -434,7 +461,12 @@ describe("GET /api/sync/pull", () => {
         events: [
           saleEvent({
             terminalId: terminal.id,
-            payload: { ...saleEvent().payload, clientOrderUuid, items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }] },
+            payload: {
+              ...saleEvent().payload,
+              clientOrderUuid,
+              exchangeRate: 4000,
+              items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD", costAtSale: 4100, costCurrency: "KHR" }],
+            },
           }),
         ],
       });
@@ -447,7 +479,8 @@ describe("GET /api/sync/pull", () => {
       status: "COMPLETED",
       total: 3,
       currency: "USD",
-      items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD" }],
+      exchangeRate: 4000,
+      items: [{ productId: product.id, quantity: 2, priceAtSale: 1.5, currency: "USD", costAtSale: 4100, costCurrency: "KHR" }],
     });
     const saleCursor = afterSale.body.cursor;
 
