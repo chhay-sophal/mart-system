@@ -10,6 +10,18 @@ export async function listStoreOrders(storeId: string, opts: { dateFrom?: Date; 
   return listOrders({ storeIds: [storeId], ...opts });
 }
 
+type SummaryProduct = Awaited<ReturnType<typeof computeStoreDailySummary>>["allProducts"][number];
+
+const toPosProduct = (p: SummaryProduct) => ({
+  name: p.name,
+  total_qty: p.totalQty,
+  revenue: p.revenue,
+  revenue_khr: p.revenueKhr,
+  // Null when none of the units sold had a cost price.
+  profit: p.profit,
+  profit_khr: p.profitKhr,
+});
+
 export async function storeDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
   const s = await computeStoreDailySummary(storeId, dateFrom, dateTo);
   return {
@@ -19,8 +31,12 @@ export async function storeDailySummary(storeId: string, dateFrom: Date, dateTo:
     avg_order: s.avgOrder,
     avg_order_khr: s.avgOrderKhr,
     gross_profit: s.grossProfit,
+    gross_profit_khr: s.grossProfitKhr,
+    uncosted_revenue: s.uncostedRevenue,
+    uncosted_revenue_khr: s.uncostedRevenueKhr,
+    uncosted_product_count: s.uncostedProducts.length,
     by_method: s.byMethod.map((m) => ({ payment_method: m.paymentMethod, count: m.count, total: m.total, total_khr: m.totalKhr })),
-    top_products: s.topProducts.map((p) => ({ name: p.name, total_qty: p.totalQty, revenue: p.revenue })),
-    all_products: s.allProducts.map((p) => ({ name: p.name, total_qty: p.totalQty, revenue: p.revenue })),
+    top_products: s.topProducts.map(toPosProduct),
+    all_products: s.allProducts.map(toPosProduct),
   };
 }

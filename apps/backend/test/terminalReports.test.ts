@@ -119,7 +119,17 @@ describe("GET /api/terminal/daily-summary", () => {
       // up to what was paid (the riel sale's lines only list $3 of its $10).
       top_products: [{ name: "Widget", total_qty: 4, revenue: 13 }],
     });
-    expect(res.body).toHaveProperty("gross_profit");
+    // The Widget has no cost price: none of its revenue counts as profit.
+    expect(res.body).toMatchObject({
+      gross_profit: 0,
+      gross_profit_khr: 0,
+      uncosted_revenue: 13,
+      uncosted_revenue_khr: 53300,
+      uncosted_product_count: 1,
+    });
+    expect(res.body.all_products).toEqual([
+      { name: "Widget", total_qty: 4, revenue: 13, revenue_khr: 53300, profit: null, profit_khr: null },
+    ]);
   });
 
   it("leaves voided sales out of revenue", async () => {
