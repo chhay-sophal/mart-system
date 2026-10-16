@@ -61,6 +61,36 @@ describe("POST /api/sync/push", () => {
     expect(movements[0]).toMatchObject({ delta: -2, reason: "SALE" });
   });
 
+  it("snapshots the store's exchange rate and each line's unit cost on the sale", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product: costed } = await addProduct(store.id, { name: "Costed", price: 1.5, stock: 10 });
+    const { product: uncosted } = await addProduct(store.id, { name: "Uncosted", price: 1, stock: 10 });
+    await prisma.storeProduct.update({
+      where: { storeId_productId: { storeId: store.id, productId: costed.id } },
+      data: { costPriceMinor: 3000, currency: "KHR" },
+    });
+    await prisma.storeSetting.create({ data: { storeId: store.id, key: "exchange_rate", value: "4050" } });
+
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [
+          { productId: costed.id, quantity: 1, priceAtSale: 1.5, currency: "USD" },
+          { productId: uncosted.id, quantity: 1, priceAtSale: 1, currency: "USD" },
+        ],
+        totalAmount: 2.5,
+      },
+    });
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(res.body.results[0].status).toBe("applied");
+
+    const order = await prisma.order.findUnique({ where: { clientOrderUuid: event.payload.clientOrderUuid }, include: { items: true } });
+    expect(order?.exchangeRate).toBe(4050);
+    expect(order?.items.find((i) => i.productId === costed.id)).toMatchObject({ costAtSaleMinor: 3000, costCurrency: "KHR" });
+    // A cost of 0 is "never set": recorded as unknown, not as free.
+    expect(order?.items.find((i) => i.productId === uncosted.id)).toMatchObject({ costAtSaleMinor: null, costCurrency: null });
+  });
+
   it("applies a STATIC_QR sale and keeps which bank it was paid to", async () => {
     const { store, terminal } = await seedFixtures();
     const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
