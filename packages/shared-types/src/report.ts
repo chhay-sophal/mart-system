@@ -42,5 +42,8 @@ export interface DailySummaryReport {
     totalRevenue: number;
     avgOrder: number;
     grossProfit: number;
+    /** Revenue left out of gross profit because its products have no cost price. */
+    uncostedRevenue: number;
+    uncostedProductCount: number;
   };
 }
