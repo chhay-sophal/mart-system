@@ -54,23 +54,28 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "exchange_rate" } } }),
     prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "main_currency" } } }),
   ]);
+  // Today's rate: the fallback for sales recorded before each order carried
+  // its own (Order.exchangeRate).
   const rate = exchangeRateSetting ? Number(exchangeRateSetting.value) : 4100;
   const mainCurrency = mainCurrencySetting?.value === "KHR" ? "KHR" : "USD";
-  const toUsd = (amount: number, currency: string) => (currency === "KHR" ? amount / rate : amount);
+  const toUsd = (amount: number, currency: string, orderRate: number) => (currency === "KHR" ? amount / orderRate : amount);
 
   const orders = await prisma.order.findMany({
     // A voided sale (refunded at the register, or in IMS) is not revenue.
     where: { storeId, isDeleted: false, status: { not: "VOIDED" }, createdAt: { gte: dateFrom, lt: dateTo } },
+    include: { items: { include: { product: true } } },
   });
+  // Each sale converts at the rate it was made at.
+  const rateOf = (order: (typeof orders)[number]) => order.exchangeRate ?? rate;
 
   const orderCount = orders.length;
   // Each sale's total is stored in the store's main currency at the time (and
   // imported online-pos orders carry their own). Revenue is summed in USD, and
   // also in riel: exact for sales charged in riel, converted for the rest.
   const orderTotalUsd = (order: (typeof orders)[number]) =>
-    toUsd(fromMinorUnits(order.totalAmountMinor, order.currency), order.currency);
+    toUsd(fromMinorUnits(order.totalAmountMinor, order.currency), order.currency, rateOf(order));
   const orderTotalKhr = (order: (typeof orders)[number]) =>
-    order.currency === "KHR" ? order.totalAmountMinor : roundKhrToNote(orderTotalUsd(order) * rate);
+    order.currency === "KHR" ? order.totalAmountMinor : roundKhrToNote(orderTotalUsd(order) * rateOf(order));
   const totalRevenue = orders.reduce((sum, order) => sum + orderTotalUsd(order), 0);
   const totalRevenueKhr = orders.reduce((sum, order) => sum + orderTotalKhr(order), 0);
   const avgOrder = orderCount > 0 ? totalRevenue / orderCount : 0;
@@ -88,54 +93,103 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     .map(([paymentMethod, v]) => ({ paymentMethod, count: v.count, total: v.total, totalKhr: v.totalKhr }))
     .sort((a, b) => b.total - a.total);
 
-  const orderIds = orders.map((order) => order.id);
-  const items = orderIds.length
-    ? await prisma.orderItem.findMany({ where: { orderId: { in: orderIds } }, include: { product: true } })
-    : [];
-
-  const productIds = [...new Set(items.map((item) => item.productId))];
+  // Today's cost: the fallback for lines recorded before each line carried
+  // its own (OrderItem.costAtSaleMinor). A cost of 0 is the column's default,
+  // i.e. "never set", and counts as unknown, not free.
+  const productIds = [...new Set(orders.flatMap((order) => order.items.map((item) => item.productId)))];
   const storeProducts = productIds.length
-    ? await prisma.storeProduct.findMany({ where: { storeId, productId: { in: productIds } } })
+    ? await prisma.storeProduct.findMany({ where: { storeId, productId: { in: productIds }, costPriceMinor: { gt: 0 } } })
     : [];
-  const costByProductId = new Map(storeProducts.map((sp) => [sp.productId, { cost: fromMinorUnits(sp.costPriceMinor, sp.currency), currency: sp.currency }]));
+  const currentCostByProductId = new Map(
+    storeProducts.map((sp) => [sp.productId, { costMinor: sp.costPriceMinor, currency: sp.currency }])
+  );
 
-  const productAgg = new Map<string, { name: string; qty: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number }>();
+  const productAgg = new Map<
+    string,
+    { name: string; qty: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number; uncostedQty: number }
+  >();
   let grossProfit = 0;
   let grossProfitKhr = 0;
+  // Sold lines with no known cost: left out of gross profit entirely (rather
+  // than counted as all profit), and reported so the screen can say so.
+  let uncostedRevenue = 0;
+  let uncostedRevenueKhr = 0;
 
-  for (const item of items) {
-    const priceUsd = toUsd(fromMinorUnits(item.priceAtSaleMinor, item.currency), item.currency);
-    // What the line actually charged: item discounts (e.g. a defective unit) come off.
-    const discountUsd = toUsd(fromMinorUnits(item.discountMinor, item.currency), item.currency);
-    const lineRevenue = priceUsd * item.quantity - discountUsd;
-    // Exact when the line was priced in riel; otherwise the raw (unrounded)
-    // converted figure. Revenue (shown/handed over as cash) still rounds to
-    // the nearest note per line below -- profit doesn't, since it's never a
-    // cash amount itself: it's rounded once, at the end, to the nearest riel
-    // (see grossProfitKhr's final rounding after the loop).
-    const khrNativeRevenue =
-      item.currency === "KHR"
-        ? fromMinorUnits(item.priceAtSaleMinor, "KHR") * item.quantity - fromMinorUnits(item.discountMinor, "KHR")
-        : null;
-    const lineRevenueKhrExact = khrNativeRevenue ?? lineRevenue * rate;
-    const lineRevenueKhr = khrNativeRevenue ?? roundKhrToNote(lineRevenueKhrExact);
+  for (const order of orders) {
+    const orderRate = rateOf(order);
+    const lines = order.items.map((item) => {
+      // What the line charged before any sale-wide discount: item discounts
+      // (e.g. a defective unit) come off.
+      const revenueUsd = toUsd(
+        fromMinorUnits(item.priceAtSaleMinor, item.currency) * item.quantity - fromMinorUnits(item.discountMinor, item.currency),
+        item.currency,
+        orderRate
+      );
+      // Exact when the line was priced in riel; otherwise the raw (unrounded)
+      // converted figure.
+      const revenueKhrExact =
+        item.currency === "KHR"
+          ? fromMinorUnits(item.priceAtSaleMinor, "KHR") * item.quantity - fromMinorUnits(item.discountMinor, "KHR")
+          : revenueUsd * orderRate;
+      return { item, revenueUsd, revenueKhrExact };
+    });
 
-    const agg = productAgg.get(item.productId) ?? { name: item.product.name, qty: 0, revenue: 0, revenueKhr: 0, profit: 0, profitKhr: 0 };
-    agg.qty += item.quantity;
-    agg.revenue += lineRevenue;
-    agg.revenueKhr += lineRevenueKhr;
+    // A sale-wide discount is only in the order's total, never on its lines:
+    // spread it over the lines in proportion to what each charged, so the
+    // lines add up to what the customer actually paid. (This also absorbs any
+    // rounding of the total, and online-pos imports, whose lines arrive
+    // without their item discounts.)
+    const linesUsd = lines.reduce((sum, line) => sum + line.revenueUsd, 0);
+    const linesKhr = lines.reduce((sum, line) => sum + line.revenueKhrExact, 0);
+    const totalKhrExact = order.currency === "KHR" ? order.totalAmountMinor : orderTotalUsd(order) * orderRate;
+    const shareUsd = linesUsd > 0 ? orderTotalUsd(order) / linesUsd : 1;
+    const shareKhr = linesKhr > 0 ? totalKhrExact / linesKhr : 1;
 
-    const costInfo = costByProductId.get(item.productId);
-    const costUsd = costInfo ? toUsd(costInfo.cost, costInfo.currency) : 0;
-    const costKhrExact = costInfo ? (costInfo.currency === "KHR" ? costInfo.cost : costUsd * rate) : 0;
-    const lineProfit = lineRevenue - costUsd * item.quantity;
-    const lineProfitKhr = lineRevenueKhrExact - costKhrExact * item.quantity;
-    agg.profit += lineProfit;
-    agg.profitKhr += lineProfitKhr;
-    productAgg.set(item.productId, agg);
+    for (const { item, revenueUsd, revenueKhrExact } of lines) {
+      const lineRevenue = revenueUsd * shareUsd;
+      const lineRevenueKhrExact = revenueKhrExact * shareKhr;
+      // Revenue (shown/handed over as cash) rounds to the nearest note per
+      // line, unless it's an untouched riel price -- profit doesn't, since
+      // it's never a cash amount itself: it's rounded once, at the end, to the
+      // nearest riel (see grossProfitKhr's final rounding after the loop).
+      const lineRevenueKhr =
+        item.currency === "KHR" && shareKhr === 1 ? lineRevenueKhrExact : roundKhrToNote(lineRevenueKhrExact);
 
-    grossProfit += lineProfit;
-    grossProfitKhr += lineProfitKhr;
+      const agg = productAgg.get(item.productId) ?? {
+        name: item.product.name,
+        qty: 0,
+        revenue: 0,
+        revenueKhr: 0,
+        profit: 0,
+        profitKhr: 0,
+        uncostedQty: 0,
+      };
+      agg.qty += item.quantity;
+      agg.revenue += lineRevenue;
+      agg.revenueKhr += lineRevenueKhr;
+      productAgg.set(item.productId, agg);
+
+      const cost =
+        item.costAtSaleMinor !== null && item.costCurrency !== null
+          ? { costMinor: item.costAtSaleMinor, currency: item.costCurrency }
+          : currentCostByProductId.get(item.productId);
+      if (!cost) {
+        agg.uncostedQty += item.quantity;
+        uncostedRevenue += lineRevenue;
+        uncostedRevenueKhr += lineRevenueKhr;
+        continue;
+      }
+      const unitCost = fromMinorUnits(cost.costMinor, cost.currency);
+      const costUsd = toUsd(unitCost, cost.currency, orderRate);
+      const costKhrExact = cost.currency === "KHR" ? unitCost : costUsd * orderRate;
+      const lineProfit = lineRevenue - costUsd * item.quantity;
+      const lineProfitKhr = lineRevenueKhrExact - costKhrExact * item.quantity;
+      agg.profit += lineProfit;
+      agg.profitKhr += lineProfitKhr;
+
+      grossProfit += lineProfit;
+      grossProfitKhr += lineProfitKhr;
+    }
   }
   // Profit calculation: USD to the nearest cent, riel to the nearest whole
   // riel -- finer-grained than revenue's nearest-note rule above, since
@@ -147,18 +201,27 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   // full list) backs the print report, which needs every product sold, not
   // just the top ones.
   const allProducts = [...productAgg.entries()]
-    .map(([productId, v]) => ({
-      productId,
-      name: v.name,
-      totalQty: v.qty,
-      revenue: v.revenue,
-      revenueKhr: v.revenueKhr,
-      // Same nearest-cent/nearest-riel rounding as the day's total gross profit above.
-      profit: Math.round(v.profit * 100) / 100,
-      profitKhr: Math.round(v.profitKhr),
-    }))
+    .map(([productId, v]) => {
+      // No cost known for any unit sold: profit is unknown, not zero.
+      const noCost = v.uncostedQty === v.qty;
+      return {
+        productId,
+        name: v.name,
+        totalQty: v.qty,
+        revenue: v.revenue,
+        revenueKhr: v.revenueKhr,
+        // Same nearest-cent/nearest-riel rounding as the day's total gross
+        // profit above; covers only the units that had a cost.
+        profit: noCost ? null : Math.round(v.profit * 100) / 100,
+        profitKhr: noCost ? null : Math.round(v.profitKhr),
+        uncostedQty: v.uncostedQty,
+      };
+    })
     .sort((a, b) => b.totalQty - a.totalQty);
   const topProducts = allProducts.slice(0, 5);
+  const uncostedProducts = allProducts
+    .filter((p) => p.uncostedQty > 0)
+    .map((p) => ({ productId: p.productId, name: p.name, qty: p.uncostedQty }));
 
   return {
     storeId,
@@ -171,6 +234,9 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     avgOrderKhr,
     grossProfit,
     grossProfitKhr,
+    uncostedRevenue,
+    uncostedRevenueKhr,
+    uncostedProducts,
     byMethod,
     topProducts,
     allProducts,
@@ -210,6 +276,10 @@ export async function getDailySummary(
       mainCurrency: byStore.length > 0 && byStore.every((s) => s.mainCurrency === "KHR") ? "KHR" : "USD",
       grossProfit: combinedGrossProfit,
       grossProfitKhr: combinedGrossProfitKhr,
+      // Revenue left out of gross profit because its products have no cost.
+      uncostedRevenue: byStore.reduce((sum, s) => sum + s.uncostedRevenue, 0),
+      uncostedRevenueKhr: byStore.reduce((sum, s) => sum + s.uncostedRevenueKhr, 0),
+      uncostedProductCount: byStore.reduce((sum, s) => sum + s.uncostedProducts.length, 0),
     },
   };
 }

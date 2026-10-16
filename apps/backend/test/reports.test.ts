@@ -162,6 +162,152 @@ describe("GET /api/reports/daily-summary", () => {
     expect(res.body.combined.grossProfitKhr).toBe(2000);
     expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, revenueKhr: 4000, profit: 0.49, profitKhr: 2000 });
   });
+
+  describe("gross profit", () => {
+    const getSummary = async (token: string) =>
+      request(app)
+        .get("/api/reports/daily-summary")
+        .query({
+          date_from: new Date(Date.now() - 86_400_000).toISOString(),
+          date_to: new Date(Date.now() + 86_400_000).toISOString(),
+        })
+        .set("Authorization", `Bearer ${token}`);
+
+    async function widgetWithCost(storeId: string, cost: number) {
+      const { product } = await addProduct(storeId, { name: "Widget", price: 2, stock: 100 });
+      await prisma.storeProduct.update({
+        where: { storeId_productId: { storeId, productId: product.id } },
+        data: { costPriceMinor: toMinorUnits(cost, "USD") },
+      });
+      return product;
+    }
+
+    it("takes a sale-wide discount off profit, not just off revenue", async () => {
+      const { store, terminal } = await seedFixtures();
+      const token = await loginAsAdmin();
+      const product = await widgetWithCost(store.id, 1.2);
+
+      // 3 × $2 = $6 of lines, but the sale took $1 off the whole order.
+      await prisma.order.create({
+        data: {
+          storeId: store.id,
+          terminalId: terminal.id,
+          clientOrderUuid: `test-sale-discount-${Math.random()}`,
+          totalAmountMinor: toMinorUnits(5, "USD"),
+          currency: "USD",
+          paymentMethod: "CASH",
+          createdAt: new Date(),
+          items: { create: [{ productId: product.id, quantity: 3, priceAtSaleMinor: toMinorUnits(2, "USD"), currency: "USD" }] },
+        },
+      });
+
+      const res = await getSummary(token);
+      // $5 paid − 3 × $1.20 cost.
+      expect(res.body.combined).toMatchObject({ totalRevenue: 5, grossProfit: 1.4, grossProfitKhr: 5740 });
+      expect(res.body.byStore[0].topProducts[0]).toMatchObject({ revenue: 5, profit: 1.4 });
+    });
+
+    it("uses the cost recorded at the time of sale, not today's cost", async () => {
+      const { store, terminal } = await seedFixtures();
+      const token = await loginAsAdmin();
+      // Cost has since gone up to $1.50; it was $1.00 when this sold.
+      const product = await widgetWithCost(store.id, 1.5);
+
+      await prisma.order.create({
+        data: {
+          storeId: store.id,
+          terminalId: terminal.id,
+          clientOrderUuid: `test-cost-snapshot-${Math.random()}`,
+          totalAmountMinor: toMinorUnits(2, "USD"),
+          currency: "USD",
+          paymentMethod: "CASH",
+          createdAt: new Date(),
+          items: {
+            create: [
+              {
+                productId: product.id,
+                quantity: 1,
+                priceAtSaleMinor: toMinorUnits(2, "USD"),
+                currency: "USD",
+                costAtSaleMinor: toMinorUnits(1, "USD"),
+                costCurrency: "USD",
+              },
+            ],
+          },
+        },
+      });
+
+      const res = await getSummary(token);
+      expect(res.body.combined.grossProfit).toBe(1);
+    });
+
+    it("leaves products with no cost out of gross profit and reports them", async () => {
+      const { store, terminal } = await seedFixtures();
+      const token = await loginAsAdmin();
+      const costed = await widgetWithCost(store.id, 1.2);
+      // No cost set: StoreProduct.costPriceMinor stays at its default 0.
+      const { product: uncosted } = await addProduct(store.id, { name: "Mystery", price: 3, stock: 100 });
+
+      await prisma.order.create({
+        data: {
+          storeId: store.id,
+          terminalId: terminal.id,
+          clientOrderUuid: `test-uncosted-${Math.random()}`,
+          totalAmountMinor: toMinorUnits(5, "USD"),
+          currency: "USD",
+          paymentMethod: "CASH",
+          createdAt: new Date(),
+          items: {
+            create: [
+              { productId: costed.id, quantity: 1, priceAtSaleMinor: toMinorUnits(2, "USD"), currency: "USD" },
+              { productId: uncosted.id, quantity: 1, priceAtSaleMinor: toMinorUnits(3, "USD"), currency: "USD" },
+            ],
+          },
+        },
+      });
+
+      const res = await getSummary(token);
+      // Only the costed line: $2 − $1.20. The $3 line isn't counted as all profit.
+      expect(res.body.combined).toMatchObject({
+        totalRevenue: 5,
+        grossProfit: 0.8,
+        uncostedRevenue: 3,
+        uncostedRevenueKhr: 12300,
+        uncostedProductCount: 1,
+      });
+      expect(res.body.byStore[0].uncostedProducts).toEqual([{ productId: uncosted.id, name: "Mystery", qty: 1 }]);
+      expect(res.body.byStore[0].allProducts.find((p: { productId: string }) => p.productId === uncosted.id)).toMatchObject({
+        profit: null,
+        profitKhr: null,
+        uncostedQty: 1,
+      });
+    });
+
+    it("converts each sale at the exchange rate it was made at, not today's", async () => {
+      const { store, terminal } = await seedFixtures();
+      const token = await loginAsAdmin();
+      // Today's rate is the 4100 default; this riel sale was made at 4000.
+      const product = await widgetWithCost(store.id, 1);
+
+      await prisma.order.create({
+        data: {
+          storeId: store.id,
+          terminalId: terminal.id,
+          clientOrderUuid: `test-rate-snapshot-${Math.random()}`,
+          totalAmountMinor: 8000,
+          currency: "KHR",
+          paymentMethod: "CASH",
+          exchangeRate: 4000,
+          createdAt: new Date(),
+          items: { create: [{ productId: product.id, quantity: 1, priceAtSaleMinor: 8000, currency: "KHR" }] },
+        },
+      });
+
+      const res = await getSummary(token);
+      // 8000 ៛ = $2 at 4000; $1 cost = 4000 ៛ at that rate.
+      expect(res.body.combined).toMatchObject({ totalRevenue: 2, totalRevenueKhr: 8000, grossProfit: 1, grossProfitKhr: 4000 });
+    });
+  });
 });
 
 describe("POST /api/stores/:storeId/products/:productId/adjust-stock", () => {

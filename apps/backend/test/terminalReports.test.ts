@@ -115,7 +115,9 @@ describe("GET /api/terminal/daily-summary", () => {
       avg_order: 6.5,
       avg_order_khr: 26700, // 26,650 rounded to the 100 note
       by_method: [{ payment_method: "CASH", count: 2, total: 13, total_khr: 53300 }],
-      top_products: [{ name: "Widget", total_qty: 4, revenue: 6 }],
+      // Each sale's total is spread over its lines, so product revenue adds
+      // up to what was paid (the riel sale's lines only list $3 of its $10).
+      top_products: [{ name: "Widget", total_qty: 4, revenue: 13 }],
     });
     expect(res.body).toHaveProperty("gross_profit");
   });
