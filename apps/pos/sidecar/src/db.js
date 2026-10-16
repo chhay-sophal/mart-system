@@ -233,6 +233,10 @@ function runMigrations() {
   // Links a local product to the backend's Product id once it's been matched
   // via a catalog pull — required before a sale of this product can be synced.
   if (!productCols.includes('backend_product_id')) db.run('ALTER TABLE products ADD COLUMN backend_product_id TEXT');
+  // Currency of cost_price, which can differ from the selling price's
+  // `currency` (the backend keeps the cost in the store's own currency).
+  // NULL means "same as `currency`" -- rows synced before this was sent.
+  if (!productCols.includes('cost_currency')) db.run('ALTER TABLE products ADD COLUMN cost_currency TEXT');
 
   const orderCols = cols('orders');
   if (!orderCols.includes('is_deleted')) db.run('ALTER TABLE orders ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
@@ -255,12 +259,21 @@ function runMigrations() {
   // Only set for a pulled order from another register -- this register's own
   // sales never show their own name (see localOrders() below).
   if (!orderCols.includes('terminal_name')) db.run('ALTER TABLE orders ADD COLUMN terminal_name TEXT');
+  // The exchange rate (riel per US dollar) the sale was rung up at, so the
+  // daily summary converts it at that rate rather than today's. NULL for
+  // sales from before this was kept; the summary uses the current rate then.
+  if (!orderCols.includes('exchange_rate')) db.run('ALTER TABLE orders ADD COLUMN exchange_rate REAL');
 
   const itemCols = cols('order_items');
   if (!itemCols.includes('created_at')) db.run('ALTER TABLE order_items ADD COLUMN created_at TEXT');
   if (!itemCols.includes('updated_at')) db.run('ALTER TABLE order_items ADD COLUMN updated_at TEXT');
   // Item discount for the whole line (the line charged price_at_sale x quantity - discount).
   if (!itemCols.includes('discount')) db.run('ALTER TABLE order_items ADD COLUMN discount REAL NOT NULL DEFAULT 0');
+  // The unit cost when the sale was rung up, in cost_currency. NULL when the
+  // product had no cost, and for lines from before this was kept -- the
+  // daily summary falls back to the product's current cost for those.
+  if (!itemCols.includes('cost_at_sale')) db.run('ALTER TABLE order_items ADD COLUMN cost_at_sale REAL');
+  if (!itemCols.includes('cost_currency')) db.run('ALTER TABLE order_items ADD COLUMN cost_currency TEXT');
 
   const khqrCols = cols('khqr_transactions');
   if (!khqrCols.includes('updated_at')) db.run('ALTER TABLE khqr_transactions ADD COLUMN updated_at TEXT');
@@ -282,7 +295,7 @@ function roundStoredUsdAmounts() {
     ['orders', 'amount_paid_usd', ''],
     ['order_items', 'price_at_sale', "currency = 'USD' AND"],
     ['products', 'price', "currency = 'USD' AND"],
-    ['products', 'cost_price', "currency = 'USD' AND"],
+    ['products', 'cost_price', "COALESCE(cost_currency, currency) = 'USD' AND"],
   ];
   for (const [table, column, scope] of usdColumns) {
     run(`UPDATE ${table} SET ${column} = ROUND(${column}, 2) WHERE ${scope} ${column} <> ROUND(${column}, 2)`);
