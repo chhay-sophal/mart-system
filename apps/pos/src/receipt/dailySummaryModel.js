@@ -31,6 +31,10 @@ export function buildDailySummary({ summary, shop, title, dateLabel, fmt, method
     left: s.margin || 'Margin',
     right: summary.total_revenue > 0 ? `${((summary.gross_profit / summary.total_revenue) * 100).toFixed(1)}%` : '—',
   });
+  if (summary.uncosted_product_count > 0) {
+    const note = s.uncostedNote || 'Gross profit leaves out {amount} of sales from products with no cost price.';
+    add({ type: 'text', text: note.replace('{amount}', fmt(summary.uncosted_revenue, summary.uncosted_revenue_khr)), size: 'sm' });
+  }
 
   if (summary.by_method?.length > 0) {
     add({ type: 'rule' });
@@ -50,7 +54,8 @@ export function buildDailySummary({ summary, shop, title, dateLabel, fmt, method
         name: p.name,
         detail: `${p.total_qty} ${s.colQty || 'Qty'}`,
         amount: fmt(p.revenue, p.revenue_khr),
-        note: `${s.colProfit || 'Profit'}: ${fmt(p.profit, p.profit_khr)}`,
+        // Null when none of the product's units had a cost price.
+        note: `${s.colProfit || 'Profit'}: ${p.profit == null ? '—' : fmt(p.profit, p.profit_khr)}`,
       });
     });
   }

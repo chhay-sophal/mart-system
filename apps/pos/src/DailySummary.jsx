@@ -92,6 +92,12 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
   const fmt = (n, khr) => isKhr
     ? `${(khr ?? usdToKhr(n, dynamicRate)).toLocaleString()} ៛`
     : `${Number(n || 0).toFixed(2)}`;
+  // A product's profit is null when none of its units had a cost price.
+  const fmtProfit = (p) => (p.profit == null ? '—' : fmt(p.profit, p.profit_khr));
+  const uncostedNote = summary?.uncosted_product_count > 0
+    ? (s.uncostedNote || 'Gross profit leaves out {amount} of sales from products with no cost price.')
+        .replace('{amount}', fmt(summary.uncosted_revenue, summary.uncosted_revenue_khr))
+    : null;
   const fmtSub = (n) => isKhr
     ? `≈ $${Number(n || 0).toFixed(2)}`
     : `≈ ${usdToKhr(n, dynamicRate).toLocaleString()} ៛`;
@@ -248,6 +254,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                 </div>
               ))}
             </div>
+            {uncostedNote && <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2">{uncostedNote}</p>}
 
             {/* Payment breakdown */}
             {summary.by_method?.length > 0 && (
@@ -300,7 +307,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                       <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{p.total_qty}</span>
                       <span className="text-sm font-bold text-slate-900 dark:text-white w-16 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
                       <span className={`text-sm font-bold w-16 text-right shrink-0 ${(p.profit ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                        {fmt(p.profit, p.profit_khr)}
+                        {fmtProfit(p)}
                       </span>
                     </div>
                   ))}
@@ -332,6 +339,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
               <span>{s.margin || 'Margin'}</span>
               <span>{summary.total_revenue > 0 ? `${((summary.gross_profit / summary.total_revenue) * 100).toFixed(1)}%` : '—'}</span>
             </div>
+            {uncostedNote && <p className="text-[9px]">{uncostedNote}</p>}
 
             {summary.by_method?.length > 0 && (
               <>
@@ -364,7 +372,7 @@ export default function DailySummary({ onBackToRegister, currentLocale, dynamicR
                     <span className="flex-1 truncate">{p.name}</span>
                     <span className="w-6 text-right shrink-0">{p.total_qty}</span>
                     <span className="w-12 text-right shrink-0">{fmt(p.revenue, p.revenue_khr)}</span>
-                    <span className="w-12 text-right shrink-0">{fmt(p.profit, p.profit_khr)}</span>
+                    <span className="w-12 text-right shrink-0">{fmtProfit(p)}</span>
                   </div>
                 ))}
               </>
