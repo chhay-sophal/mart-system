@@ -332,7 +332,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const navItems = [
     { id: 'general',  icon: SlidersHorizontal, label: s.generalSection?.header || 'General' },
     { id: 'store',    icon: Store,     label: s.storeProfileHeader || 'Store' },
-    { id: 'khqr',     icon: Smartphone, label: s.bakongHeader || 'KHQR' },
+    { id: 'khqr',     icon: Smartphone, label: s.paymentSectionHeader || 'Payment' },
     { id: 'printer',  icon: Printer,   label: s.printerSection?.header || 'Printer' },
     { id: 'drawer',   icon: Inbox,     label: s.drawerSection?.header || 'Drawer' },
     { id: 'display',  icon: Monitor,   label: s.standbySection?.header || 'Customer Display' },
