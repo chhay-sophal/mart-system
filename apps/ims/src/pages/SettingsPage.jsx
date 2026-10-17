@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
+import { queryClient, queryKeys } from '../lib/queryClient';
 import OnlinePosImport from '../components/OnlinePosImport.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, getT } from '../i18n/translate';
@@ -103,6 +104,7 @@ export default function SettingsPage() {
       const values = Object.fromEntries(POS_SYNCED_KEYS.map((key) => [key, String(posSynced[key])]));
       const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
       setSettings(res.settings ?? settings);
+      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
       setPosSyncedMessage(t.settings.pos.saved);
     } catch {
       setPosSyncedMessage(t.settings.pos.saveFailed);
@@ -130,6 +132,7 @@ export default function SettingsPage() {
     setMessage('');
     try {
       await apiClient.put(`/api/stores/${storeId}/settings`, { settings });
+      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
       setMessage(t.settings.saved);
     } catch {
       setMessage(t.settings.saveSettingsFailed);

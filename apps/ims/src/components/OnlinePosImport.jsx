@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import { apiClient } from '../lib/apiClient';
+import { queryClient, queryKeys } from '../lib/queryClient';
 import { openOnlinePosDb, readOrders, readProducts, readSettings, sourceIdFor } from '../lib/onlinePosFile';
 import { importProductsInBatches } from '../lib/productImport';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -79,7 +80,10 @@ export default function OnlinePosImport({ storeId, onImported }) {
     for (const [key, isValid] of Object.entries(VALID_SETTINGS)) {
       if (settings[key] && isValid(settings[key])) values[key] = settings[key];
     }
-    if (Object.keys(values).length) await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
+    if (Object.keys(values).length) {
+      await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
+      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
+    }
     setStep('settings', op.done);
   }
 

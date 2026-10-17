@@ -158,6 +158,13 @@ export default function ProductsPage() {
   // (viewing "All stores") the header's active store -- there's no single
   // store to default a new product into otherwise.
   const createStoreId = viewStoreId || storeId;
+  // The store's main currency (Settings > POS) is a new product's default.
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.storeSettings(createStoreId),
+    queryFn: () => apiClient.get(`/api/stores/${createStoreId}/settings`),
+    enabled: Boolean(createStoreId),
+  });
+  const mainCurrency = settingsQuery.data?.settings?.main_currency === 'KHR' ? 'KHR' : 'USD';
 
   // Also backs the read-only supplier-details popup (click a product's
   // supplier name) -- reuses this instead of a separate fetch per click.
@@ -374,7 +381,7 @@ export default function ProductsPage() {
     ]);
 
   function openCreate() {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, currency: mainCurrency });
     setEditing('new');
   }
 
