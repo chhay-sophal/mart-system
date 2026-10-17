@@ -13,7 +13,7 @@ type CreateProductInput = z.infer<typeof createProductSchema>;
 type UpdateProductInput = z.infer<typeof updateProductSchema>;
 
 type StoreProductWithProduct = Prisma.StoreProductGetPayload<{
-  include: { product: { include: { supplier: true } }; store: { select: { name: true } } };
+  include: { product: { include: { supplier: true; category: true } }; store: { select: { name: true } } };
 }>;
 
 function toProductView(row: StoreProductWithProduct) {
@@ -24,7 +24,9 @@ function toProductView(row: StoreProductWithProduct) {
     storeName: row.store.name,
     barcode: row.product.barcode,
     name: row.product.name,
-    category: row.product.category,
+    // Like the supplier below, an archived category stays linked and named.
+    categoryId: row.product.categoryId,
+    categoryName: row.product.category?.name ?? null,
     currency: row.product.currency,
     defaultPrice: fromMinorUnits(row.product.defaultPriceMinor, row.product.currency),
     priceOverride: row.priceOverrideMinor !== null ? fromMinorUnits(row.priceOverrideMinor, row.currency) : null,
@@ -42,7 +44,7 @@ function toProductView(row: StoreProductWithProduct) {
   };
 }
 
-const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true } }, store: { select: { name: true } } } as const;
+const STORE_PRODUCT_INCLUDE = { product: { include: { supplier: true, category: true } }, store: { select: { name: true } } } as const;
 
 async function listProductsByStoreIds(storeIds: string[], includeDeleted: boolean) {
   const rows = await prisma.storeProduct.findMany({
@@ -90,7 +92,7 @@ export async function createProduct(storeId: string, input: CreateProductInput) 
       data: {
         name: input.name,
         barcode: input.barcode ?? null,
-        category: input.category ?? null,
+        categoryId: input.categoryId ?? null,
         defaultPriceMinor: toMinorUnits(input.price, input.currency as Currency),
         currency: input.currency as Currency,
         supplierId: input.supplierId ?? null,
@@ -126,7 +128,7 @@ export async function updateProduct(storeId: string, productId: string, input: U
     if (
       input.name !== undefined ||
       input.barcode !== undefined ||
-      input.category !== undefined ||
+      input.categoryId !== undefined ||
       input.price !== undefined ||
       input.currency !== undefined ||
       input.supplierId !== undefined
@@ -136,7 +138,7 @@ export async function updateProduct(storeId: string, productId: string, input: U
         data: {
           name: input.name,
           barcode: input.barcode,
-          category: input.category,
+          categoryId: input.categoryId,
           defaultPriceMinor: input.price !== undefined ? toMinorUnits(input.price, effectiveCurrency) : undefined,
           currency: input.currency as Currency | undefined,
           supplierId: input.supplierId,

@@ -13,6 +13,7 @@ const TABLES = [
   "StoreProduct",
   "Product",
   "Supplier",
+  "Category",
   "StockTransferItem",
   "StockTransfer",
   "SyncEvent",

@@ -1,0 +1,53 @@
+// Strings for the categories section. Keep en and km keys in step.
+export default {
+  en: {
+    title: 'Categories',
+    add: 'Add category',
+    editTitle: 'Edit category',
+    searchPlaceholder: 'Search by name…',
+    count: '{count} categories',
+    countFiltered: '{visible} of {total} categories',
+    clearFilters: 'Clear filters ({count})',
+    clearSearch: 'Clear search',
+    products: 'Products',
+    filterName: 'Filter name',
+    min: 'Min',
+    max: 'Max',
+    noCategories: 'No categories yet.',
+    noMatch: 'No categories match the search.',
+    confirmDelete: "Delete \"{name}\"? This can't be undone.",
+    confirmArchiveOne:
+      "Archive \"{name}\"? {count} product is in it and will keep it, but it'll be hidden from the list and the product picker.",
+    confirmArchiveMany:
+      "Archive \"{name}\"? {count} products are in it and will keep it, but it'll be hidden from the list and the product picker.",
+    loadFailed: 'Failed to load categories.',
+    saveFailed: 'Failed to save category.',
+    removeFailed: 'Failed to remove category.',
+    restoreFailed: 'Failed to restore category.',
+  },
+  km: {
+    title: 'ប្រភេទ',
+    add: 'បន្ថែមប្រភេទ',
+    editTitle: 'កែប្រែប្រភេទ',
+    searchPlaceholder: 'ស្វែងរកតាមឈ្មោះ…',
+    count: 'ប្រភេទ {count}',
+    countFiltered: '{visible} ក្នុងចំណោមប្រភេទ {total}',
+    clearFilters: 'សម្អាតតម្រង ({count})',
+    clearSearch: 'សម្អាតការស្វែងរក',
+    products: 'ទំនិញ',
+    filterName: 'តម្រងឈ្មោះ',
+    min: 'តិចបំផុត',
+    max: 'ច្រើនបំផុត',
+    noCategories: 'មិនទាន់មានប្រភេទនៅឡើយទេ។',
+    noMatch: 'គ្មានប្រភេទត្រូវនឹងការស្វែងរកទេ។',
+    confirmDelete: 'លុប "{name}"? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+    confirmArchiveOne:
+      'ទុក "{name}" ក្នុងបណ្ណសារ? មានទំនិញ {count} ក្នុងប្រភេទនេះ ដែលនឹងនៅតែរក្សាវា ប៉ុន្តែវានឹងត្រូវលាក់ពីបញ្ជី និងពីការជ្រើសរើសទំនិញ។',
+    confirmArchiveMany:
+      'ទុក "{name}" ក្នុងបណ្ណសារ? មានទំនិញ {count} ក្នុងប្រភេទនេះ ដែលនឹងនៅតែរក្សាវា ប៉ុន្តែវានឹងត្រូវលាក់ពីបញ្ជី និងពីការជ្រើសរើសទំនិញ។',
+    loadFailed: 'មិនអាចផ្ទុកប្រភេទបានទេ។',
+    saveFailed: 'មិនអាចរក្សាទុកប្រភេទបានទេ។',
+    removeFailed: 'មិនអាចដកប្រភេទចេញបានទេ។',
+    restoreFailed: 'មិនអាចស្ដារប្រភេទវិញបានទេ។',
+  },
+};

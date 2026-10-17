@@ -156,7 +156,7 @@ model Product {
   id                String   @id @default(cuid())
   barcode           String?  @unique
   name              String
-  category          String?
+  categoryId        String?
   defaultPriceMinor Int
   currency          Currency @default(USD)
   supplierId        String?
@@ -165,15 +165,29 @@ model Product {
   updatedAt         DateTime @updatedAt
 
   supplier       Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   storeProducts  StoreProduct[]
   orderItems     OrderItem[]
   stockMovements StockMovement[]
 
   @@index([supplierId])
+  @@index([categoryId])
 }
 
 // Global, like Product -- not store-scoped (the same vendor can supply
 // products shared across every store's catalog).
+// Global like Supplier (not per store). Archived instead of deleted once a
+// product points at it, so existing products keep showing their category.
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
 model Supplier {
   id        String   @id @default(cuid())
   name      String

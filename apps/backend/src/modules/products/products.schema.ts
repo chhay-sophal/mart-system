@@ -5,7 +5,7 @@ const currencySchema = z.enum(["USD", "KHR"]);
 export const createProductSchema = z.object({
   name: z.string().min(1),
   barcode: z.string().min(1).nullable().optional(),
-  category: z.string().nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   price: z.number().nonnegative(),
   priceOverride: z.number().nonnegative().nullable().optional(),
   currency: currencySchema.default("USD"),
@@ -18,7 +18,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
   barcode: z.string().min(1).nullable().optional(),
-  category: z.string().nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
   price: z.number().nonnegative().optional(),
   priceOverride: z.number().nonnegative().nullable().optional(),
   currency: currencySchema.optional(),

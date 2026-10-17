@@ -7,6 +7,7 @@ import { authRouter } from "./modules/auth/auth.routes";
 import { storesRouter } from "./modules/stores/stores.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { suppliersRouter } from "./modules/suppliers/suppliers.routes";
+import { categoriesRouter } from "./modules/categories/categories.routes";
 import { staffRouter } from "./modules/staff/staff.routes";
 import { terminalsRouter } from "./modules/terminals/terminals.routes";
 import { syncRouter } from "./modules/sync/sync.routes";
@@ -36,6 +37,7 @@ export function buildApp(): Express {
   app.use("/api/stores", storesRouter);
   app.use("/api", productsRouter);
   app.use("/api", suppliersRouter);
+  app.use("/api", categoriesRouter);
   app.use("/api", staffRouter);
   app.use("/api", terminalsRouter);
   app.use("/api", syncRouter);

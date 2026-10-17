@@ -31,7 +31,7 @@ import { fmt, plural } from '../i18n/translate';
 const EMPTY_FORM = {
   name: '',
   barcode: '',
-  category: '',
+  categoryId: '',
   price: '',
   priceOverride: '',
   currency: 'USD',
@@ -45,7 +45,7 @@ function toFormState(product) {
   return {
     name: product.name ?? '',
     barcode: product.barcode ?? '',
-    category: product.category ?? '',
+    categoryId: product.categoryId ?? '',
     price: String(product.defaultPrice ?? ''),
     priceOverride: product.priceOverride != null ? String(product.priceOverride) : '',
     currency: product.currency ?? 'USD',
@@ -60,7 +60,7 @@ function toRequestBody(form) {
   return {
     name: form.name.trim(),
     barcode: form.barcode.trim() || null,
-    category: form.category.trim() || null,
+    categoryId: form.categoryId || null,
     price: Number(form.price),
     priceOverride: form.priceOverride.trim() === '' ? null : Number(form.priceOverride),
     currency: form.currency,
@@ -174,6 +174,23 @@ export default function ProductsPage() {
     enabled: Boolean(storeId),
   });
   const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  // Active categories, for the form's picker.
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/categories`),
+    enabled: Boolean(storeId),
+  });
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  // The Category column's filter choices: every category the loaded products
+  // actually use (archived ones included), plus "No category".
+  const categoryOptions = useMemo(() => {
+    const byId = new Map();
+    for (const p of products) if (p.categoryId) byId.set(p.categoryId, p.categoryName);
+    return [...byId]
+      .sort(([, a], [, b]) => a.localeCompare(b))
+      .map(([value, label]) => ({ value, label }))
+      .concat({ value: 'none', label: t.products.noCategory });
+  }, [products, t]);
   // A soft-deleted supplier drops out of the list above (and its own GET
   // 404s), so fall back to the name already cached on the product itself --
   // the only thing still available once a supplier's been removed.
@@ -213,6 +230,11 @@ export default function ProductsPage() {
           describe: (v) => (v.mode === 'missing' ? t.products.noBarcode : v.text.trim()),
           render: (props) => <TextOrMissingFilter {...props} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
         },
+      },
+      {
+        key: 'category', label: t.products.category, cellClassName: muted, render: (p) => p.categoryName ?? '—',
+        sortValue: (p) => p.categoryName,
+        filter: { type: 'select', value: (p) => p.categoryId ?? 'none', options: categoryOptions },
       },
       {
         key: 'costPrice', label: t.products.colCostPrice, cellClassName: muted, render: (p) => fmtPrice(p.costPrice, p.currency),
@@ -378,6 +400,8 @@ export default function ProductsPage() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ['products'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
+      // Category product counts change when a product moves or is archived.
+      queryClient.invalidateQueries({ queryKey: ['categories'] }),
     ]);
 
   function openCreate() {
@@ -602,10 +626,11 @@ export default function ProductsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.products.category}</label>
-                <input
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                <SearchableSelect
+                  value={form.categoryId}
+                  onChange={(categoryId) => setForm({ ...form, categoryId })}
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  emptyLabel={t.products.noCategory}
                 />
               </div>
             </div>

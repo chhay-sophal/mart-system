@@ -4,7 +4,7 @@ export interface Product {
   id: string;
   barcode: string | null;
   name: string;
-  category: string | null;
+  categoryId: string | null;
   defaultPrice: number;
   currency: Currency;
   isDeleted: boolean;

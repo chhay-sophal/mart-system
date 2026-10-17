@@ -24,6 +24,7 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   products: (storeId, includeDeleted = false) => ['products', storeId, includeDeleted],
   suppliers: (storeId, includeDeleted = false) => ['suppliers', storeId, includeDeleted],
+  categories: (storeId, includeDeleted = false) => ['categories', storeId, includeDeleted],
   staff: (storeId) => ['staff', storeId],
   storeSettings: (storeId) => ['store-settings', storeId],
   terminals: (storeId) => ['terminals', storeId],

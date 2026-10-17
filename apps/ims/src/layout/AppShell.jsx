@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/products', key: 'products' },
   { to: '/stores', key: 'stores' },
   { to: '/suppliers', key: 'suppliers' },
+  { to: '/categories', key: 'categories' },
   { to: '/staff', key: 'staff' },
   { to: '/terminals', key: 'terminals' },
   { to: '/transfers', key: 'transfers' },

@@ -7,6 +7,7 @@ import products from './products';
 import importExport from './importExport';
 import stores from './stores';
 import suppliers from './suppliers';
+import categories from './categories';
 import staff from './staff';
 import terminals from './terminals';
 import transfers from './transfers';
@@ -22,6 +23,7 @@ const sections = {
   importExport,
   stores,
   suppliers,
+  categories,
   staff,
   terminals,
   transfers,
