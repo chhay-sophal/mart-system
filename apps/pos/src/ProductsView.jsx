@@ -6,7 +6,7 @@ import { useToast } from './Toast';
 import { translations as t } from './locales';
 import { queryKeys } from './queryClient';
 import { usdToKhr } from './khr';
-import FilterableHeader, { filterInput } from './components/FilterableHeader';
+import FilterableHeader, { CheckboxFilter, filterInput } from './components/FilterableHeader';
 import { useColumnFilter } from './hooks/useColumnFilter';
 
 // Rows drawn at once; the rest are reached by narrowing the search. Keeps
@@ -32,12 +32,13 @@ const fmtPrice = (price, currency) =>
 const EMPTY_FILTERS = {
   name: '',
   barcode: '',
-  currency: 'all', // all | USD | KHR
+  category: [], // ticked category names ('' = no category); none ticked = all
+  currency: [], // ticked USD / KHR; none ticked = all
   priceMin: '',
   priceMax: '',
   costPriceMin: '',
   costPriceMax: '',
-  stock: 'all', // all | low | out | in
+  stock: [], // ticked low / out / in; none ticked = all; a product passes if it fits any
 };
 
 // No per-product threshold here (unlike IMS) -- matches the register's own
@@ -49,7 +50,7 @@ function matchesStock(p, mode) {
     case 'low': return p.stock <= LOW_STOCK_THRESHOLD;
     case 'out': return p.stock <= 0;
     case 'in': return p.stock > 0;
-    default: return true;
+    default: return false;
   }
 }
 
@@ -58,14 +59,15 @@ function matchesColumnFilters(p, f) {
   const barcode = norm(f.barcode);
   if (name && !norm(p.name).includes(name)) return false;
   if (barcode && !norm(p.barcode).includes(barcode)) return false;
-  if (f.currency !== 'all' && p.currency !== f.currency) return false;
+  if (f.category.length > 0 && !f.category.includes(p.category || '')) return false;
+  if (f.currency.length > 0 && !f.currency.includes(p.currency)) return false;
   const price = Number(p.price);
   if (f.priceMin !== '' && !(price >= Number(f.priceMin))) return false;
   if (f.priceMax !== '' && !(price <= Number(f.priceMax))) return false;
   const costPrice = Number(p.costPrice);
   if (f.costPriceMin !== '' && !(costPrice >= Number(f.costPriceMin))) return false;
   if (f.costPriceMax !== '' && !(costPrice <= Number(f.costPriceMax))) return false;
-  return matchesStock(p, f.stock);
+  return f.stock.length === 0 || f.stock.some((mode) => matchesStock(p, mode));
 }
 
 // Price/cost price sort within each currency (USD before KHR): without a
@@ -73,6 +75,7 @@ function matchesColumnFilters(p, f) {
 const COMPARE = {
   name: (a, b) => a.name.localeCompare(b.name),
   barcode: (a, b) => (a.barcode ?? '').localeCompare(b.barcode ?? ''),
+  category: (a, b) => (a.category ?? '').localeCompare(b.category ?? ''),
   price: (a, b) => a.currency.localeCompare(b.currency) * -1 || Number(a.price) - Number(b.price),
   costPrice: (a, b) => a.currency.localeCompare(b.currency) * -1 || Number(a.costPrice) - Number(b.costPrice),
   stock: (a, b) => a.stock - b.stock,
@@ -108,6 +111,12 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
     queryFn: () => client.get('/api/products'),
   });
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
+  // The category filter's choices: every category on this register's
+  // products, then "No category" ('').
+  const categoryOptions = useMemo(
+    () => [...new Set(products.map((p) => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)).concat(''),
+    [products]
+  );
 
   // Pull the latest catalog from the server now, rather than waiting for the
   // next background sync, then re-read it. Offline (or not paired yet), the
@@ -213,11 +222,12 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                   only reorders rows, not column content -- can't make a
                   column's width drift as the browser re-measures content. */}
               <colgroup>
-                <col style={{ width: '30%' }} />
-                <col style={{ width: '20%' }} />
-                <col style={{ width: '14%' }} />
+                <col style={{ width: '25%' }} />
                 <col style={{ width: '16%' }} />
-                <col style={{ width: '10%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '15%' }} />
+                <col style={{ width: '8%' }} />
                 <col style={{ width: '10%' }} />
               </colgroup>
               <thead className="bg-slate-50 dark:bg-slate-900/60 text-[11px] text-slate-400 dark:text-slate-500 text-left">
@@ -248,6 +258,17 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                     />
                   </FilterableHeader>
                   <FilterableHeader
+                    col="category" label={s.colCategory || 'Category'} sort={sort} onSort={toggleSort}
+                    isOpen={openFilterCol === 'category'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
+                    hasActiveFilter={filters.category.length > 0}
+                  >
+                    <CheckboxFilter
+                      options={categoryOptions.map((c) => ({ value: c, label: c || s.noCategory || 'No category' }))}
+                      value={filters.category}
+                      onChange={(v) => setFilter('category', v)}
+                    />
+                  </FilterableHeader>
+                  <FilterableHeader
                     col="costPrice" label={s.colCostPrice} sort={sort} onSort={toggleSort}
                     isOpen={openFilterCol === 'costPrice'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
                     hasActiveFilter={filters.costPriceMin !== EMPTY_FILTERS.costPriceMin || filters.costPriceMax !== EMPTY_FILTERS.costPriceMax}
@@ -260,14 +281,14 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                   <FilterableHeader
                     col="price" label={s.colPrice} sort={sort} onSort={toggleSort}
                     isOpen={openFilterCol === 'price'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                    hasActiveFilter={filters.currency !== EMPTY_FILTERS.currency || filters.priceMin !== EMPTY_FILTERS.priceMin || filters.priceMax !== EMPTY_FILTERS.priceMax}
+                    hasActiveFilter={filters.currency.length > 0 || filters.priceMin !== EMPTY_FILTERS.priceMin || filters.priceMax !== EMPTY_FILTERS.priceMax}
                   >
                     <div className="flex flex-col gap-1.5">
-                      <select value={filters.currency} onChange={(e) => setFilter('currency', e.target.value)} className={filterInput}>
-                        <option value="all">{s.filterAllCurrencies}</option>
-                        <option value="USD">USD</option>
-                        <option value="KHR">KHR</option>
-                      </select>
+                      <CheckboxFilter
+                        options={[{ value: 'USD', label: 'USD' }, { value: 'KHR', label: 'KHR' }]}
+                        value={filters.currency}
+                        onChange={(v) => setFilter('currency', v)}
+                      />
                       <div className="flex gap-1">
                         <input type="number" value={filters.priceMin} onChange={(e) => setFilter('priceMin', e.target.value)} placeholder={s.filterMin} className={`${filterInput} w-20`} />
                         <input type="number" value={filters.priceMax} onChange={(e) => setFilter('priceMax', e.target.value)} placeholder={s.filterMax} className={`${filterInput} w-20`} />
@@ -277,14 +298,17 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                   <FilterableHeader
                     col="stock" label={s.colStock} sort={sort} onSort={toggleSort}
                     isOpen={openFilterCol === 'stock'} onToggleFilter={toggleFilterCol} panelRef={filterPanelRef}
-                    hasActiveFilter={filters.stock !== EMPTY_FILTERS.stock}
+                    hasActiveFilter={filters.stock.length > 0}
                   >
-                    <select value={filters.stock} onChange={(e) => setFilter('stock', e.target.value)} className={filterInput}>
-                      <option value="all">{s.filterStockAll}</option>
-                      <option value="low">{s.filterStockLow}</option>
-                      <option value="out">{s.filterStockOut}</option>
-                      <option value="in">{s.filterStockIn}</option>
-                    </select>
+                    <CheckboxFilter
+                      options={[
+                        { value: 'low', label: s.filterStockLow },
+                        { value: 'out', label: s.filterStockOut },
+                        { value: 'in', label: s.filterStockIn },
+                      ]}
+                      value={filters.stock}
+                      onChange={(v) => setFilter('stock', v)}
+                    />
                   </FilterableHeader>
                   <th className="px-4 py-2.5" />
                 </tr>
@@ -297,6 +321,7 @@ export default function ProductsView({ currentLocale, cart, onAddToCart, onBackT
                       className={`border-t border-slate-100 dark:border-slate-700/60 ${i === activeIndex ? 'bg-indigo-50/70 dark:bg-indigo-950/30' : ''}`}>
                       <td className="px-4 py-2.5 font-semibold truncate" title={p.name}>{p.name}</td>
                       <td className="px-4 py-2.5 font-bold truncate" title={p.barcode || undefined}>{p.barcode || '—'}</td>
+                      <td className="px-4 py-2.5 truncate text-slate-500 dark:text-slate-400" title={p.category || undefined}>{p.category || '—'}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400" title={fmtPrice(p.costPrice, p.currency)}>
                         {fmtPrice(p.costPrice, p.currency)}
                       </td>

@@ -361,6 +361,26 @@ describe("GET /api/sync/pull", () => {
     expect(afterChange.body.productUpserts[0].stock).toBe(4);
   });
 
+  it("sends each product's category name, and re-sends its products when a category is renamed", async () => {
+    const { store, terminal } = await seedFixtures();
+    const category = await prisma.category.create({ data: { name: "Drinks" } });
+    const { product } = await addProduct(store.id, { name: "Cola", price: 1, stock: 5 });
+    await prisma.product.update({ where: { id: product.id }, data: { categoryId: category.id } });
+    const { product: plain } = await addProduct(store.id, { name: "Bag", price: 0.1, stock: 5 });
+
+    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    const byId = (id: string) => first.body.productUpserts.find((p: { productId: string }) => p.productId === id);
+    expect(byId(product.id).categoryName).toBe("Drinks");
+    expect(byId(plain.id).categoryName).toBeNull();
+
+    // A rename touches only the Category row, never the product.
+    await new Promise((r) => setTimeout(r, 5));
+    await prisma.category.update({ where: { id: category.id }, data: { name: "Beverages" } });
+    const delta = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(delta.body.productUpserts).toHaveLength(1);
+    expect(delta.body.productUpserts[0]).toMatchObject({ productId: product.id, categoryName: "Beverages" });
+  });
+
   it("includes the store's IMS-managed settings in full on every pull", async () => {
     const { store, terminal } = await seedFixtures();
 

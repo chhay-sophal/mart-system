@@ -4,6 +4,28 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 export const filterInput = 'w-full border border-slate-200 dark:border-slate-700 rounded-md px-3 h-9 text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200';
 
+/**
+ * A multi-choice filter for a FilterableHeader's dropdown: one checkbox per
+ * option. `value` is the array of ticked option values; nothing ticked
+ * conventionally means "no filter" -- the caller decides how to match, and
+ * passes hasActiveFilter={value.length > 0}. Long lists scroll.
+ *
+ *   <CheckboxFilter options={[{ value: 'USD', label: 'USD' }]} value={ticked} onChange={setTicked} />
+ */
+export function CheckboxFilter({ options, value, onChange }) {
+  const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  return (
+    <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+      {options.map((o) => (
+        <label key={o.value} className="flex items-center gap-2 text-sm font-normal normal-case text-slate-700 dark:text-slate-200 cursor-pointer">
+          <input type="checkbox" checked={value.includes(o.value)} onChange={() => toggle(o.value)} className="accent-indigo-600 cursor-pointer" />
+          {o.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function FilterIcon({ className }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className={className}>

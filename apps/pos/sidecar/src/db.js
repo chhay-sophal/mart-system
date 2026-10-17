@@ -237,6 +237,8 @@ function runMigrations() {
   // `currency` (the backend keeps the cost in the store's own currency).
   // NULL means "same as `currency`" -- rows synced before this was sent.
   if (!productCols.includes('cost_currency')) db.run('ALTER TABLE products ADD COLUMN cost_currency TEXT');
+  // The backend category's name, for display only (IMS manages categories).
+  if (!productCols.includes('category')) db.run('ALTER TABLE products ADD COLUMN category TEXT');
 
   const orderCols = cols('orders');
   if (!orderCols.includes('is_deleted')) db.run('ALTER TABLE orders ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');

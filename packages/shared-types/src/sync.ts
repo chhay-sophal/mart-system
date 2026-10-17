@@ -68,6 +68,8 @@ export interface SyncPullResponse {
     currency: Currency;
     stock: number;
     isDeleted: boolean;
+    /** Display only; null = no category. Older backends omit it. */
+    categoryName?: string | null;
   }>;
   /** Cached locally so a POS terminal can verify a cashier PIN fully offline. */
   staffRoster: Array<{

@@ -95,17 +95,20 @@ function upsertProduct(item) {
   // costPrice is in the store's own currency, sent as costCurrency (older
   // backends don't; NULL then reads as the selling price's currency).
   const costCurrency = item.costCurrency === 'KHR' || item.costCurrency === 'USD' ? item.costCurrency : null;
+  // null clears the category; an older backend omits the field entirely, and
+  // then the row keeps whatever it had.
+  const sendsCategory = item.categoryName !== undefined;
   const now = db.localNow();
 
   if (existing) {
     db.run(
-      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), cost_price = COALESCE(?, cost_price), cost_currency = COALESCE(?, cost_currency), stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
-      [item.name, item.barcode, price, currency, item.costPrice ?? null, costCurrency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
+      'UPDATE products SET name = ?, barcode = ?, price = ?, currency = COALESCE(?, currency), cost_price = COALESCE(?, cost_price), cost_currency = COALESCE(?, cost_currency), category = CASE WHEN ? THEN ? ELSE category END, stock = ?, is_deleted = ?, backend_product_id = ?, updated_at = ? WHERE id = ?',
+      [item.name, item.barcode, price, currency, item.costPrice ?? null, costCurrency, sendsCategory ? 1 : 0, item.categoryName ?? null, item.stock, item.isDeleted ? 1 : 0, item.productId, now, existing.id]
     );
   } else {
     db.run(
-      'INSERT INTO products (name, barcode, price, currency, cost_price, cost_currency, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [item.name, item.barcode, price, currency ?? 'USD', item.costPrice ?? 0, costCurrency, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
+      'INSERT INTO products (name, barcode, price, currency, cost_price, cost_currency, category, stock, is_deleted, backend_product_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [item.name, item.barcode, price, currency ?? 'USD', item.costPrice ?? 0, costCurrency, item.categoryName ?? null, item.stock, item.isDeleted ? 1 : 0, item.productId, now, now]
     );
   }
 }
@@ -170,14 +173,20 @@ function upsertOrder(config, item) {
   }
 }
 
-// Products synced before the backend sent each price's currency were stored
-// with the local default, USD -- so a 3,000 ៛ product sold as $3,000. Sync
-// only re-sends changed products, so those rows never got corrected. Once,
-// pull the whole catalog again; it only counts as done when the backend
-// actually sent currencies (an older backend gets retried next app start,
-// not on every 20s tick).
-const CURRENCY_RESYNC_MARKER = 'catalog_resync_currency_v1';
-let currencyResyncTriedThisRun = false;
+// Sync only re-sends changed products, so a field the backend starts sending
+// later never reaches rows pulled before that. Each entry below pulls the
+// whole catalog again, once; it only counts as done when the backend actually
+// sent that field (an older backend gets retried next app start, not on
+// every 20s tick).
+// - currency: products synced before it was sent were stored with the local
+//   default, USD -- so a 3,000 ៛ product sold as $3,000.
+// - categoryName: products pulled before categories existed have none.
+const CATALOG_RESYNCS = [
+  { marker: 'catalog_resync_currency_v1', sent: (item) => item.currency === 'KHR' || item.currency === 'USD' },
+  { marker: 'catalog_resync_category_v1', sent: (item) => item.categoryName !== undefined },
+];
+const resyncsTriedThisRun = new Set();
+const resyncDone = (marker) => db.query('SELECT 1 FROM sync_state WHERE key = ?', [marker]).length > 0;
 
 /**
  * Pulls catalog changes since the last pull. `full: true` ignores the cursor
@@ -186,10 +195,9 @@ let currencyResyncTriedThisRun = false;
  */
 async function pullCatalogImpl(config, { full = false } = {}) {
   const cursor = db.query("SELECT value FROM sync_state WHERE key = 'pull_cursor'")[0]?.value;
-  const currencyResync =
-    !currencyResyncTriedThisRun && !db.query('SELECT 1 FROM sync_state WHERE key = ?', [CURRENCY_RESYNC_MARKER]).length;
-  if (currencyResync) currencyResyncTriedThisRun = true;
-  const fullPull = full || currencyResync;
+  const pendingResyncs = CATALOG_RESYNCS.filter((r) => !resyncsTriedThisRun.has(r.marker) && !resyncDone(r.marker));
+  for (const r of pendingResyncs) resyncsTriedThisRun.add(r.marker);
+  const fullPull = full || pendingResyncs.length > 0;
   // Join like push does: new URL('/api/...', base) would drop any base subpath.
   const url = new URL(`${config.backendUrl}/api/sync/pull`);
   if (cursor && !fullPull) url.searchParams.set('since', cursor);
@@ -281,11 +289,14 @@ async function pullCatalogImpl(config, { full = false } = {}) {
     throw new Error(`Couldn't save everything, will retry: ${parts.join('; ')}`);
   }
 
-  if (fullPull && productUpserts.every((item) => item.currency === 'KHR' || item.currency === 'USD')) {
-    db.run("INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [
-      CURRENCY_RESYNC_MARKER,
-      db.localNow(),
-    ]);
+  if (fullPull) {
+    for (const r of CATALOG_RESYNCS) {
+      if (resyncDone(r.marker) || !productUpserts.every(r.sent)) continue;
+      db.run("INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", [
+        r.marker,
+        db.localNow(),
+      ]);
+    }
     db.saveDb();
   }
   return productUpserts.length;

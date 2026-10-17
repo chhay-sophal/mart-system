@@ -242,6 +242,8 @@ export interface ProductUpsert {
   costCurrency: "USD" | "KHR";
   stock: number;
   isDeleted: boolean;
+  /** Display only; null = no category. */
+  categoryName: string | null;
 }
 
 export interface StaffRosterUpsert {
@@ -389,10 +391,18 @@ export async function pullCatalog(
     where: {
       storeId,
       ...(sinceDate
-        ? { OR: [{ updatedAt: { gt: sinceDate } }, { product: { updatedAt: { gt: sinceDate } } }] }
+        ? {
+            OR: [
+              { updatedAt: { gt: sinceDate } },
+              { product: { updatedAt: { gt: sinceDate } } },
+              // A renamed category changes every product's shown name
+              // without touching the products themselves.
+              { product: { category: { updatedAt: { gt: sinceDate } } } },
+            ],
+          }
         : {}),
     },
-    include: { product: true },
+    include: { product: { include: { category: { select: { name: true } } } } },
   });
 
   const productUpserts: ProductUpsert[] = rows.map((row) => ({
@@ -406,6 +416,7 @@ export async function pullCatalog(
     costCurrency: row.currency,
     stock: row.stock,
     isDeleted: row.product.isDeleted,
+    categoryName: row.product.category?.name ?? null,
   }));
 
   // Same roster shape auth.service.ts's pinLogin() scans server-side — this is
