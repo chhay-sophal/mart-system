@@ -81,6 +81,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
   const [updateProgress, setUpdateProgress] = useState(0);
   const [activeSection, setActiveSection] = useState('general');
   const [showDeviceSecret, setShowDeviceSecret] = useState(false);
+  const [showProfitPin, setShowProfitPin] = useState(false);
   const [overridingUrl, setOverridingUrl] = useState(false);
   const [standbyError, setStandbyError] = useState('');
   const [shopIconError, setShopIconError] = useState('');
@@ -554,17 +555,25 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                               {s.generalSection?.showProfitPin || 'Profit PIN (4 digits)'}
                             </label>
                             {/* Its own PIN, not a staff PIN: required while the button is on. */}
-                            <input
-                              required
-                              inputMode="numeric"
-                              pattern="[0-9]{4}"
-                              title="Exactly 4 digits"
-                              maxLength={4}
-                              placeholder="1234"
-                              value={settings.show_profit_pin || ''}
-                              onChange={(e) => setSettings((prev) => ({ ...prev, show_profit_pin: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) }))}
-                              className={inputNormal}
-                            />
+                            <div className="relative">
+                              <input
+                                required
+                                type={showProfitPin ? 'text' : 'password'}
+                                inputMode="numeric"
+                                pattern="[0-9]{4}"
+                                title="Exactly 4 digits"
+                                maxLength={4}
+                                placeholder="1234"
+                                value={settings.show_profit_pin || ''}
+                                onChange={(e) => setSettings((prev) => ({ ...prev, show_profit_pin: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) }))}
+                                className={`${inputNormal} pr-10`}
+                              />
+                              <button type="button" onClick={() => setShowProfitPin((v) => !v)}
+                                aria-label={showProfitPin ? 'Hide PIN' : 'Show PIN'}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">
+                                {showProfitPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

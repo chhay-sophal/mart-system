@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Printer, RefreshCw, Inbox } from 'lucide-react';
+import { Printer, RefreshCw } from 'lucide-react';
 import { useToast } from '../Toast';
-import { listPrinters, openCashDrawer, printReceiptDirect, printerConfig, sampleInvoice, sampleShop, TCP_PREFIX } from './thermalPrinter';
+import { listPrinters, printReceiptDirect, printerConfig, sampleInvoice, sampleShop, TCP_PREFIX } from './thermalPrinter';
 
 const IS_TAURI = Boolean(window.__TAURI_INTERNALS__ ?? window.__TAURI__);
 const NETWORK = '__network__'; // the select's "network printer" choice

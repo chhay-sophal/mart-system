@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Inbox } from 'lucide-react';
+import { Eye, EyeOff, Inbox } from 'lucide-react';
 import { useToast } from '../Toast';
 import { openCashDrawer, printerConfig } from './thermalPrinter';
 
@@ -15,6 +15,7 @@ const onlyDigits = (value) => value.replace(/[^0-9]/g, '').slice(0, 4);
 export default function CashDrawerSettings({ settings, setSettings, p, ToggleRow, inputClass }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  const [showPin, setShowPin] = useState(false);
 
   const set = (key, value) => setSettings((prev) => ({ ...prev, [key]: value }));
   const direct = settings.receipt_printer_mode === 'escpos';
@@ -63,17 +64,28 @@ export default function CashDrawerSettings({ settings, setSettings, p, ToggleRow
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
                   {p.drawerPin || 'Drawer PIN (4 digits)'}
                 </label>
-                <input
-                  required
-                  inputMode="numeric"
-                  pattern="[0-9]{4}"
-                  title="Exactly 4 digits"
-                  maxLength={4}
-                  placeholder="1234"
-                  value={settings.cash_drawer_pin || ''}
-                  onChange={(e) => set('cash_drawer_pin', onlyDigits(e.target.value))}
-                  className={inputClass}
-                />
+                <div className="relative">
+                  <input
+                    required
+                    type={showPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    pattern="[0-9]{4}"
+                    title="Exactly 4 digits"
+                    maxLength={4}
+                    placeholder="1234"
+                    value={settings.cash_drawer_pin || ''}
+                    onChange={(e) => set('cash_drawer_pin', onlyDigits(e.target.value))}
+                    className={`${inputClass} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin((v) => !v)}
+                    aria-label={showPin ? p.hidePin || 'Hide PIN' : p.showPin || 'Show PIN'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                  >
+                    {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
             )}
           </div>
