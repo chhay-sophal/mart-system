@@ -15,6 +15,11 @@ import DraftsDialog from './DraftsDialog';
 import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
+import {
+  TENDER_PRESETS_ENABLED_KEY, TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
+  DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, parseTenderPresets,
+} from './tenderPresets';
+import TenderPresetChips from './TenderPresetChips';
 import { addProduct, quantityOf, splitLine } from './cartLines';
 import { translations as t } from './locales';
 import UpdateChecker from './UpdateChecker';
@@ -88,6 +93,9 @@ export default function App() {
   const [staticQrBank, setStaticQrBank] = useState('');
   // Fixed bank KHQR images from Settings > KHQR (issue #12).
   const [staticQrCodes, setStaticQrCodes] = useState([]);
+  // Quick-tap cash tender amounts from Settings > General > Tendered Amount
+  // Presets (per currency; the order's own total is added live, not stored).
+  const [tenderPresets, setTenderPresets] = useState({ enabled: true, usd: DEFAULT_USD_PRESETS, khr: DEFAULT_KHR_PRESETS });
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -519,6 +527,11 @@ export default function App() {
         setProfitButton({ enabled: data.show_profit_enabled === 'true' && Boolean(data.show_profit_pin), pin: data.show_profit_pin || '' });
         setPrinter(printerConfig(data));
         setStaticQrCodes(parseStaticQrCodes(data[STATIC_QR_KEY]));
+        setTenderPresets({
+          enabled: data[TENDER_PRESETS_ENABLED_KEY] !== 'false',
+          usd: parseTenderPresets(data[TENDER_PRESETS_USD_KEY], DEFAULT_USD_PRESETS),
+          khr: parseTenderPresets(data[TENDER_PRESETS_KHR_KEY], DEFAULT_KHR_PRESETS),
+        });
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -1489,38 +1502,88 @@ export default function App() {
             {paymentMethod === 'CASH' ? (
               <div className="space-y-4">
                 <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700">
-                  <div className='flex gap-1'>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      ref={tenderKhrRef}
-                      value={formatMoneyInput(amountPaidKhr)}
-                      onChange={(e) => {
-                        const raw = stripMoneyInput(e.target.value);
-                        if (!/^\d*\.?\d*$/.test(raw)) return;
-                        setAmountPaidKhr(raw);
-                        setCheckoutResult(null);
-                      }}
-                      className="w-full mt-1.5 h-10 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30 focus:outline-hidden focus:border-indigo-500"
-                      placeholder="0"
-                    />
+                  <div>
+                    <div className='flex gap-1'>
+                      <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
+                      <div className="relative w-full mt-1.5">
+                        <input
+                          type="text"
+                          readOnly
+                          disabled
+                          inputMode="decimal"
+                          ref={tenderKhrRef}
+                          value={formatMoneyInput(amountPaidKhr)}
+                          onChange={(e) => {
+                            const raw = stripMoneyInput(e.target.value);
+                            if (!/^\d*\.?\d*$/.test(raw)) return;
+                            setAmountPaidKhr(raw);
+                            setCheckoutResult(null);
+                          }}
+                          className="w-full h-10 px-3 pr-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30 focus:outline-hidden focus:border-indigo-500"
+                          placeholder="0"
+                        />
+                        {amountPaidKhr && (
+                          <button
+                            type="button"
+                            onClick={() => { setAmountPaidKhr(''); setCheckoutResult(null); }}
+                            aria-label={t[locale].clear}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {tenderPresets.enabled && (
+                      <TenderPresetChips
+                        amounts={tenderPresets.khr}
+                        exactAmount={totalKhr}
+                        exactLabel={t[locale].tenderExact}
+                        currentValue={tenderedKhr}
+                        format={(n) => `${n.toLocaleString()} ៛`}
+                        onPick={(amount) => { setAmountPaidKhr(String(amount)); setCheckoutResult(null); }}
+                      />
+                    )}
                   </div>
-                  <div className='flex gap-1'>
-                    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedUsd}</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formatMoneyInput(amountPaidUsd)}
-                      onChange={(e) => {
-                        const raw = stripMoneyInput(e.target.value);
-                        if (!/^\d*\.?\d*$/.test(raw)) return;
-                        setAmountPaidUsd(raw);
-                        setCheckoutResult(null);
-                      }}
-                      className="w-full mt-1.5 h-10 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30 focus:outline-hidden focus:border-indigo-500"
-                      placeholder="0.00"
-                    />
+                  <div>
+                    <div className='flex gap-1'>
+                      <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedUsd}</label>
+                      <div className="relative w-full mt-1.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={formatMoneyInput(amountPaidUsd)}
+                          onChange={(e) => {
+                            const raw = stripMoneyInput(e.target.value);
+                            if (!/^\d*\.?\d*$/.test(raw)) return;
+                            setAmountPaidUsd(raw);
+                            setCheckoutResult(null);
+                          }}
+                          className="w-full h-10 px-3 pr-9 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-slate-100 text-sm focus:ring-2 focus:ring-indigo-50 dark:focus:ring-indigo-900/30 focus:outline-hidden focus:border-indigo-500"
+                          placeholder="0.00"
+                        />
+                        {amountPaidUsd && (
+                          <button
+                            type="button"
+                            onClick={() => { setAmountPaidUsd(''); setCheckoutResult(null); }}
+                            aria-label={t[locale].clear}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {tenderPresets.enabled && (
+                      <TenderPresetChips
+                        amounts={tenderPresets.usd}
+                        exactAmount={Number(totalUsd.toFixed(2))}
+                        exactLabel={t[locale].tenderExact}
+                        currentValue={tenderedUsd}
+                        format={(n) => `$${n.toFixed(2)}`}
+                        onPick={(amount) => { setAmountPaidUsd(String(amount)); setCheckoutResult(null); }}
+                      />
+                    )}
                   </div>
                 </div>
 

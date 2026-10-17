@@ -16,6 +16,8 @@ import CashDrawerSettings from './receipt/CashDrawerSettings';
 import ReceiptSettings from './receipt/ReceiptSettings';
 import BankQrSettings from './BankQrSettings';
 import { STATIC_QR_KEY } from './staticQr';
+import TenderPresets from './TenderPresetsCard';
+import { TENDER_PRESETS_ENABLED_KEY, TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY, DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, serializeTenderPresets } from './tenderPresets';
 import { PRINTER_DEFAULTS } from './receipt/thermalPrinter';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
@@ -69,6 +71,9 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     sync_device_secret: '',
     [STANDBY_IMAGE_KEY]: '',
     [STATIC_QR_KEY]: '[]',
+    [TENDER_PRESETS_ENABLED_KEY]: 'true',
+    [TENDER_PRESETS_USD_KEY]: serializeTenderPresets(DEFAULT_USD_PRESETS),
+    [TENDER_PRESETS_KHR_KEY]: serializeTenderPresets(DEFAULT_KHR_PRESETS),
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
@@ -675,6 +680,11 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                       <BankQrSettings settings={settings} setSettings={setSettings} q={s.bankQrSection || {}} inputClass={inputNormal}
                         modal={bankQrModal} setModal={setBankQrModal} />
+                    </div>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-6 mb-3">{s.tenderPresetsSection?.header || 'Tendered Amount Presets'}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                      <TenderPresets settings={settings} setSettings={setSettings} q={s.tenderPresetsSection || {}} ToggleRow={ToggleRow} />
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">{s.localOnlyNote || "Saved on this register only — it isn't synced to the server."}</p>
                     </div>
                   </div>
                 )}

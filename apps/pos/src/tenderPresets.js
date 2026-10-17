@@ -1,0 +1,26 @@
+// Cashier-facing "tap to tender" amounts (Settings > General > Tendered
+// Amount Presets): admin-customized per currency, stored as a JSON array
+// string under one settings key each -- same pattern as staticQr.js's bank
+// QR list. The order's exact total isn't stored here; it's computed fresh at
+// checkout (see TenderPresetChips).
+
+export const TENDER_PRESETS_ENABLED_KEY = 'tender_presets_enabled';
+export const TENDER_PRESETS_USD_KEY = 'tender_presets_usd';
+export const TENDER_PRESETS_KHR_KEY = 'tender_presets_khr';
+
+export const DEFAULT_USD_PRESETS = [1, 5, 10, 20, 50, 100];
+export const DEFAULT_KHR_PRESETS = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+
+/** One currency's preset list out of its settings JSON string, falling back to `fallback` on anything malformed or empty. */
+export function parseTenderPresets(json, fallback) {
+  try {
+    const list = JSON.parse(json);
+    if (!Array.isArray(list)) return fallback;
+    const amounts = list.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+    return amounts.length > 0 ? amounts : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export const serializeTenderPresets = (amounts) => JSON.stringify(amounts);
