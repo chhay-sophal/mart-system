@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronDown } from 'lucide-react';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 
 /**
@@ -92,7 +93,7 @@ export default function SearchableSelect({ value, onChange, options, emptyLabel,
         <span className={`truncate ${selected ? '' : 'text-slate-400 dark:text-slate-500'}`}>
           {selected ? selected.label : value === '' ? emptyLabel : placeholder}
         </span>
-        <span className="text-slate-400 dark:text-slate-500 text-[10px] flex-shrink-0">▾</span>
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && pos && createPortal(
