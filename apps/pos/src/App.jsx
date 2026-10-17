@@ -413,7 +413,7 @@ export default function App() {
       setActiveKhqr(null);
       setPaymentMethod('CASH');
       setTxDiscountValue('');
-      setTxDiscountType('pct');
+      setTxDiscountType('fixed');
     } catch (err) {
       console.error('Error auto-finalizing transaction process:', err);
     }
@@ -613,7 +613,7 @@ export default function App() {
     setCheckoutResult(null);
     setActiveKhqr(null);
     setTxDiscountValue('');
-    setTxDiscountType('pct');
+    setTxDiscountType('fixed');
     setAmountPaidUsd('');
     setAmountPaidKhr('');
     setStaticQrBank('');
@@ -745,7 +745,7 @@ export default function App() {
       setActiveKhqr(null);
       setStaticQrBank('');
       setTxDiscountValue('');
-      setTxDiscountType('pct');
+      setTxDiscountType('fixed');
     } catch (err) {
       if (err instanceof ApiError && !err.isNetworkError) {
         notify(notice('checkoutFailed', { reason: err.body?.error ?? notice('unknownError') }));

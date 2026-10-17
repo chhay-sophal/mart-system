@@ -6,7 +6,7 @@
 let counter = 0;
 const newLineId = () => `line-${Date.now().toString(36)}-${(counter++).toString(36)}`;
 
-const newLine = (product) => ({ ...product, lineId: newLineId(), quantity: 1, discount: 0, discountType: 'pct' });
+const newLine = (product) => ({ ...product, lineId: newLineId(), quantity: 1, discount: 0, discountType: 'fixed' });
 
 /**
  * One more of `product`: added to its undiscounted line if there is one (a
