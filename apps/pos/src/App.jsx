@@ -16,7 +16,7 @@ import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
 import {
-  TENDER_PRESETS_ENABLED_KEY, TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
+  TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
   DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, parseTenderPresets,
 } from './tenderPresets';
 import TenderPresetChips from './TenderPresetChips';
@@ -95,7 +95,7 @@ export default function App() {
   const [staticQrCodes, setStaticQrCodes] = useState([]);
   // Quick-tap cash tender amounts from Settings > General > Tendered Amount
   // Presets (per currency; the order's own total is added live, not stored).
-  const [tenderPresets, setTenderPresets] = useState({ enabled: true, usd: DEFAULT_USD_PRESETS, khr: DEFAULT_KHR_PRESETS });
+  const [tenderPresets, setTenderPresets] = useState({ usd: DEFAULT_USD_PRESETS, khr: DEFAULT_KHR_PRESETS });
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -528,7 +528,6 @@ export default function App() {
         setPrinter(printerConfig(data));
         setStaticQrCodes(parseStaticQrCodes(data[STATIC_QR_KEY]));
         setTenderPresets({
-          enabled: data[TENDER_PRESETS_ENABLED_KEY] !== 'false',
           usd: parseTenderPresets(data[TENDER_PRESETS_USD_KEY], DEFAULT_USD_PRESETS),
           khr: parseTenderPresets(data[TENDER_PRESETS_KHR_KEY], DEFAULT_KHR_PRESETS),
         });
@@ -1534,16 +1533,16 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                    {tenderPresets.enabled && (
-                      <TenderPresetChips
-                        amounts={tenderPresets.khr}
-                        exactAmount={totalKhr}
-                        exactLabel={t[locale].tenderExact}
-                        currentValue={tenderedKhr}
-                        format={(n) => `${n.toLocaleString()} ៛`}
-                        onPick={(amount) => { setAmountPaidKhr(String(amount)); setCheckoutResult(null); }}
-                      />
-                    )}
+                    {/* {tenderPresets.enabled && ( */}
+                    <TenderPresetChips
+                      amounts={tenderPresets.khr}
+                      exactAmount={totalKhr}
+                      exactLabel={t[locale].tenderExact}
+                      currentValue={tenderedKhr}
+                      format={(n) => `${n.toLocaleString()} ៛`}
+                      onPick={(amount) => { setAmountPaidKhr(String(amount)); setCheckoutResult(null); }}
+                    />
+                    {/* )} */}
                   </div>
                   <div>
                     <div className='flex gap-1'>
@@ -1574,16 +1573,16 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                    {tenderPresets.enabled && (
-                      <TenderPresetChips
-                        amounts={tenderPresets.usd}
-                        exactAmount={Number(totalUsd.toFixed(2))}
-                        exactLabel={t[locale].tenderExact}
-                        currentValue={tenderedUsd}
-                        format={(n) => `$${n.toFixed(2)}`}
-                        onPick={(amount) => { setAmountPaidUsd(String(amount)); setCheckoutResult(null); }}
-                      />
-                    )}
+                    {/* {tenderPresets.enabled && ( */}
+                    <TenderPresetChips
+                      amounts={tenderPresets.usd}
+                      exactAmount={Number(totalUsd.toFixed(2))}
+                      exactLabel={t[locale].tenderExact}
+                      currentValue={tenderedUsd}
+                      format={(n) => `$${n.toFixed(2)}`}
+                      onPick={(amount) => { setAmountPaidUsd(String(amount)); setCheckoutResult(null); }}
+                    />
+                    {/* )} */}
                   </div>
                 </div>
 

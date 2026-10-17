@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import {
-  TENDER_PRESETS_ENABLED_KEY, TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
+  TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
   DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, parseTenderPresets, serializeTenderPresets,
 } from './tenderPresets';
 
@@ -61,45 +61,35 @@ function PresetList({ amounts, onChange, format, placeholder, addLabel }) {
  * always offered too (as "Exact"), computed at checkout, not configured here.
  */
 export default function TenderPresets({ settings, setSettings, q, ToggleRow }) {
-  const enabled = settings[TENDER_PRESETS_ENABLED_KEY] !== 'false';
+  // const enabled = settings[TENDER_PRESETS_ENABLED_KEY] !== 'false';
   const usd = parseTenderPresets(settings[TENDER_PRESETS_USD_KEY], DEFAULT_USD_PRESETS);
   const khr = parseTenderPresets(settings[TENDER_PRESETS_KHR_KEY], DEFAULT_KHR_PRESETS);
 
   return (
     <div className="space-y-4">
-      <ToggleRow
-        label={q.enable || 'Enable tendered amount presets'}
-        help={q.enableHelp || "Lets the cashier tap a preset amount instead of typing it in at checkout."}
-        checked={enabled}
-        onChange={(on) => setSettings((prev) => ({ ...prev, [TENDER_PRESETS_ENABLED_KEY]: on ? 'true' : 'false' }))}
-      />
-      {enabled && (
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-4">
-          {/* <p className="text-xs text-slate-400 dark:text-slate-500">
-            {q.exactNote || 'An "Exact" chip matching the current sale\'s total is always shown too — it isn\'t part of the list below.'}
-          </p> */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{q.khrLabel || 'KHR presets'}</label>
-            <PresetList
-              amounts={khr}
-              onChange={(next) => setSettings((prev) => ({ ...prev, [TENDER_PRESETS_KHR_KEY]: serializeTenderPresets(next) }))}
-              format={(n) => `${Number(n).toLocaleString()} ៛`}
-              placeholder="e.g. 5000"
-              addLabel={q.add || 'Add'}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{q.usdLabel || 'USD presets'}</label>
-            <PresetList
-              amounts={usd}
-              onChange={(next) => setSettings((prev) => ({ ...prev, [TENDER_PRESETS_USD_KEY]: serializeTenderPresets(next) }))}
-              format={(n) => `$${Number(n).toFixed(2)}`}
-              placeholder="e.g. 10"
-              addLabel={q.add || 'Add'}
-            />
-          </div>
-        </div>
-      )}
+      {/* <p className="text-xs text-slate-400 dark:text-slate-500">
+        {q.exactNote || 'An "Exact" chip matching the current sale\'s total is always shown too — it isn\'t part of the list below.'}
+      </p> */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{q.khrLabel || 'KHR presets'}</label>
+        <PresetList
+          amounts={khr}
+          onChange={(next) => setSettings((prev) => ({ ...prev, [TENDER_PRESETS_KHR_KEY]: serializeTenderPresets(next) }))}
+          format={(n) => `${Number(n).toLocaleString()} ៛`}
+          placeholder="e.g. 5000"
+          addLabel={q.add || 'Add'}
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{q.usdLabel || 'USD presets'}</label>
+        <PresetList
+          amounts={usd}
+          onChange={(next) => setSettings((prev) => ({ ...prev, [TENDER_PRESETS_USD_KEY]: serializeTenderPresets(next) }))}
+          format={(n) => `$${Number(n).toFixed(2)}`}
+          placeholder="e.g. 10"
+          addLabel={q.add || 'Add'}
+        />
+      </div>
     </div>
   );
 }
