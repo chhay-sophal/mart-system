@@ -1118,8 +1118,8 @@ export default function App() {
       {/* Main Container Dashboard split layout */}
       <div className="flex-1 flex overflow-hidden w-full">
         {/* Left Workspace Panel: Basket stream and actions */}
-        <div className="flex-1 flex flex-col p-5 overflow-hidden gap-4">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 p-4 rounded-2xl shadow-xs text-indigo-900 dark:text-indigo-200 flex-shrink-0">
+        <div className="flex-1 flex flex-col p-2 overflow-hidden gap-2">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 p-2 rounded-2xl shadow-xs text-indigo-900 dark:text-indigo-200 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -1162,7 +1162,7 @@ export default function App() {
 
           {/* Low stock alert banner */}
           {showLowStockAlert && lowStockItems.length > 0 && !lowStockDismissed && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 flex items-start gap-3 flex-shrink-0">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-2 flex items-start gap-3 flex-shrink-0">
               <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
@@ -1183,7 +1183,7 @@ export default function App() {
 
           {/* Master Item Basket View */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 flex-1 flex flex-col overflow-hidden shadow-xs">
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center flex-shrink-0">
+            <div className="p-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center flex-shrink-0">
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight font-display">{t[locale].currentBasket}</h2>
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowDrafts(true)} title={`${dr.title}${keyHint('drafts')}`}
@@ -1334,8 +1334,8 @@ export default function App() {
         </div>
 
         {/* Right Checkout Ledger Panel */}
-        <div className="w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl p-5 flex flex-col justify-between overflow-y-auto flex-shrink-0">
-          <div className="space-y-3">
+        <div className="w-96 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 shadow-xl p-2 flex flex-col justify-between overflow-y-auto flex-shrink-0">
+          <div className="space-y-2">
             {/* Transaction Discount */}
             {/* <div className="space-y-2">
               <div className="flex items-center gap-2">
@@ -1379,8 +1379,8 @@ export default function App() {
               </div>
             </div> */}
             
-            <div className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-2xl p-5 relative overflow-hidden shadow-md shadow-slate-900/10 border border-slate-200/60 dark:border-slate-700">
-              <div className="space-y-3 relative z-10">
+            <div className="bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-2xl py-2 px-3 relative overflow-hidden shadow-md shadow-slate-900/10 border border-slate-200/60 dark:border-slate-700">
+              <div className="space-y-1 relative z-10">
                 <div className="flex justify-between items-baseline">
                   <span className="text-md font-medium font-display">
                     {t[locale].subtotal}
@@ -1443,7 +1443,7 @@ export default function App() {
                     </span>
                   </div>
                 )}
-                <div className="border-t border-slate-300 dark:border-slate-700 pt-2.5 flex justify-between items-baseline">
+                <div className="border-t border-slate-300 dark:border-slate-700 pt-1 flex justify-between items-baseline">
                   <span className="text-md font-medium font-display">
                     {mainCurrency === 'USD' ? t[locale].totalUsd : t[locale].totalKhr}
                   </span>
@@ -1475,7 +1475,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase mb-2 font-display">{t[locale].settlementType}</label>
+              <label className="block text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase mb-1 font-display">{t[locale].settlementType}</label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); }}
@@ -1500,7 +1500,7 @@ export default function App() {
 
             {paymentMethod === 'CASH' ? (
               <div className="space-y-4">
-                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700">
+                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700">
                   <div>
                     <div className='flex gap-1'>
                       <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
@@ -1668,7 +1668,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="mt-5 space-y-3 flex-shrink-0">
+          <div className="mt-1 space-y-3 flex-shrink-0">
             {checkoutResult && (
               <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 p-3.5 rounded-xl flex items-start gap-2.5">
                 <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
