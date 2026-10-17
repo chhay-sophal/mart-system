@@ -8,7 +8,7 @@ export const TENDER_PRESETS_ENABLED_KEY = 'tender_presets_enabled';
 export const TENDER_PRESETS_USD_KEY = 'tender_presets_usd';
 export const TENDER_PRESETS_KHR_KEY = 'tender_presets_khr';
 
-export const DEFAULT_USD_PRESETS = [1, 5, 10, 20, 50, 100];
+export const DEFAULT_USD_PRESETS = [0.01, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
 export const DEFAULT_KHR_PRESETS = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
 
 /** One currency's preset list out of its settings JSON string, falling back to `fallback` on anything malformed or empty. */
