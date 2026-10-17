@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
-import { queryClient, queryKeys } from '../lib/queryClient';
+import { queryKeys } from '../lib/queryClient';
+import { useAuth } from '../auth/AuthContext.jsx';
 import OnlinePosImport from '../components/OnlinePosImport.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
-import { fmt, getT } from '../i18n/translate';
+import { fmt } from '../i18n/translate';
 
 // Synced to every POS terminal in the store (read-only there once paired),
 // so they get proper inputs below instead of the free-form key/value list.
@@ -19,9 +21,9 @@ const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white round
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
+  const { reloadStores } = useAuth();
   const { t } = useLocale();
   const [settings, setSettings] = useState({});
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [newKey, setNewKey] = useState('');
@@ -44,49 +46,63 @@ export default function SettingsPage() {
   const [bakongSaving, setBakongSaving] = useState(false);
   const [bakongMessage, setBakongMessage] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiClient.get(`/api/stores/${storeId}/settings`);
-      setSettings(res.settings ?? {});
-    } catch {
-      setMessage(getT().settings.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeId]);
+  // Cached (lib/queryClient.js), so coming back to this page shows the last
+  // values at once. storeSettings is shared with the Products page.
+  const queryClient = useQueryClient();
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.storeSettings(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/settings`),
+    enabled: Boolean(storeId),
+  });
+  const bakongQuery = useQuery({
+    queryKey: queryKeys.bakongCredential(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}/bakong-credential`),
+    enabled: Boolean(storeId),
+  });
+  const storeQuery = useQuery({
+    queryKey: queryKeys.store(storeId),
+    queryFn: () => apiClient.get(`/api/stores/${storeId}`),
+    enabled: Boolean(storeId),
+  });
+  const loading = settingsQuery.isPending;
 
-  const loadBakongCredential = useCallback(async () => {
-    try {
-      const res = await apiClient.get(`/api/stores/${storeId}/bakong-credential`);
-      setBakongEmail(res.registeredEmail ?? '');
-      setBakongHasToken(Boolean(res.hasToken));
-    } catch {
-      // Non-fatal — the generic settings above still load fine either way.
-    }
-  }, [storeId]);
+  // The inputs below are edited locally, so they're filled from the cache
+  // once per store (and again after an import) -- never on a background
+  // refresh, which would wipe out whatever is being typed. Done during
+  // render, React's pattern for state derived from a changing input.
+  const [seeded, setSeeded] = useState({ settings: null, bakong: null, store: null });
+  if (settingsQuery.data && seeded.settings !== storeId) {
+    setSettings(settingsQuery.data.settings ?? {});
+    setSeeded((prev) => ({ ...prev, settings: storeId }));
+  }
+  if (bakongQuery.data && seeded.bakong !== storeId) {
+    setBakongEmail(bakongQuery.data.registeredEmail ?? '');
+    setBakongHasToken(Boolean(bakongQuery.data.hasToken));
+    setSeeded((prev) => ({ ...prev, bakong: storeId }));
+  }
+  if (storeQuery.data && seeded.store !== storeId) {
+    setStoreName(storeQuery.data.name ?? '');
+    setSeeded((prev) => ({ ...prev, store: storeId }));
+  }
 
-  const loadProfile = useCallback(async () => {
-    try {
-      const store = await apiClient.get(`/api/stores/${storeId}`);
-      setStoreName(store.name ?? '');
-    } catch {
-      setProfileMessage(getT().settings.profile.loadFailed);
-    }
-  }, [storeId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-    loadBakongCredential();
-    loadProfile();
-  }, [load, loadBakongCredential, loadProfile]);
+  // An import changes settings and the store behind this page's back: wait
+  // for fresh copies, then refill the inputs from them.
+  async function handleImported() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.store(storeId) }),
+    ]);
+    setSeeded((prev) => ({ ...prev, settings: null, store: null }));
+    reloadStores();
+  }
 
   async function handleSaveProfile() {
     setProfileSaving(true);
     setProfileMessage('');
     try {
-      await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
+      const updated = await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
+      queryClient.setQueryData(queryKeys.store(storeId), updated);
+      reloadStores(); // the store picker shows the name too
       setProfileMessage(t.settings.saved);
     } catch {
       setProfileMessage(t.settings.saveFailed);
@@ -104,7 +120,8 @@ export default function SettingsPage() {
       const values = Object.fromEntries(POS_SYNCED_KEYS.map((key) => [key, String(posSynced[key])]));
       const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
       setSettings(res.settings ?? settings);
-      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
+      if (res.settings) queryClient.setQueryData(queryKeys.storeSettings(storeId), res);
+      else queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
       setPosSyncedMessage(t.settings.pos.saved);
     } catch {
       setPosSyncedMessage(t.settings.pos.saveFailed);
@@ -119,6 +136,7 @@ export default function SettingsPage() {
     try {
       const res = await apiClient.put(`/api/stores/${storeId}/bakong-credential`, { registeredEmail: bakongEmail });
       setBakongHasToken(Boolean(res.hasToken));
+      queryClient.setQueryData(queryKeys.bakongCredential(storeId), res);
       setBakongMessage(t.settings.saved);
     } catch {
       setBakongMessage(t.settings.saveFailed);
@@ -156,7 +174,9 @@ export default function SettingsPage() {
     <div className="max-w-xl">
       <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">{t.settings.title}</h1>
 
-      {message && <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">{message}</p>}
+      {(message || settingsQuery.isError) && (
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">{message || t.settings.loadFailed}</p>
+      )}
 
       <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.profile.title}</h2>
@@ -166,7 +186,9 @@ export default function SettingsPage() {
           <input value={storeName} placeholder={t.settings.profile.storeNamePlaceholder} onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
         </div>
         <div className="flex items-center justify-end gap-3">
-          {profileMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{profileMessage}</p>}
+          {(profileMessage || storeQuery.isError) && (
+            <p className="text-xs text-slate-600 dark:text-slate-300">{profileMessage || t.settings.profile.loadFailed}</p>
+          )}
           <button onClick={handleSaveProfile} disabled={profileSaving || !storeName.trim()} className={saveButtonClass}>
             {profileSaving ? t.common.saving : t.common.save}
           </button>
@@ -294,10 +316,7 @@ export default function SettingsPage() {
       <div className="mt-4">
         <OnlinePosImport
           storeId={storeId}
-          onImported={() => {
-            load();
-            loadProfile();
-          }}
+          onImported={handleImported}
         />
       </div>
     </div>

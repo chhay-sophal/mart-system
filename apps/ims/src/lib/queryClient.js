@@ -27,6 +27,8 @@ export const queryKeys = {
   categories: (storeId, includeDeleted = false) => ['categories', storeId, includeDeleted],
   staff: (storeId) => ['staff', storeId],
   storeSettings: (storeId) => ['store-settings', storeId],
+  store: (storeId) => ['store', storeId],
+  bakongCredential: (storeId) => ['bakong-credential', storeId],
   terminals: (storeId) => ['terminals', storeId],
   transfers: () => ['transfers'],
   orders: (params) => ['orders', params],
