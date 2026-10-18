@@ -7,6 +7,10 @@
 export const TENDER_PRESETS_ENABLED_KEY = 'tender_presets_enabled';
 export const TENDER_PRESETS_USD_KEY = 'tender_presets_usd';
 export const TENDER_PRESETS_KHR_KEY = 'tender_presets_khr';
+// Whether checkout shows a tender field for the store's non-main currency too
+// (e.g. a KHR-main store still taking USD cash), under the main one. On
+// unless turned off -- matches the checkout's existing two-field behavior.
+export const TENDER_SECONDARY_ENABLED_KEY = 'tender_secondary_currency_enabled';
 
 export const DEFAULT_USD_PRESETS = [0.01, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
 export const DEFAULT_KHR_PRESETS = [100, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];

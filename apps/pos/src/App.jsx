@@ -16,7 +16,7 @@ import Invoice from './Invoice';
 import { openCashDrawer, printerConfig } from './receipt/thermalPrinter';
 import { STATIC_QR_KEY, parseStaticQrCodes } from './staticQr';
 import {
-  TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY,
+  TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY, TENDER_SECONDARY_ENABLED_KEY,
   DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, parseTenderPresets,
 } from './tenderPresets';
 import TenderPresetChips from './TenderPresetChips';
@@ -93,9 +93,11 @@ export default function App() {
   const [staticQrBank, setStaticQrBank] = useState('');
   // Fixed bank KHQR images from Settings > KHQR (issue #12).
   const [staticQrCodes, setStaticQrCodes] = useState([]);
-  // Quick-tap cash tender amounts from Settings > General > Tendered Amount
+  // Quick-tap cash tender amounts from Settings > Payment > Tendered Amount
   // Presets (per currency; the order's own total is added live, not stored).
   const [tenderPresets, setTenderPresets] = useState({ usd: DEFAULT_USD_PRESETS, khr: DEFAULT_KHR_PRESETS });
+  // Whether the non-main-currency tender field shows at all (same settings card).
+  const [showSecondaryTender, setShowSecondaryTender] = useState(true);
   const [dynamicRate, setDynamicRate] = useState(4100);
   const [showManualInput, setShowManualInput] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -531,6 +533,7 @@ export default function App() {
           usd: parseTenderPresets(data[TENDER_PRESETS_USD_KEY], DEFAULT_USD_PRESETS),
           khr: parseTenderPresets(data[TENDER_PRESETS_KHR_KEY], DEFAULT_KHR_PRESETS),
         });
+        setShowSecondaryTender(data[TENDER_SECONDARY_ENABLED_KEY] !== 'false');
         if (data.store_address !== undefined) setStoreAddress(data.store_address || '');
         if (data.store_phone !== undefined) setStorePhone(data.store_phone || '');
       })
@@ -1500,8 +1503,12 @@ export default function App() {
 
             {paymentMethod === 'CASH' ? (
               <div className="space-y-2">
-                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700">
-                  <div>
+                <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700 flex flex-col">
+                  {/* Main currency's field always shows; the other currency's
+                      field (Settings > Payment > Tendered Amount Presets) is
+                      optional and, when shown, sits under the main one. */}
+                  {(mainCurrency === 'KHR' || showSecondaryTender) && (
+                  <div className={mainCurrency === 'KHR' ? 'order-1' : 'order-2'}>
                     <div className='flex gap-1'>
                       <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedKhr}</label>
                       <div className="relative w-full mt-1.5">
@@ -1544,7 +1551,9 @@ export default function App() {
                     />
                     {/* )} */}
                   </div>
-                  <div>
+                  )}
+                  {(mainCurrency === 'USD' || showSecondaryTender) && (
+                  <div className={mainCurrency === 'USD' ? 'order-1' : 'order-2'}>
                     <div className='flex gap-1'>
                       <label className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display truncate min-w-fit flex items-center justify-center">{t[locale].tenderedUsd}</label>
                       <div className="relative w-full mt-1.5">
@@ -1584,6 +1593,7 @@ export default function App() {
                     />
                     {/* )} */}
                   </div>
+                  )}
                 </div>
 
                 {totalTenderedInUsd > 0 && (

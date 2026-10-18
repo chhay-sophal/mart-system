@@ -404,6 +404,8 @@ export const translations = {
         usdLabel: "ចំនួនទឹកប្រាក់ (USD)",
         khrLabel: "ចំនួនទឹកប្រាក់ (KHR)",
         add: "បន្ថែម",
+        showSecondary: "បង្ហាញប្រអប់បញ្ចូលរូបិយប័ណ្ណទីពីរនៅពេលគិតលុយ",
+        showSecondaryHelp: "នៅក្រោមចំនួនទឹកប្រាក់រូបិយប័ណ្ណចម្បង — អ្នកគិតលុយនៅតែអាចទទួលប្រាក់សុទ្ធជារូបិយប័ណ្ណមួយទៀតរបស់ហាង។ បិទដើម្បីបង្ហាញតែរូបិយប័ណ្ណចម្បងប៉ុណ្ណោះ។",
       },
       bankQrSection: {
         header: "កូដ QR ធនាគារ",
@@ -963,6 +965,8 @@ export const translations = {
         usdLabel: "USD presets",
         khrLabel: "KHR presets",
         add: "Add",
+        showSecondary: "Show the secondary currency tender field at checkout",
+        showSecondaryHelp: "Under the main currency's tendered amount — the cashier can still take cash in the store's other currency. Turn off to only ever show the main currency.",
       },
       bankQrSection: {
         header: "Bank QR codes",

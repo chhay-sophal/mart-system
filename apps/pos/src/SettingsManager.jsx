@@ -17,7 +17,7 @@ import ReceiptSettings from './receipt/ReceiptSettings';
 import BankQrSettings from './BankQrSettings';
 import { STATIC_QR_KEY } from './staticQr';
 import TenderPresets from './TenderPresetsCard';
-import { TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY, DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, serializeTenderPresets } from './tenderPresets';
+import { TENDER_PRESETS_USD_KEY, TENDER_PRESETS_KHR_KEY, TENDER_SECONDARY_ENABLED_KEY, DEFAULT_USD_PRESETS, DEFAULT_KHR_PRESETS, serializeTenderPresets } from './tenderPresets';
 import { PRINTER_DEFAULTS } from './receipt/thermalPrinter';
 
 // Managed in IMS and written by sidecar sync.js on every pull. Settings never
@@ -73,6 +73,7 @@ export default function SettingsManager({ onBackToRegister, currentLocale, onLoc
     [STATIC_QR_KEY]: '[]',
     [TENDER_PRESETS_USD_KEY]: serializeTenderPresets(DEFAULT_USD_PRESETS),
     [TENDER_PRESETS_KHR_KEY]: serializeTenderPresets(DEFAULT_KHR_PRESETS),
+    [TENDER_SECONDARY_ENABLED_KEY]: 'true',
   };
 
   const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS });
