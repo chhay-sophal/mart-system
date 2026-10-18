@@ -81,12 +81,32 @@ const CURRENCY_OPTIONS = ['USD', 'KHR'].map((c) => ({ value: c, label: c }));
 
 // A "contains" text box plus a "missing only" checkbox, for barcode and
 // supplier. The value keeps its { mode: 'any' | 'missing', text } shape.
-function TextOrMissingFilter({ value, onChange, missingLabel, placeholder }) {
+// `scannerSafe` (barcode only -- a supplier name may legitimately be typed in
+// Khmer) makes the text box immune to a scanner "typing" into it under a
+// non-Latin input language, same fix as the add/edit form's barcode field.
+function TextOrMissingFilter({ value, onChange, missingLabel, placeholder, scannerSafe = false }) {
   const missing = value.mode === 'missing';
   return (
     <div className="flex flex-col gap-1.5">
       {!missing && (
-        <input value={value.text} onChange={(e) => onChange({ ...value, text: e.target.value })} placeholder={placeholder} className={filterInput} />
+        <input
+          value={value.text}
+          onChange={(e) => onChange({ ...value, text: e.target.value })}
+          onKeyDown={scannerSafe ? (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); return; }
+            const ch = physicalKeyChar(e);
+            if (ch === null) return;
+            e.preventDefault();
+            const input = e.target;
+            const { selectionStart, selectionEnd, value: text } = input;
+            const next = text.slice(0, selectionStart) + ch + text.slice(selectionEnd);
+            const caret = selectionStart + 1;
+            onChange({ ...value, text: next });
+            requestAnimationFrame(() => input.setSelectionRange(caret, caret));
+          } : undefined}
+          placeholder={placeholder}
+          className={filterInput}
+        />
       )}
       <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
         <input
@@ -229,7 +249,7 @@ export default function ProductsPage() {
           empty: { mode: 'any', text: '' },
           match: (p, v) => matchesTextOrMissing(p.barcode, v),
           describe: (v) => (v.mode === 'missing' ? t.products.noBarcode : v.text.trim()),
-          render: (props) => <TextOrMissingFilter {...props} missingLabel={t.products.noBarcode} placeholder={t.products.contains} />,
+          render: (props) => <TextOrMissingFilter {...props} missingLabel={t.products.noBarcode} placeholder={t.products.contains} scannerSafe />,
         },
       },
       {
