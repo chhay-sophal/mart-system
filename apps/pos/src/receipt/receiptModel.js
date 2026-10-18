@@ -59,7 +59,7 @@ export function paymentLabel({ paymentMethod, bankName }, inv) {
  *   { type: 'image', src }                       the store logo
  *   { type: 'text', text, align, size, bold }     size: 'sm' | 'md' | 'lg'
  *   { type: 'pair', left, right, size, bold }
- *   { type: 'item', no, name, detail, amount, barcode, note }  no/detail/barcode/note may be empty
+ *   { type: 'item', no, name, detail, amount, strikeAmount, barcode, note }  no/detail/barcode/note may be empty
  *   { type: 'rule' }
  */
 export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
@@ -89,20 +89,25 @@ export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
 
   add({ type: 'pair', left: inv.item, right: inv.amount, size: 'sm' });
   items.forEach((item, index) => {
-    const discounted = item.discount > 0;
-    const unit = discounted ? discountedUnitPrice(item) : item.price;
+    const discounted = item.discount > 0 && o.showDiscounts;
+    // Discounted: the line shows its original qty × price and original
+    // amount struck through, with the discounted amount on its own line
+    // underneath -- not the discounted unit price mixed into the first line.
     add({
       type: 'item',
       no: o.showLineNumbers ? `${index + 1}.` : '',
       name: o.showUnitPrice || item.quantity === 1 ? item.name : `${item.quantity} × ${item.name}`,
-      detail: o.showUnitPrice ? `${item.quantity} × ${fmtUnit(unit, item.currency)}` : '',
-      amount: discounted ? fmtDiscountedSubtotal(item) : fmtSubtotal(item.price, item.quantity, item.currency),
+      detail: o.showUnitPrice ? `${item.quantity} × ${fmtUnit(item.price, item.currency)}` : '',
+      amount: fmtSubtotal(item.price, item.quantity, item.currency),
+      strikeAmount: discounted,
       barcode: o.showBarcode && item.barcode ? item.barcode : '',
-      note: discounted && o.showDiscounts ? `${fmtItemDiscountLabel(item)} (${fmtSubtotal(item.price, item.quantity, item.currency)})` : '',
+      note: discounted ? fmtDiscountedSubtotal(item) : '',
     });
   });
   add({ type: 'rule' });
 
+  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  add({ type: 'pair', left: inv.totalItems, right: String(totalItems) });
   add({ type: 'pair', left: inv.subtotal, right: fmt.primary(subtotalBeforeDiscountUsd) });
   if (o.showDiscounts && transactionDiscountUsd > 0) add({ type: 'pair', left: inv.txDiscount, right: `−${fmt.primary(transactionDiscountUsd)}` });
   if (totalDiscountUsd > 0) add({ type: 'pair', left: inv.discount, right: `−${fmt.primary(totalDiscountUsd)}` });

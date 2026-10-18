@@ -132,21 +132,30 @@ function layout(ctx, blocks, { width, base, weight, draw, images, mono }) {
   const lineHeight = (size) => Math.round(base * SIZE_SCALE[size] * LINE_HEIGHT);
 
   // Label on the left, value on the right; a label that doesn't fit beside
-  // the value wraps above it.
-  const pair = (left, right, size = 'md', bold = false, indent = 0) => {
+  // the value wraps above it. `strikeRight`: a line drawn through the value
+  // (a discounted item's original amount, struck through above the
+  // discounted one on its own line).
+  const pair = (left, right, size = 'md', bold = false, indent = 0, strikeRight = false) => {
     ctx.font = font(base * SIZE_SCALE[size], bold);
     const rightWidth = right ? ctx.measureText(right).width : 0;
     const room = inner - indent;
     if (left && right && ctx.measureText(left).width + GAP + rightWidth > room && rightWidth > room / 2) {
       // Too wide to share a line: label above, value below.
       pair(left, '', size, bold, indent);
-      pair('', right, size, bold, indent);
+      pair('', right, size, bold, indent, strikeRight);
       return;
     }
     const lines = left ? wrap(ctx, left, inner - indent - rightWidth - GAP) : [''];
     lines.forEach((l, i) => {
       text(l, margin + indent, size, bold);
-      if (i === lines.length - 1 && right) text(right, width - margin, size, bold, 'right');
+      if (i === lines.length - 1 && right) {
+        text(right, width - margin, size, bold, 'right');
+        if (strikeRight && draw) {
+          const strikeY = y + Math.round(base * SIZE_SCALE[size] * 0.58);
+          const thickness = Math.max(1, Math.round(base * SIZE_SCALE[size] * 0.07));
+          ctx.fillRect(width - margin - rightWidth, strikeY, rightWidth, thickness);
+        }
+      }
       y += lineHeight(size);
     });
   };
@@ -182,18 +191,18 @@ function layout(ctx, blocks, { width, base, weight, draw, images, mono }) {
         ctx.font = font(base, false);
         const indent = block.no ? Math.ceil(ctx.measureText('00. ').width) : 0;
         if (block.no) text(block.no, margin, 'md', false);
+        if (block.barcode) pair(block.barcode, '', 'sm', false, indent);
         if (block.detail) {
           ctx.font = font(base, false);
           for (const l of wrap(ctx, block.name, inner - indent)) {
             text(l, margin + indent, 'md', false);
             y += lineHeight('md');
           }
-          pair(block.detail, block.amount, 'md', false, indent);
+          pair(block.detail, block.amount, 'md', false, indent, block.strikeAmount);
         } else {
-          pair(block.name, block.amount, 'md', false, indent); // compact: name and amount on one line
+          pair(block.name, block.amount, 'md', false, indent, block.strikeAmount); // compact: name and amount on one line
         }
-        if (block.barcode) pair(block.barcode, '', 'sm', false, indent);
-        if (block.note) pair(block.note, '', 'sm', false, indent);
+        if (block.note) pair('', block.note, 'sm', false, indent);
         y += 2;
         break;
       }
