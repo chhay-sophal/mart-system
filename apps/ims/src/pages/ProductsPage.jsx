@@ -4,6 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { physicalKeyChar } from '../lib/physicalKey';
 import {
   STATUS_FILTERS,
   STOCK_FILTERS,
@@ -621,6 +622,29 @@ export default function ProductsPage() {
                 <input
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                  onKeyDown={(e) => {
+                    // A scanner's trailing Enter would otherwise submit this
+                    // form (a plain text input submits on Enter) before the
+                    // rest of the fields are filled in.
+                    if (e.key === 'Enter') { e.preventDefault(); return; }
+                    // A scanner "types" into this field like a keyboard; under
+                    // a non-Latin input language the browser would otherwise
+                    // insert that language's character for the key instead of
+                    // the barcode's actual (ASCII) one. Inserted at the caret
+                    // (replacing any selection), not just appended, since this
+                    // field is also hand-edited, not only scanned into.
+                    const ch = physicalKeyChar(e);
+                    if (ch === null) return;
+                    e.preventDefault();
+                    const input = e.target;
+                    const { selectionStart, selectionEnd, value } = input;
+                    const next = value.slice(0, selectionStart) + ch + value.slice(selectionEnd);
+                    const caret = selectionStart + 1;
+                    setForm((prev) => ({ ...prev, barcode: next }));
+                    // Setting .value via React's controlled re-render can
+                    // otherwise drop the caret to the end of the field.
+                    requestAnimationFrame(() => input.setSelectionRange(caret, caret));
+                  }}
                   className="w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
                 />
               </div>
