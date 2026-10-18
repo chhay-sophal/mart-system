@@ -222,7 +222,7 @@ function localOrders({ from, to }, limit = LOCAL_ORDER_LIMIT) {
       terminal_name: isOwn ? null : order.terminal_name,
       can_delete: isOwn,
       items: query(
-        `SELECT p.name as product_name, oi.quantity, oi.price_at_sale as price, oi.discount, oi.currency,
+        `SELECT p.name as product_name, p.barcode, oi.quantity, oi.price_at_sale as price, oi.discount, oi.currency,
                 oi.cost_at_sale, oi.cost_currency
          FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
          WHERE oi.order_id = ?`,

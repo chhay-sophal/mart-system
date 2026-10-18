@@ -59,7 +59,7 @@ export function paymentLabel({ paymentMethod, bankName }, inv) {
  *   { type: 'image', src }                       the store logo
  *   { type: 'text', text, align, size, bold }     size: 'sm' | 'md' | 'lg'
  *   { type: 'pair', left, right, size, bold }
- *   { type: 'item', no, name, detail, amount, note }  no/detail/note may be empty
+ *   { type: 'item', no, name, detail, amount, barcode, note }  no/detail/barcode/note may be empty
  *   { type: 'rule' }
  */
 export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
@@ -97,6 +97,7 @@ export function buildReceipt(invoiceData, locale, options = receiptOptions()) {
       name: o.showUnitPrice || item.quantity === 1 ? item.name : `${item.quantity} × ${item.name}`,
       detail: o.showUnitPrice ? `${item.quantity} × ${fmtUnit(unit, item.currency)}` : '',
       amount: discounted ? fmtDiscountedSubtotal(item) : fmtSubtotal(item.price, item.quantity, item.currency),
+      barcode: o.showBarcode && item.barcode ? item.barcode : '',
       note: discounted && o.showDiscounts ? `${fmtItemDiscountLabel(item)} (${fmtSubtotal(item.price, item.quantity, item.currency)})` : '',
     });
   });

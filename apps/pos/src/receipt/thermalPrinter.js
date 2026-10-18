@@ -108,7 +108,7 @@ export function sampleInvoice(shop = {}) {
   return {
     order_id: 123,
     items: [
-      { id: 1, name: 'Test item / ទំនិញសាកល្បង', price: 1.5, currency: 'USD', quantity: 2 },
+      { id: 1, name: 'Test item / ទំនិញសាកល្បង', barcode: '8850123456789', price: 1.5, currency: 'USD', quantity: 2 },
       { id: 2, name: 'Discounted item', price: 4000, currency: 'KHR', quantity: 1, discount: 10, discountType: 'percent' },
     ],
     subtotalBeforeDiscountUsd: 3.98,

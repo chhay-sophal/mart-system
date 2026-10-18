@@ -253,6 +253,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
       items: (order.items || []).filter(i => i.product_name).map((i, idx) => ({
         id: idx,
         name: i.product_name,
+        barcode: i.barcode,
         price: i.price,
         quantity: i.quantity,
         currency: i.currency,
@@ -878,7 +879,10 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, showProfit, expanded, o
             <div className="space-y-1">
               {(order.items || []).filter(i => i.product_name).map((item, idx) => (
                 <div key={idx} className={`grid ${showProfit ? 'grid-cols-[1fr_48px_80px_80px_80px_80px]' : 'grid-cols-[1fr_48px_80px_80px]'} gap-2 text-xs px-1 py-0.5`}>
-                  <span className="text-slate-800 dark:text-slate-100 font-medium truncate">{item.product_name}</span>
+                  <span className="min-w-0">
+                    <span className="block text-slate-800 dark:text-slate-100 font-medium truncate">{item.product_name}</span>
+                    {item.barcode && <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate">{item.barcode}</span>}
+                  </span>
                   <span className="text-center text-slate-600 dark:text-slate-300 font-bold">{item.quantity}</span>
                   <span className="text-right text-slate-600 dark:text-slate-300">
                     {item.currency === 'KHR'

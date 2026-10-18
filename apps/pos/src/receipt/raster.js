@@ -192,6 +192,7 @@ function layout(ctx, blocks, { width, base, weight, draw, images, mono }) {
         } else {
           pair(block.name, block.amount, 'md', false, indent); // compact: name and amount on one line
         }
+        if (block.barcode) pair(block.barcode, '', 'sm', false, indent);
         if (block.note) pair(block.note, '', 'sm', false, indent);
         y += 2;
         break;

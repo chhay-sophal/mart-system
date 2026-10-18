@@ -114,6 +114,7 @@ export default function ReceiptSettings({ settings, setSettings, p, locale, Togg
       {group(r.groupItems || 'Items')}
       <ToggleRow label={r.showLineNumbers || 'Line numbers'} {...flag('receipt_show_line_numbers')} />
       <ToggleRow label={r.showUnitPrice || 'Quantity × unit price'} {...flag('receipt_show_unit_price')} />
+      <ToggleRow label={r.showBarcode || 'Barcode'} {...flag('receipt_show_barcode')} />
       <ToggleRow label={r.showDiscounts || 'Discount details'} {...flag('receipt_show_discounts')} />
 
       {group(r.groupTotals || 'Totals & payment')}
