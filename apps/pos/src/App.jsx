@@ -1499,7 +1499,7 @@ export default function App() {
             </div>
 
             {paymentMethod === 'CASH' ? (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700">
                   <div>
                     <div className='flex gap-1'>
@@ -1587,24 +1587,32 @@ export default function App() {
                 </div>
 
                 {totalTenderedInUsd > 0 && (
-                  <div className={`p-4 rounded-2xl border transition-all ${changeDueUsd >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'}`}>
+                  <div className={`p-2 rounded-2xl border transition-all ${changeDueUsd >= 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'}`}>
                     <div className="flex justify-between items-center">
                       <span className="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-wide font-display">
                         {changeDueUsd >= 0 ? t[locale].changeDue : t[locale].shortage}
                       </span>
+                      <div className="flex gap-1 items-baseline">
                       <span className={`text-lg font-black ${changeDueUsd >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
                         {mainCurrency === 'USD'
                           ? changeDueUsd >= 0 ? `$${changeDueUsd.toFixed(2)}` : `$${Math.abs(changeDueUsd).toFixed(2)}`
                           : changeDueUsd >= 0 ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛` : `${usdToKhr(Math.abs(changeDueUsd), dynamicRate).toLocaleString()} ៛`
                         }
                       </span>
+                      <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
+                        {mainCurrency === 'USD'
+                          ? `(${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛)`
+                          : `($${changeDueUsd.toFixed(2)} USD)`
+                        }
+                      </p>
+                      </div>
                     </div>
-                    <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
+                    {/* <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
                       {mainCurrency === 'USD'
                         ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛`
                         : `$${changeDueUsd.toFixed(2)} USD`
                       }
-                    </p>
+                    </p> */}
                   </div>
                 )}
               </div>
