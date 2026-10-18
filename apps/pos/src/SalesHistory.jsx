@@ -2,11 +2,63 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useBackend } from './BackendContext';
 import * as XLSX from 'xlsx';
-import { ArrowLeft, ArrowRight, Calendar, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, X, Upload, Banknote, Smartphone, Building2, FolderOpen, Search, ChevronLeft, ChevronRight, AlertTriangle, Trash2, ChevronUp, ChevronDown, ChevronsUpDown, WifiOff, TrendingUp, EyeOff } from 'lucide-react';
 import Invoice from './Invoice';
+import PinPrompt from './PinPrompt';
 import { translations as t } from './locales';
 import { orderTotalKhr, roundKhr } from './khr';
 import { invalidateSales, queryKeys } from './queryClient';
+
+// Per-invoice profit (admin-gated): revenue minus cost for items with a known
+// unit cost at sale time (cost_at_sale/cost_currency, captured at checkout).
+// An item without one is left out of both sides entirely -- not counted as
+// free profit -- same convention as the Daily Summary's gross profit.
+// Rounds once, at the end: nearest cent in USD, nearest riel in KHR (not the
+// nearest note revenue elsewhere rounds to).
+function orderProfit(order, fallbackRate) {
+  const rate = order.exchange_rate > 0 ? Number(order.exchange_rate) : fallbackRate;
+  const toUsd = (amount, currency) => (currency === 'KHR' ? amount / rate : amount);
+  let profitUsd = 0;
+  let hasCosted = false;
+  let hasUncosted = false;
+  for (const item of order.items || []) {
+    if (!item.product_name) continue;
+    if (item.cost_at_sale == null || !item.cost_currency) {
+      hasUncosted = true;
+      continue;
+    }
+    hasCosted = true;
+    const charged = parseFloat(item.price) * item.quantity - (item.discount || 0);
+    const revenueUsd = toUsd(charged, item.currency);
+    const costUsd = toUsd(parseFloat(item.cost_at_sale), item.cost_currency) * item.quantity;
+    profitUsd += revenueUsd - costUsd;
+  }
+  return {
+    usd: Math.round(profitUsd * 100) / 100,
+    khr: Math.round(profitUsd * rate),
+    hasCosted,
+    hasUncosted,
+  };
+}
+
+// The line's per-unit cost snapshot, converted into the item's own currency
+// (matching how its Unit Price column is shown -- native, not converted) --
+// only actually converts when the cost was tracked in the other currency
+// than the item sold in.
+function itemCostNative(item, rate) {
+  const costPerUnit = parseFloat(item.cost_at_sale);
+  return item.cost_currency === item.currency
+    ? costPerUnit
+    : item.cost_currency === 'KHR' ? costPerUnit / rate : costPerUnit * rate;
+}
+
+// One line's own profit, in the item's own currency -- null when this line
+// has no cost snapshot (callers check item.cost_at_sale first).
+function itemProfitNative(item, rate) {
+  const revenue = parseFloat(item.price) * item.quantity - (item.discount || 0);
+  const profit = revenue - itemCostNative(item, rate) * item.quantity;
+  return item.currency === 'KHR' ? Math.round(profit) : Math.round(profit * 100) / 100;
+}
 
 const PAGE_SIZE = 10;
 
@@ -75,6 +127,11 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
   const [invoiceModal, setInvoiceModal] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  // Admin-gated (not the separate checkout "Profit PIN" -- the actual admin
+  // role, same re-check Settings uses): once unlocked for this visit to the
+  // tab, every order's profit shows; hiding it again needs no re-check.
+  const [showProfit, setShowProfit] = useState(false);
+  const [showProfitPinPrompt, setShowProfitPinPrompt] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportDateFrom, setExportDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return toLocalDateStr(d);
@@ -324,6 +381,18 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
         </div>
 
         <button
+          onClick={() => (showProfit ? setShowProfit(false) : setShowProfitPinPrompt(true))}
+          className={`px-4 py-1.5 font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 mr-2 ${
+            showProfit
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-700'
+          }`}
+        >
+          {showProfit ? <EyeOff size={14} /> : <TrendingUp size={14} />}
+          {showProfit ? s.hideProfit || 'Hide profit' : s.showProfit || 'Show profit'}
+        </button>
+
+        <button
           onClick={() => setShowExportModal(true)}
           disabled={orders.length === 0}
           className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
@@ -331,6 +400,27 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
           <Upload size={14} /> {ex.btnLabel}
         </button>
       </header>
+
+      {showProfitPinPrompt && (
+        <PinPrompt
+          // Actual admin role re-check (same endpoint Settings access uses),
+          // not the separate checkout "Profit PIN" setting.
+          onVerify={async (value) => {
+            try {
+              const data = await client.post('/api/auth/pin-unlock', { pin: value });
+              return data.role === 'ADMIN';
+            } catch {
+              return false;
+            }
+          }}
+          t={t[currentLocale]?.settingsPinPrompt}
+          onCancel={() => setShowProfitPinPrompt(false)}
+          onConfirm={() => {
+            setShowProfitPinPrompt(false);
+            setShowProfit(true);
+          }}
+        />
+      )}
 
       {/* Date range: free-form (any from/to), not a fixed set of periods --
           the chips are shortcuts onto the same two inputs, highlighted only
@@ -467,6 +557,7 @@ export default function SalesHistory({ onBackToRegister, currentLocale, dynamicR
                   s={s}
                   dynamicRate={dynamicRate}
                   mainCurrency={mainCurrency}
+                  showProfit={showProfit}
                   expanded={expandedId === order.id}
                   onToggle={() => setExpandedId(expandedId === order.id ? null : order.id)}
                   onInvoice={() => openInvoice(order)}
@@ -693,10 +784,11 @@ function DateField({ value, onChange, min, max }) {
   );
 }
 
-function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
+function OrderRow({ order, s, dynamicRate, mainCurrency, showProfit, expanded, onToggle, onInvoice, onDelete, formatDateTime }) {
   const itemCount = (order.items || []).filter(i => i.product_name).length;
   const totalUsd = parseFloat(order.total_amount);
   const totalKhr = orderTotalKhr(order, dynamicRate);
+  const profit = showProfit ? orderProfit(order, dynamicRate) : null;
 
   // Subtotal: every line at full price, before item and sale-wide discounts.
   // Discount: whatever brought that down to the total actually charged. A
@@ -775,15 +867,17 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
         <div className="border-t border-slate-100 dark:border-slate-700/50 px-4 pb-4 pt-3 bg-slate-50/50 dark:bg-slate-900/50">
           {/* Items table */}
           <div className="mb-3">
-            <div className="grid grid-cols-[1fr_48px_80px_80px] gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5 px-1">
+            <div className={`grid ${showProfit ? 'grid-cols-[1fr_48px_80px_80px_80px_80px]' : 'grid-cols-[1fr_48px_80px_80px]'} gap-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5 px-1`}>
               <span>{s.item}</span>
               <span className="text-center">{s.qty}</span>
               <span className="text-right">{s.unitPrice}</span>
+              {showProfit && <span className="text-right text-amber-600 dark:text-amber-400">{s.costPrice || 'Cost'}</span>}
               <span className="text-right">{s.subtotal}</span>
+              {showProfit && <span className="text-right text-emerald-600 dark:text-emerald-400">{s.profit || 'Profit'}</span>}
             </div>
             <div className="space-y-1">
               {(order.items || []).filter(i => i.product_name).map((item, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_48px_80px_80px] gap-2 text-xs px-1 py-0.5">
+                <div key={idx} className={`grid ${showProfit ? 'grid-cols-[1fr_48px_80px_80px_80px_80px]' : 'grid-cols-[1fr_48px_80px_80px]'} gap-2 text-xs px-1 py-0.5`}>
                   <span className="text-slate-800 dark:text-slate-100 font-medium truncate">{item.product_name}</span>
                   <span className="text-center text-slate-600 dark:text-slate-300 font-bold">{item.quantity}</span>
                   <span className="text-right text-slate-600 dark:text-slate-300">
@@ -791,6 +885,17 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
                       ? `${parseFloat(item.price).toLocaleString()} ៛`
                       : `$${parseFloat(item.price).toFixed(2)}`}
                   </span>
+                  {showProfit && (
+                    <span className="text-right text-amber-700 dark:text-amber-400">
+                      {item.cost_at_sale == null || !item.cost_currency ? (
+                        <span className="text-slate-300 dark:text-slate-600">—</span>
+                      ) : (
+                        item.currency === 'KHR'
+                          ? `${Math.round(itemCostNative(item, lineRate)).toLocaleString()} ៛`
+                          : `$${itemCostNative(item, lineRate).toFixed(2)}`
+                      )}
+                    </span>
+                  )}
                   <span className="text-right text-slate-900 dark:text-white font-bold">
                     {/* What the line charged: less its item discount, shown underneath. */}
                     {item.currency === 'KHR'
@@ -802,6 +907,19 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
                       </span>
                     )}
                   </span>
+                  {showProfit && (
+                    <span className="text-right font-bold">
+                      {item.cost_at_sale == null || !item.cost_currency ? (
+                        <span className="text-slate-300 dark:text-slate-600">—</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          {item.currency === 'KHR'
+                            ? `${itemProfitNative(item, lineRate).toLocaleString()} ៛`
+                            : `$${itemProfitNative(item, lineRate).toFixed(2)}`}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -839,6 +957,30 @@ function OrderRow({ order, s, dynamicRate, mainCurrency, expanded, onToggle, onI
               </p>
             </div>
           </div>
+
+          {/* Profit (admin-gated, see the "Show profit" button in the header) */}
+          {profit && (profit.hasCosted || profit.hasUncosted) && (
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-2.5 mb-2.5 flex justify-between items-baseline">
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">{s.profit || 'Profit'}</span>
+              <div className="text-right">
+                {profit.hasCosted ? (
+                  <>
+                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      {mainCurrency === 'USD' ? `$${profit.usd.toFixed(2)}` : `${profit.khr.toLocaleString()} ៛`}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                      {mainCurrency === 'USD' ? `${profit.khr.toLocaleString()} ៛` : `$${profit.usd.toFixed(2)}`}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">—</p>
+                )}
+                {profit.hasUncosted && (
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400">{s.profitPartial || 'Cost unknown for some items'}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Payment breakdown */}
           <div className="border-t border-slate-200 dark:border-slate-700 pt-2.5 space-y-1 text-xs">
