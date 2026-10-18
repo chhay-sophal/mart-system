@@ -1609,12 +1609,12 @@ export default function App() {
                             : `${usdToKhr(totalTenderedInUsd, dynamicRate).toLocaleString()} ៛`
                           }
                         </span>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400">
+                        {/* <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400">
                           {mainCurrency === 'USD'
                             ? `(${usdToKhr(totalTenderedInUsd, dynamicRate).toLocaleString()} ៛)`
                             : `($${totalTenderedInUsd.toFixed(2)} USD)`
                           }
-                        </p>
+                        </p> */}
                       </div>
                     </div>
                     <div className="flex justify-between items-center">
@@ -1628,12 +1628,12 @@ export default function App() {
                             : changeDueUsd >= 0 ? `${usdToKhr(changeDueUsd, dynamicRate).toLocaleString()} ៛` : `${usdToKhr(Math.abs(changeDueUsd), dynamicRate).toLocaleString()} ៛`
                           }
                         </span>
-                        <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
+                        {/* <p className="text-[10px] font-bold text-right mt-0.5 text-slate-400 dark:text-slate-400">
                           {mainCurrency === 'USD'
                             ? `(${usdToKhr(Math.abs(changeDueUsd), dynamicRate).toLocaleString()} ៛)`
                             : `($${Math.abs(changeDueUsd).toFixed(2)} USD)`
                           }
-                        </p>
+                        </p> */}
                       </div>
                     </div>
                   </div>
