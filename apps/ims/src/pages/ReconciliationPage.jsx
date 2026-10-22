@@ -9,6 +9,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { PencilLine } from 'lucide-react';
 
 const activitySummary = (row) =>
   row.recentMovements.length === 0 ? '' : row.recentMovements.map((m) => `${m.delta > 0 ? '+' : ''}${m.delta} (${m.reason})`).join(', ');
@@ -73,8 +74,9 @@ export default function ReconciliationPage() {
               setCorrectedStock('');
             }}
             className="text-[var(--accent)] font-medium cursor-pointer"
+            title={t.reconciliation.setCorrectedCount}
           >
-            {t.reconciliation.setCorrectedCount}
+            <PencilLine size={15}/>
           </button>
         ),
       },

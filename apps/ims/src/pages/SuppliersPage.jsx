@@ -13,6 +13,7 @@ import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { Archive, ArchiveRestore, Edit, Trash } from 'lucide-react';
 
 
 const EMPTY_FORM = { name: '', phone1: '', phone2: '', email: '', address: '' };
@@ -96,19 +97,20 @@ export default function SuppliersPage() {
         key: 'actions', label: '', cellClassName: 'text-right whitespace-nowrap',
         render: (s) =>
           s.isDeleted ? (
-            <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
+            <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium cursor-pointer" title={t.common.restore}>
+              <ArchiveRestore size={15}/>
             </button>
           ) : (
             <>
-              <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
+              <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer" title={t.common.edit}>
+                <Edit size={15}/>
               </button>
               <button
                 onClick={() => handleDelete(s)}
                 className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
+                title={s.productCount === 0 ? t.common.delete : t.common.archive}
               >
-                {s.productCount === 0 ? t.common.delete : t.common.archive}
+                {s.productCount === 0 ? <Trash size={15}/> : <Archive size={15}/>}
               </button>
             </>
           ),

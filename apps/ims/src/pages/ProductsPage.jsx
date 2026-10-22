@@ -28,6 +28,7 @@ import ColumnFilter, { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { Archive, ArchiveRestore, ArrowDownFromLine, ArrowUpFromLine, Edit, Plus } from 'lucide-react';
 
 const EMPTY_FORM = {
   name: '',
@@ -345,16 +346,16 @@ export default function ProductsPage() {
         key: 'actions', label: '', cellClassName: 'text-right',
         render: (p) =>
           p.isDeleted ? (
-            <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
+            <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer" title={t.common.restore}>
+              <ArchiveRestore size={15}/>
             </button>
           ) : (
             <>
-              <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
+              <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer" title={t.common.edit}>
+                <Edit size={15}/>
               </button>
-              <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
-                {t.common.archive}
+              <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer" title={t.common.archive}>
+                <Archive size={15}/>
               </button>
             </>
           ),
@@ -524,15 +525,17 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportExport(true)}
-            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+            className="flex items-center gap-1 text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+            title={t.products.importExport}
           >
-            {t.products.importExport}
+            <ArrowDownFromLine size={14}/> | <ArrowUpFromLine size={14}/>
           </button>
           <button
             onClick={openCreate}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            title={t.products.addProduct}
           >
-            {t.products.addProduct}
+            <Plus size={14}/>
           </button>
         </div>
       </div>

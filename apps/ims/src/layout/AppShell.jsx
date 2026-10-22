@@ -6,6 +6,7 @@ import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 import LanguageToggle from '../components/LanguageToggle.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
+import { LogOut } from 'lucide-react';
 
 // key: the label in t.shell.nav
 const NAV_ITEMS = [
@@ -80,8 +81,9 @@ export default function AppShell() {
             <button
               onClick={logout}
               className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+              title={t.shell.signOut}
             >
-              {t.shell.signOut}
+              <LogOut size={16}/>
             </button>
           </div>
         </div>

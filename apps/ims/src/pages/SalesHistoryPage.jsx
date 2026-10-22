@@ -17,6 +17,7 @@ import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
 import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalKhr, roundKhr } from '../lib/orderTotals';
+import { Ban, Download, Printer } from 'lucide-react';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
 // export and receipt reprint, for one branch or all of them. Rows come from
@@ -253,8 +254,8 @@ export default function SalesHistoryPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.sales.title}</h1>
-        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
-          {t.sales.export}
+        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer" title={t.sales.export}>
+          <Download size={14}/>
         </button>
       </div>
 
@@ -421,12 +422,12 @@ function OrderDetail({ order: o, onVoid }) {
           {o.change_given_khr > 0 && <span>{fill(t.sales.changeAmount, { amount: fmtKhr(o.change_given_khr) })}</span>}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
-            {t.sales.printReceipt}
+          <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer" title={t.sales.printReceipt}>
+            <Printer size={14}/>
           </button>
           {!voided && (
-            <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer">
-              {t.sales.voidSale}
+            <button onClick={onVoid} className="text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer" title={t.sales.voidSale}>
+              <Ban size={14}/>
             </button>
           )}
         </div>

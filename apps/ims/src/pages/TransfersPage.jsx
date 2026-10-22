@@ -10,6 +10,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { CircleCheck, CircleX, Plus, X } from 'lucide-react';
 
 const EMPTY_CREATE_FORM = { fromStoreId: '', toStoreId: '', items: [] };
 
@@ -68,11 +69,11 @@ export default function TransfersPage() {
         render: (r) =>
           r.status === 'REQUESTED' && (
             <>
-              <button onClick={() => handleComplete(r)} className="text-[var(--accent)] font-medium cursor-pointer">
-                {t.transfers.complete}
+              <button onClick={() => handleComplete(r)} className="text-[var(--accent)] font-medium cursor-pointer" title={t.transfers.complete}>
+                <CircleCheck size={15}/>
               </button>
-              <button onClick={() => handleCancel(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-                {t.common.cancel}
+              <button onClick={() => handleCancel(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer" title={t.common.cancel}>
+                <CircleX size={15}/>
               </button>
             </>
           ),
@@ -185,8 +186,9 @@ export default function TransfersPage() {
           <button
             onClick={openCreate}
             className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            title={t.transfers.newTransfer}
           >
-            {t.transfers.newTransfer}
+            <Plus size={14}/>
           </button>
         </div>
       </div>
@@ -280,8 +282,8 @@ export default function TransfersPage() {
                     <span>
                       {fmt(t.transfers.lineItem, { quantity: item.quantity, name: item.name })}
                     </span>
-                    <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 dark:text-red-400 text-xs cursor-pointer">
-                      {t.common.remove}
+                    <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 dark:text-red-400 text-xs cursor-pointer" title={t.common.remove}>
+                      <X size={14}/>
                     </button>
                   </li>
                 ))}

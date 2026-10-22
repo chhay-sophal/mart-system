@@ -11,6 +11,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { Key, ShieldBan, ShieldCheck } from 'lucide-react';
 
 function formatDate(value, never) {
   if (!value) return never;
@@ -102,11 +103,17 @@ export default function TerminalsPage() {
         key: 'actions', label: '', cellClassName: 'text-right space-x-3',
         render: (r) => (
           <>
-            <button onClick={() => handleRotate(r)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.terminals.rotateSecret}
+            <button 
+              onClick={() => handleRotate(r)} 
+              className="text-[var(--accent)] font-medium cursor-pointer" 
+              title={t.terminals.rotateSecret}>
+              <Key size={15}/>
             </button>
-            <button onClick={() => handleToggleActive(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-              {r.isActive ? t.terminals.deactivate : t.terminals.reactivate}
+            <button 
+              onClick={() => handleToggleActive(r)} 
+              className={`${r.isActive ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"} font-medium cursor-pointer`}
+              title={r.isActive ? t.terminals.deactivate : t.terminals.reactivate}>
+              {r.isActive ? <ShieldBan size={15}/> : <ShieldCheck size={15}/>}
             </button>
           </>
         ),

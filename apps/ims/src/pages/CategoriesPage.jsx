@@ -13,6 +13,7 @@ import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { Archive, ArchiveRestore, Edit, Plus, Trash } from 'lucide-react';
 
 export default function CategoriesPage() {
   const { storeId } = useOutletContext();
@@ -62,19 +63,20 @@ export default function CategoriesPage() {
         key: 'actions', label: '', cellClassName: 'text-right whitespace-nowrap',
         render: (c) =>
           c.isDeleted ? (
-            <button onClick={() => handleRestore(c)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
+            <button onClick={() => handleRestore(c)} className="text-[var(--accent)] font-medium cursor-pointer" title={t.common.restore}>
+              <ArchiveRestore size={15}/>
             </button>
           ) : (
             <>
-              <button onClick={() => openEdit(c)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
+              <button onClick={() => openEdit(c)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer" title={t.common.edit}>
+                <Edit size={15}/>
               </button>
               <button
                 onClick={() => handleDelete(c)}
                 className={c.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
+                title={c.productCount === 0 ? t.common.delete : t.common.archive}
               >
-                {c.productCount === 0 ? t.common.delete : t.common.archive}
+                {c.productCount === 0 ? <Trash size={15}/> : <Archive size={15}/>}
               </button>
             </>
           ),
@@ -151,8 +153,8 @@ export default function CategoriesPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.categories.title}</h1>
-        <button onClick={openCreate} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
-          {t.categories.add}
+        <button onClick={openCreate} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer" title={t.categories.add}>
+          <Plus size={14}/>
         </button>
       </div>
 

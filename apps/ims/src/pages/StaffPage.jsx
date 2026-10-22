@@ -10,6 +10,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
+import { Edit, ShieldBan, ShieldCheck } from 'lucide-react';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
 // Staff PINs are exactly 4 digits (the POS lock screen has four places).
@@ -86,11 +87,14 @@ export default function StaffPage() {
         key: 'actions', label: '', cellClassName: 'text-right space-x-3',
         render: (r) => (
           <>
-            <button onClick={() => openEdit(r)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-              {t.common.edit}
+            <button onClick={() => openEdit(r)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer" title={t.common.edit}>
+              <Edit size={15}/>
             </button>
-            <button onClick={() => handleToggleActive(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
-              {r.isActive ? t.staff.deactivate : t.staff.reactivate}
+            <button 
+              onClick={() => handleToggleActive(r)} 
+              className={`${r.isActive ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"} font-medium cursor-pointer`}
+              title={r.isActive ? t.staff.deactivate : t.staff.reactivate}>
+              {r.isActive ? <ShieldBan size={15}/> : <ShieldCheck size={15}/>}
             </button>
           </>
         ),

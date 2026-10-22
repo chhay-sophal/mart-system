@@ -74,6 +74,7 @@ export default function FilterButton({ table, only }) {
         type="button"
         onClick={toggle}
         aria-expanded={open}
+        title={t.common.filter}
         className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm font-medium cursor-pointer ${
           activeCount > 0
             ? 'border-[var(--accent)] text-[var(--accent)] bg-indigo-50 dark:bg-indigo-950/40'
@@ -81,7 +82,6 @@ export default function FilterButton({ table, only }) {
         }`}
       >
         <SlidersHorizontal size={14} />
-        {t.common.filter}
         {activeCount > 0 && (
           <span className="min-w-5 h-5 px-1.5 rounded-full bg-[var(--accent)] text-white text-xs leading-5 text-center">{activeCount}</span>
         )}
