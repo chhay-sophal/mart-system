@@ -1,11 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { accessTokenRef, apiClient } from '../lib/apiClient';
 import { queryClient, queryKeys } from '../lib/queryClient';
-import { setTabSyncUser, userIdOfToken } from '../lib/tabSync';
+import { setTabSyncUser } from '../lib/tabSync';
+import {
+  ACCESS_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+  clearStoredTokens,
+  getFreshTokens,
+  hasStoredSession,
+  storeTokens,
+  userIdOfToken,
+} from '../lib/session';
 
-const REFRESH_TOKEN_KEY = 'ims:refreshToken';
 // Access tokens are 15m server-side; refresh a bit early so an in-flight
-// request never races an expiry.
+// request never races an expiry. Every open tab runs this timer, but
+// getFreshTokens() (lib/session.js) lets only one of them hit the server.
 const PROACTIVE_REFRESH_MS = 12 * 60 * 1000;
 
 const AuthContext = createContext(null);
@@ -26,26 +35,27 @@ export function AuthProvider({ children }) {
   // Computed directly from localStorage rather than flipped post-mount — if
   // there's no stored refresh token there's nothing to resume, so 'anonymous'
   // is correct from the very first render.
-  const [status, setStatus] = useState(() =>
-    localStorage.getItem(REFRESH_TOKEN_KEY) ? 'loading' : 'anonymous'
-  ); // 'loading' | 'authenticated' | 'anonymous'
+  const [status, setStatus] = useState(() => (hasStoredSession() ? 'loading' : 'anonymous')); // 'loading' | 'authenticated' | 'anonymous'
   const refreshTimerRef = useRef(null);
 
-  const applyTokens = useCallback((accessToken, refreshToken) => {
+  // This tab's in-memory use of the session: the requests' bearer token and
+  // tab sync's user. Storage is written by whoever obtained the token.
+  const adoptAccessToken = useCallback((accessToken) => {
     accessTokenRef.current = accessToken;
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     // Lets other open tabs share their cache with this one (lib/tabSync.js);
     // set before any page mounts, so it can start from their data.
     setTabSyncUser(userIdOfToken(accessToken));
   }, []);
 
-  const clearAuth = useCallback(() => {
+  // Signs this tab out. `keepStorage` when another tab already ended (or
+  // replaced) the shared session, so its storage isn't this tab's to clear.
+  const clearAuth = useCallback((keepStorage = false) => {
     accessTokenRef.current = null;
     // Cached data belongs to the signed-in user; never show it to the next
     // one, and stop exchanging it with other tabs.
     setTabSyncUser(null);
     queryClient.clear();
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    if (!keepStorage) clearStoredTokens();
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     setUser(null);
     setStores([]);
@@ -68,27 +78,26 @@ export function AuthProvider({ children }) {
   const scheduleProactiveRefresh = useCallback(() => {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     refreshTimerRef.current = setInterval(async () => {
-      const raw = localStorage.getItem(REFRESH_TOKEN_KEY);
-      if (!raw) return;
+      if (!hasStoredSession()) return;
       try {
-        const res = await apiClient.post('/api/auth/refresh', { refreshToken: raw });
-        applyTokens(res.accessToken, res.refreshToken);
+        adoptAccessToken((await getFreshTokens()).accessToken);
       } catch {
         clearAuth();
       }
     }, PROACTIVE_REFRESH_MS);
-  }, [applyTokens, clearAuth]);
+  }, [adoptAccessToken, clearAuth]);
 
   const login = useCallback(
     async (username, password) => {
       const res = await apiClient.post('/api/auth/login', { username, password });
-      applyTokens(res.accessToken, res.refreshToken);
+      storeTokens(res.accessToken, res.refreshToken);
+      adoptAccessToken(res.accessToken);
       setUser({ username: username.trim().toLowerCase() });
       await loadStores();
       scheduleProactiveRefresh();
       setStatus('authenticated');
     },
-    [applyTokens, loadStores, scheduleProactiveRefresh]
+    [adoptAccessToken, loadStores, scheduleProactiveRefresh]
   );
 
   const logout = useCallback(async () => {
@@ -103,16 +112,15 @@ export function AuthProvider({ children }) {
     }
   }, [clearAuth]);
 
-  // On mount, try to silently resume a session from the stored refresh token
-  // rather than forcing a fresh login every page reload.
+  // On mount, try to silently resume a session from the stored tokens rather
+  // than forcing a fresh login every page reload. With another tab open,
+  // that's usually its still-valid access token: no request at all.
   useEffect(() => {
-    const raw = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!raw) return;
+    if (!hasStoredSession()) return;
 
     (async () => {
       try {
-        const res = await apiClient.post('/api/auth/refresh', { refreshToken: raw });
-        applyTokens(res.accessToken, res.refreshToken);
+        adoptAccessToken((await getFreshTokens()).accessToken);
         await loadStores();
         scheduleProactiveRefresh();
         setStatus('authenticated');
@@ -122,6 +130,23 @@ export function AuthProvider({ children }) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Another tab changed the shared session. A refresh: adopt its new access
+  // token. A sign-out: sign this tab out too. A sign-in as someone else:
+  // reload, so nothing of this tab's old user (cache, UI state) survives.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const onStorage = (e) => {
+      if (e.key === REFRESH_TOKEN_KEY && !e.newValue) {
+        clearAuth(true);
+      } else if (e.key === ACCESS_TOKEN_KEY && e.newValue) {
+        if (userIdOfToken(e.newValue) !== userIdOfToken(accessTokenRef.current)) window.location.reload();
+        else adoptAccessToken(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [status, clearAuth, adoptAccessToken]);
 
   // apiClient's onUnauthorized fires on any 401/403 — if our proactive
   // refresh somehow missed, drop the session so the login screen reappears.

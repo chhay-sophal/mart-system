@@ -102,7 +102,7 @@ export function startTabSync(client) {
 }
 
 /**
- * Who this tab is signed in as (the access token's user id), or null once
+ * Who this tab is signed in as (lib/session.js userIdOfToken), or null once
  * signed out. Snapshots received while it was still resuming are applied
  * now, if they're for this user.
  */
@@ -113,15 +113,5 @@ export function setTabSyncUser(userId) {
   if (!currentUser || !queryClient) return;
   for (const msg of pending) {
     if (msg.user === currentUser) applyRemote(() => hydrate(queryClient, msg.state));
-  }
-}
-
-/** The user id (`sub`) inside an access token, without verifying it: only used to tag tab messages. */
-export function userIdOfToken(accessToken) {
-  try {
-    const payload = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(payload)).sub ?? null;
-  } catch {
-    return null;
   }
 }
