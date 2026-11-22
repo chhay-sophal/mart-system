@@ -63,7 +63,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   const orders = await prisma.order.findMany({
     // A voided sale (refunded at the register, or in IMS) is not revenue.
     where: { storeId, isDeleted: false, status: { not: "VOIDED" }, createdAt: { gte: dateFrom, lt: dateTo } },
-    include: { items: { include: { product: true } } },
+    include: { items: { include: { product: { include: { category: true } } } } },
   });
   // Each sale converts at the rate it was made at.
   const rateOf = (order: (typeof orders)[number]) => order.exchangeRate ?? rate;
@@ -106,7 +106,19 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
 
   const productAgg = new Map<
     string,
-    { name: string; qty: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number; uncostedQty: number }
+    {
+      name: string;
+      barcode: string | null;
+      // The product's category now, not at the time of sale.
+      categoryId: string | null;
+      categoryName: string | null;
+      qty: number;
+      revenue: number;
+      revenueKhr: number;
+      profit: number;
+      profitKhr: number;
+      uncostedQty: number;
+    }
   >();
   let grossProfit = 0;
   let grossProfitKhr = 0;
@@ -114,9 +126,22 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
   // than counted as all profit), and reported so the screen can say so.
   let uncostedRevenue = 0;
   let uncostedRevenueKhr = 0;
+  // Sales per hour, keyed by the start of the UTC hour: the screen regroups
+  // these into its own local hours/days/months, so the server never needs to
+  // know the viewer's time zone.
+  const timelineMap = new Map<
+    string,
+    { orderCount: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number }
+  >();
 
   for (const order of orders) {
     const orderRate = rateOf(order);
+    const hour = new Date(Math.floor(order.createdAt.getTime() / 3_600_000) * 3_600_000).toISOString();
+    const bucket = timelineMap.get(hour) ?? { orderCount: 0, revenue: 0, revenueKhr: 0, profit: 0, profitKhr: 0 };
+    bucket.orderCount += 1;
+    bucket.revenue += orderTotalUsd(order);
+    bucket.revenueKhr += orderTotalKhr(order);
+    timelineMap.set(hour, bucket);
     const lines = order.items.map((item) => {
       // What the line charged before any sale-wide discount: item discounts
       // (e.g. a defective unit) come off.
@@ -157,6 +182,9 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
 
       const agg = productAgg.get(item.productId) ?? {
         name: item.product.name,
+        barcode: item.product.barcode,
+        categoryId: item.product.categoryId,
+        categoryName: item.product.category?.name ?? null,
         qty: 0,
         revenue: 0,
         revenueKhr: 0,
@@ -189,8 +217,13 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
 
       grossProfit += lineProfit;
       grossProfitKhr += lineProfitKhr;
+      bucket.profit += lineProfit;
+      bucket.profitKhr += lineProfitKhr;
     }
   }
+  const timeline = [...timelineMap.entries()]
+    .map(([hour, v]) => ({ hour, ...v, profit: Math.round(v.profit * 100) / 100, profitKhr: Math.round(v.profitKhr) }))
+    .sort((a, b) => a.hour.localeCompare(b.hour));
   // Profit calculation: USD to the nearest cent, riel to the nearest whole
   // riel -- finer-grained than revenue's nearest-note rule above, since
   // profit is a computed figure, not cash that changes hands.
@@ -207,6 +240,9 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
       return {
         productId,
         name: v.name,
+        barcode: v.barcode,
+        categoryId: v.categoryId,
+        categoryName: v.categoryName,
         totalQty: v.qty,
         revenue: v.revenue,
         revenueKhr: v.revenueKhr,
@@ -240,6 +276,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     byMethod,
     topProducts,
     allProducts,
+    timeline,
   };
 }
 

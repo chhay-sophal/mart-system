@@ -124,6 +124,87 @@ describe("GET /api/reports/daily-summary", () => {
     expect(res.body.byStore[0].topProducts[0]).toMatchObject({ productId: product.id, name: "Widget", totalQty: 5, revenue: 10, revenueKhr: 41000, profit: 4, profitKhr: 16400 });
   });
 
+  it("tags each sold product with its category, or null when it has none", async () => {
+    const { store, terminal } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const drinks = await prisma.category.create({ data: { name: "Drinks" } });
+    const { product: cola } = await addProduct(store.id, { name: "Cola", price: 1, stock: 100 });
+    const { product: loose } = await addProduct(store.id, { name: "Loose Item", price: 1, stock: 100 });
+    await prisma.product.update({ where: { id: cola.id }, data: { categoryId: drinks.id } });
+
+    await prisma.order.create({
+      data: {
+        storeId: store.id,
+        terminalId: terminal.id,
+        clientOrderUuid: `test-category-${Math.random()}`,
+        totalAmountMinor: toMinorUnits(3, "USD"),
+        currency: "USD",
+        paymentMethod: "CASH",
+        amountPaidUsdMinor: toMinorUnits(3, "USD"),
+        createdAt: new Date(),
+        items: {
+          create: [
+            { productId: cola.id, quantity: 2, priceAtSaleMinor: toMinorUnits(1, "USD"), currency: "USD" },
+            { productId: loose.id, quantity: 1, priceAtSaleMinor: toMinorUnits(1, "USD"), currency: "USD" },
+          ],
+        },
+      },
+    });
+
+    const res = await request(app)
+      .get("/api/reports/daily-summary")
+      .query({
+        date_from: new Date(Date.now() - 86_400_000).toISOString(),
+        date_to: new Date(Date.now() + 86_400_000).toISOString(),
+      })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const byName = Object.fromEntries(res.body.byStore[0].allProducts.map((p: { name: string }) => [p.name, p]));
+    expect(byName["Cola"]).toMatchObject({ categoryId: drinks.id, categoryName: "Drinks", totalQty: 2 });
+    expect(byName["Loose Item"]).toMatchObject({ categoryId: null, categoryName: null, totalQty: 1 });
+  });
+
+  it("buckets sales into UTC hours for the timeline", async () => {
+    const { store, terminal } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 2, stock: 100 });
+    await prisma.storeProduct.update({
+      where: { storeId_productId: { storeId: store.id, productId: product.id } },
+      data: { costPriceMinor: toMinorUnits(1.5, "USD") },
+    });
+
+    const createOrder = (createdAt: Date, quantity: number) =>
+      prisma.order.create({
+        data: {
+          storeId: store.id,
+          terminalId: terminal.id,
+          clientOrderUuid: `test-timeline-${Math.random()}`,
+          totalAmountMinor: toMinorUnits(2 * quantity, "USD"),
+          currency: "USD",
+          paymentMethod: "CASH",
+          amountPaidUsdMinor: toMinorUnits(2 * quantity, "USD"),
+          createdAt,
+          items: { create: [{ productId: product.id, quantity, priceAtSaleMinor: toMinorUnits(2, "USD"), currency: "USD" }] },
+        },
+      });
+
+    await createOrder(new Date("2026-03-01T09:05:00Z"), 1);
+    await createOrder(new Date("2026-03-01T09:55:00Z"), 2);
+    await createOrder(new Date("2026-03-01T11:30:00Z"), 4);
+
+    const res = await request(app)
+      .get("/api/reports/daily-summary")
+      .query({ date_from: "2026-03-01T00:00:00.000Z", date_to: "2026-03-02T00:00:00.000Z" })
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.byStore[0].timeline).toEqual([
+      { hour: "2026-03-01T09:00:00.000Z", orderCount: 2, revenue: 6, revenueKhr: 24600, profit: 1.5, profitKhr: 6150 },
+      { hour: "2026-03-01T11:00:00.000Z", orderCount: 1, revenue: 8, revenueKhr: 32800, profit: 2, profitKhr: 8200 },
+    ]);
+  });
+
   it("computes gross profit and product revenue in riel using the exact stored amount, not a USD conversion", async () => {
     const { store, terminal } = await seedFixtures();
     const token = await loginAsAdmin();

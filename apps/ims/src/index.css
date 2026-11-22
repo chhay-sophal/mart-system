@@ -8,6 +8,16 @@
   --border: #e2e8f0;
   --accent: #4f46e5;
   --accent-bg: rgba(79, 70, 229, 0.1);
+  /* Chart series, in fixed order (revenue, profit). Checked for colorblind
+     separation and 3:1 contrast against the card surface, per mode. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  /* Payment methods (cash, KHQR, static QR, card), one fixed color each;
+     drawn together in one pie, so checked as a set. The gray is deliberate. */
+  --series-3: #1baf7a;
+  --series-4: #6250d6;
+  --series-5: #eda100;
+  --series-6: #64748b;
 
   font: 14px/150% system-ui, -apple-system, "Segoe UI", "Noto Sans Khmer", sans-serif;
   color: var(--text);
@@ -24,6 +34,12 @@
   --bg: #0f172a;
   --border: #334155;
   --accent-bg: rgba(79, 70, 229, 0.25);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #9085e9;
+  --series-5: #c98500;
+  --series-6: #5f6b7c;
   color-scheme: dark;
 }
 
