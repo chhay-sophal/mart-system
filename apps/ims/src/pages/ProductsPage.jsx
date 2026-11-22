@@ -33,6 +33,8 @@ import ColumnFilter, { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import IconButton from '../components/IconButton.jsx';
+import { Archive, ArchiveRestore, FileSpreadsheet, Pencil, Plus, X } from 'lucide-react';
 
 const EMPTY_FORM = {
   name: '',
@@ -342,18 +344,12 @@ export default function ProductsPage() {
         key: 'actions', label: '', cellClassName: 'text-right',
         render: (p) =>
           p.isDeleted ? (
-            <button onClick={() => handleRestore(p)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
-            </button>
+            <IconButton icon={ArchiveRestore} label={t.common.restore} tone="accent" onClick={() => handleRestore(p)} />
           ) : (
-            <>
-              <button onClick={() => openEdit(p)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
-              </button>
-              <button onClick={() => handleArchive(p)} className="text-slate-600 dark:text-slate-300 font-medium cursor-pointer">
-                {t.common.archive}
-              </button>
-            </>
+            <span className="inline-flex gap-1">
+              <IconButton icon={Pencil} label={t.common.edit} tone="accent" onClick={() => openEdit(p)} />
+              <IconButton icon={Archive} label={t.common.archive} onClick={() => handleArchive(p)} />
+            </span>
           ),
       },
     ],
@@ -516,14 +512,16 @@ export default function ProductsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportExport(true)}
-            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+            className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer inline-flex items-center gap-1.5"
           >
+            <FileSpreadsheet size={16} aria-hidden="true" />
             {t.products.importExport}
           </button>
           <button
             onClick={openCreate}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5"
           >
+            <Plus size={16} aria-hidden="true" />
             {t.products.addProduct}
           </button>
         </div>
@@ -571,9 +569,7 @@ export default function ProductsPage() {
           >
             {bulkDeleting ? t.products.archiving : t.products.archiveSelected}
           </button>
-          <button onClick={() => setSelected(new Set())} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ml-auto cursor-pointer">
-            {t.products.clearSelection}
-          </button>
+          <IconButton icon={X} label={t.products.clearSelection} onClick={() => setSelected(new Set())} className="ml-auto" />
         </div>
       )}
 

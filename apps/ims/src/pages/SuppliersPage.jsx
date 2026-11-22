@@ -16,6 +16,8 @@ import { useSearch } from '../hooks/useSearch';
 import { usePagination } from '../hooks/usePagination';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import IconButton from '../components/IconButton.jsx';
+import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react';
 
 
 const EMPTY_FORM = { name: '', phone1: '', phone2: '', email: '', address: '' };
@@ -92,21 +94,17 @@ export default function SuppliersPage() {
         key: 'actions', label: '', cellClassName: 'text-right whitespace-nowrap',
         render: (s) =>
           s.isDeleted ? (
-            <button onClick={() => handleRestore(s)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
-            </button>
+            <IconButton icon={ArchiveRestore} label={t.common.restore} tone="accent" onClick={() => handleRestore(s)} />
           ) : (
-            <>
-              <button onClick={() => openEdit(s)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
-              </button>
-              <button
-                onClick={() => handleDelete(s)}
-                className={s.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
-              >
-                {s.productCount === 0 ? t.common.delete : t.common.archive}
-              </button>
-            </>
+            <span className="inline-flex gap-1">
+              <IconButton icon={Pencil} label={t.common.edit} tone="accent" onClick={() => openEdit(s)} />
+              {/* Unused: deleted outright (red); in use: archived. */}
+              {s.productCount === 0 ? (
+                <IconButton icon={Trash2} label={t.common.delete} tone="danger" onClick={() => handleDelete(s)} />
+              ) : (
+                <IconButton icon={Archive} label={t.common.archive} onClick={() => handleDelete(s)} />
+              )}
+            </span>
           ),
       },
     ],
@@ -176,8 +174,9 @@ export default function SuppliersPage() {
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.suppliers.title}</h1>
         <button
           onClick={openCreate}
-          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+          className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5"
         >
+          <Plus size={16} aria-hidden="true" />
           {t.suppliers.add}
         </button>
       </div>

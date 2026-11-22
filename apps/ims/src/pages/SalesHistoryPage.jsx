@@ -24,6 +24,7 @@ import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
 import { DATE_PRESETS, toApiRange, todayStr } from '../lib/dateRange';
 import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalKhr, roundKhr } from '../lib/orderTotals';
+import { Download, Printer } from 'lucide-react';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
 // export and receipt reprint, for one branch or all of them. Rows come from
@@ -207,7 +208,8 @@ export default function SalesHistoryPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.sales.title}</h1>
-        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer">
+        <button onClick={() => setExportOpen(true)} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 h-9 inline-flex items-center justify-center border border-transparent cursor-pointer gap-1.5">
+          <Download size={16} aria-hidden="true" />
           {t.sales.export}
         </button>
       </div>
@@ -327,7 +329,8 @@ function OrderDetail({ order: o, onVoid }) {
           {o.change_given_khr > 0 && <span>{fill(t.sales.changeAmount, { amount: fmtKhr(o.change_given_khr) })}</span>}
         </div>
         <div className="flex gap-2">
-          <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer">
+          <button onClick={() => printReceipt(o)} className="text-xs font-medium border border-[var(--border)] rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 cursor-pointer inline-flex items-center gap-1.5">
+            <Printer size={14} aria-hidden="true" />
             {t.sales.printReceipt}
           </button>
           {!voided && (

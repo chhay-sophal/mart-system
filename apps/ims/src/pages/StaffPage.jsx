@@ -10,6 +10,8 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt } from '../i18n/translate';
+import IconButton from '../components/IconButton.jsx';
+import { Eye, EyeOff, Pencil, UserPlus } from 'lucide-react';
 
 const ROLES = ['CASHIER', 'INVENTORY', 'ADMIN'];
 // Staff PINs are exactly 4 digits (the POS lock screen has four places).
@@ -87,9 +89,7 @@ export default function StaffPage() {
         key: 'actions', label: '', cellClassName: 'text-right space-x-3',
         render: (r) => (
           <>
-            <button onClick={() => openEdit(r)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-              {t.common.edit}
-            </button>
+            <IconButton icon={Pencil} label={t.common.edit} tone="accent" onClick={() => openEdit(r)} className="align-middle" />
             <button onClick={() => handleToggleActive(r)} className="text-red-600 dark:text-red-400 font-medium cursor-pointer">
               {r.isActive ? t.staff.deactivate : t.staff.reactivate}
             </button>
@@ -200,8 +200,9 @@ export default function StaffPage() {
           )}
           <button
             onClick={() => setShowCreate(true)}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5"
           >
+            <UserPlus size={16} aria-hidden="true" />
             {t.staff.addStaff}
           </button>
         </div>
@@ -277,15 +278,14 @@ export default function StaffPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={createForm.password}
                       onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                      className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-14 text-sm"
+                      className="w-full border border-[var(--border)] rounded-lg px-3 py-1.5 pr-10 text-sm"
                     />
-                    <button
-                      type="button"
+                    <IconButton
+                      icon={showPassword ? EyeOff : Eye}
+                      label={showPassword ? t.common.hidePassword : t.common.showPassword}
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                    >
-                      {showPassword ? t.common.hide : t.common.show}
-                    </button>
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
+                    />
                   </div>
                 </div>
               </>
@@ -407,15 +407,14 @@ export default function StaffPage() {
                       type={showEditPassword ? 'text' : 'password'}
                       value={editForm.password}
                       onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                      className="w-full border border-[var(--border)] rounded-lg px-3 h-9 pr-14 text-sm"
+                      className="w-full border border-[var(--border)] rounded-lg px-3 h-9 pr-10 text-sm"
                     />
-                    <button
-                      type="button"
+                    <IconButton
+                      icon={showEditPassword ? EyeOff : Eye}
+                      label={showEditPassword ? t.common.hidePassword : t.common.showPassword}
                       onClick={() => setShowEditPassword((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                    >
-                      {showEditPassword ? t.common.hide : t.common.show}
-                    </button>
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
+                    />
                   </div>
                 </div>
               </>

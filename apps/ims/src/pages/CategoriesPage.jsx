@@ -14,6 +14,8 @@ import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import IconButton from '../components/IconButton.jsx';
+import { Archive, ArchiveRestore, Pencil, Plus, Trash2 } from 'lucide-react';
 
 export default function CategoriesPage() {
   const { storeId } = useOutletContext();
@@ -58,21 +60,17 @@ export default function CategoriesPage() {
         key: 'actions', label: '', cellClassName: 'text-right whitespace-nowrap',
         render: (c) =>
           c.isDeleted ? (
-            <button onClick={() => handleRestore(c)} className="text-[var(--accent)] font-medium cursor-pointer">
-              {t.common.restore}
-            </button>
+            <IconButton icon={ArchiveRestore} label={t.common.restore} tone="accent" onClick={() => handleRestore(c)} />
           ) : (
-            <>
-              <button onClick={() => openEdit(c)} className="text-[var(--accent)] font-medium mr-3 cursor-pointer">
-                {t.common.edit}
-              </button>
-              <button
-                onClick={() => handleDelete(c)}
-                className={c.productCount === 0 ? 'text-red-600 dark:text-red-400 font-medium cursor-pointer' : 'text-slate-600 dark:text-slate-300 font-medium cursor-pointer'}
-              >
-                {c.productCount === 0 ? t.common.delete : t.common.archive}
-              </button>
-            </>
+            <span className="inline-flex gap-1">
+              <IconButton icon={Pencil} label={t.common.edit} tone="accent" onClick={() => openEdit(c)} />
+              {/* Unused: deleted outright (red); in use: archived. */}
+              {c.productCount === 0 ? (
+                <IconButton icon={Trash2} label={t.common.delete} tone="danger" onClick={() => handleDelete(c)} />
+              ) : (
+                <IconButton icon={Archive} label={t.common.archive} onClick={() => handleDelete(c)} />
+              )}
+            </span>
           ),
       },
     ],
@@ -144,7 +142,8 @@ export default function CategoriesPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.categories.title}</h1>
-        <button onClick={openCreate} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer">
+        <button onClick={openCreate} className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5">
+          <Plus size={16} aria-hidden="true" />
           {t.categories.add}
         </button>
       </div>

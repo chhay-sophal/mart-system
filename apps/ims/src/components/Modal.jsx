@@ -1,3 +1,5 @@
+import { X } from 'lucide-react';
+import IconButton from './IconButton.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 
 export default function Modal({ title, onClose, children, width = 'max-w-lg' }) {
@@ -7,9 +9,7 @@ export default function Modal({ title, onClose, children, width = 'max-w-lg' }) 
       <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-lg w-full ${width} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
           <h2 className="font-semibold text-[var(--text-h)]">{title}</h2>
-          <button onClick={onClose} aria-label={t.common.close} title={t.common.close} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-xl leading-none cursor-pointer">
-            &times;
-          </button>
+          <IconButton icon={X} label={t.common.close} size={18} onClick={onClose} className="-mr-1.5" />
         </div>
         <div className="p-5">{children}</div>
       </div>

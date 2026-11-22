@@ -1,9 +1,11 @@
 import { useRef } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useHeadroom } from './useHeadroom';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import IconButton from '../components/IconButton.jsx';
 import LanguageToggle from '../components/LanguageToggle.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 
@@ -77,12 +79,7 @@ export default function AppShell() {
             <span className="text-sm text-slate-500 dark:text-slate-400">{user?.username}</span>
             <LanguageToggle />
             <ThemeToggle theme={theme} onChange={setTheme} />
-            <button
-              onClick={logout}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
-            >
-              {t.shell.signOut}
-            </button>
+            <IconButton icon={LogOut} label={t.shell.signOut} onClick={logout} />
           </div>
         </div>
       </header>

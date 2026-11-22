@@ -10,6 +10,8 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import IconButton from '../components/IconButton.jsx';
+import { Plus, X } from 'lucide-react';
 
 const EMPTY_CREATE_FORM = { fromStoreId: '', toStoreId: '', items: [] };
 
@@ -185,8 +187,9 @@ export default function TransfersPage() {
           )}
           <button
             onClick={openCreate}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5"
           >
+            <Plus size={16} aria-hidden="true" />
             {t.transfers.newTransfer}
           </button>
         </div>
@@ -281,9 +284,7 @@ export default function TransfersPage() {
                     <span>
                       {fmt(t.transfers.lineItem, { quantity: item.quantity, name: item.name })}
                     </span>
-                    <button type="button" onClick={() => removeLineItem(item.productId)} className="text-red-600 dark:text-red-400 text-xs cursor-pointer">
-                      {t.common.remove}
-                    </button>
+                    <IconButton icon={X} label={t.common.remove} tone="danger" size={14} onClick={() => removeLineItem(item.productId)} />
                   </li>
                 ))}
               </ul>

@@ -11,6 +11,7 @@ import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
+import { Plus } from 'lucide-react';
 
 function formatDate(value, never) {
   if (!value) return never;
@@ -170,8 +171,9 @@ export default function TerminalsPage() {
           )}
           <button
             onClick={() => setShowPair(true)}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer"
+            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-3 py-1.5 cursor-pointer inline-flex items-center gap-1.5"
           >
+            <Plus size={16} aria-hidden="true" />
             {t.terminals.pairNew}
           </button>
         </div>
