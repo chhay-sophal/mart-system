@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -13,8 +13,10 @@ import { useDataTable } from '../hooks/useDataTable';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
+import Pagination from '../components/Pagination.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
+import { usePagination } from '../hooks/usePagination';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
@@ -64,7 +66,6 @@ export default function SalesHistoryPage() {
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [showVoided, setShowVoided] = useState(false);
-  const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
 
   const [error, setError] = useState('');
@@ -158,10 +159,7 @@ export default function SalesHistoryPage() {
   });
   const filtered = table.visible;
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPage(1);
-  }, [storeFilter, dateFrom, dateTo, search.query, showVoided, table.sort, table.filters]);
+  const pager = usePagination(filtered, PAGE_SIZE, JSON.stringify([storeFilter, dateFrom, dateTo, search.query, showVoided, table.sort, table.filters]));
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -173,8 +171,6 @@ export default function SalesHistoryPage() {
     counted.length ? revenueUsd / counted.length : 0,
     counted.length ? roundKhr(revenueKhr / counted.length) : 0,
   );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const voidBody = voidTarget
     ? t.sales.voidBody.split('{receipt}').map((part) => fill(part, { total: orderTotal(voidTarget).primary, store: voidTarget.store_name }))
@@ -247,7 +243,7 @@ export default function SalesHistoryPage() {
       <FilterChips table={table} />
       <DataTable
         table={table}
-        rows={pageRows}
+        rows={pager.pageRows}
         rowKey={(o) => o.id}
         loading={loading}
         emptyText={t.sales.noSales}
@@ -258,18 +254,7 @@ export default function SalesHistoryPage() {
         renderExpanded={(o) => <OrderDetail order={o} onVoid={() => setVoidTarget(o)} />}
       />
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
-          <span>
-            {fill(t.sales.range, { from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, filtered.length), total: filtered.length })}
-          </span>
-          <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.previous}</button>
-            <span>{fill(t.common.page, { page, pages: totalPages })}</span>
-            <button disabled={page === totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
-          </div>
-        </div>
-      )}
+      <Pagination pager={pager} />
 
       {voidTarget && (
         <Modal title={t.sales.voidTitle} onClose={() => !voiding && setVoidTarget(null)}>

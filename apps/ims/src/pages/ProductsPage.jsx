@@ -22,8 +22,10 @@ import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
+import Pagination from '../components/Pagination.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
+import { usePagination } from '../hooks/usePagination';
 import ColumnFilter, { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -133,7 +135,6 @@ export default function ProductsPage() {
   const [viewStoreId, setViewStoreId] = useState(null);
   // Search bar (issue #8), applied in the browser before the table's own
   // per-column filters/sort (useDataTable below).
-  const [page, setPage] = useState(1);
   // Mirrors the table's status filter (kept in step by `table` below): the
   // products query needs it before the table hook can run, since the hook
   // needs the query's rows.
@@ -364,8 +365,8 @@ export default function ProductsPage() {
   const visible = baseTable.visible;
   const filterCount = baseTable.filterCount;
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([baseTable.filters, baseTable.sort, search.query, viewStoreId]));
+  const pageRows = pager.pageRows;
   // Archived rows aren't selectable (their own checkbox is disabled), so
   // "select all" shouldn't try to select them either. Keyed by storeProductId,
   // not product id -- the same product can appear once per store it's
@@ -401,11 +402,6 @@ export default function ProductsPage() {
       baseTable.clearFilters();
     },
   };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPage(1);
-  }, [table.filters, table.sort, search.query, viewStoreId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -600,18 +596,7 @@ export default function ProductsPage() {
         rowClassName={(p) => (selected.has(p.storeProductId) ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : '')}
       />
 
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
-          <span>
-            {fmt(t.products.rangeOf, { from: (page - 1) * PAGE_SIZE + 1, to: Math.min(page * PAGE_SIZE, visible.length), total: visible.length })}
-          </span>
-          <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.products.prev}</button>
-            <span>{fmt(t.products.pageOf, { page, pages: pageCount })}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
-          </div>
-        </div>
-      )}
+      <Pagination pager={pager} />
 
       {editing && (
         <Modal

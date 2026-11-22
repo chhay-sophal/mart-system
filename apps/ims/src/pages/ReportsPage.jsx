@@ -5,12 +5,14 @@ import { queryKeys } from '../lib/queryClient';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import { useSearch } from '../hooks/useSearch';
+import { usePagination } from '../hooks/usePagination';
 import DataTable from '../components/DataTable.jsx';
 import DateRangeFilter from '../components/DateRangeFilter.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
+import Pagination from '../components/Pagination.jsx';
 import { CategoryBreakdownChart, PaymentMethodsChart, SalesOverTimeChart, TopProductsChart } from '../components/ReportCharts.jsx';
 import { bucketTimeline } from '../lib/reportTimeline';
 import { DATE_PRESETS, toApiRange, todayStr } from '../lib/dateRange';
@@ -20,6 +22,10 @@ import { fmt, plural } from '../i18n/translate';
 // Every shared preset but "All time": the report always covers a bounded
 // range (and the server requires both ends).
 const REPORT_PRESETS = DATE_PRESETS.filter((key) => key !== 'all');
+
+// A month's report can list well over a thousand products; sorting puts the
+// interesting ones on the first page anyway.
+const PRODUCTS_PAGE_SIZE = 50;
 
 // Revenue comes summed in both currencies (riel exact for riel sales). Other
 // figures are USD; riel stores see them converted at the store's rate.
@@ -222,6 +228,12 @@ export default function ReportsPage() {
     ],
   });
 
+  const pager = usePagination(
+    table.visible,
+    PRODUCTS_PAGE_SIZE,
+    JSON.stringify([storeId, dateFrom, dateTo, search.query, table.sort, table.filters])
+  );
+
   // Clicking a category in the breakdown narrows the products table to it
   // (clicking it again clears that) and brings the table into view.
   const categoryFilter = table.filters.category ?? [];
@@ -388,7 +400,8 @@ export default function ReportsPage() {
               </div>
             </div>
             <FilterChips table={table} />
-            <DataTable table={table} rowKey={(p) => p.productId} emptyText={t.reports.noSales} noMatchText={t.common.noMatches} />
+            <DataTable table={table} rows={pager.pageRows} rowKey={(p) => p.productId} emptyText={t.reports.noSales} noMatchText={t.common.noMatches} />
+            <Pagination pager={pager} />
           </section>
         </>
       )}

@@ -20,7 +20,6 @@ export default {
     max: 'Max',
     noSuppliers: 'No suppliers yet.',
     noMatch: 'No suppliers match the search.',
-    range: '{from}–{to} of {total}',
     confirmDelete: "Delete \"{name}\"? This can't be undone.",
     confirmArchiveOne:
       "Archive \"{name}\"? It's linked to {count} product, which will keep its reference to it, but it'll be hidden from the list and the product picker.",
@@ -51,7 +50,6 @@ export default {
     max: 'ច្រើនបំផុត',
     noSuppliers: 'មិនទាន់មានអ្នកផ្គត់ផ្គង់នៅឡើយទេ។',
     noMatch: 'គ្មានអ្នកផ្គត់ផ្គង់ត្រូវនឹងការស្វែងរកទេ។',
-    range: '{from}–{to} ក្នុងចំណោម {total}',
     confirmDelete: 'លុប "{name}"? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
     confirmArchiveOne:
       'ទុក "{name}" ក្នុងបណ្ណសារ? វាភ្ជាប់នឹងទំនិញ {count} ដែលនឹងនៅតែរក្សាការភ្ជាប់នេះ ប៉ុន្តែវានឹងត្រូវលាក់ពីបញ្ជី និងពីការជ្រើសរើសទំនិញ។',

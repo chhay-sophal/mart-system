@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
@@ -9,8 +9,10 @@ import { useConfirm } from '../components/ConfirmDialog.jsx';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
+import Pagination from '../components/Pagination.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
+import { usePagination } from '../hooks/usePagination';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { fmt, plural } from '../i18n/translate';
 
@@ -43,7 +45,6 @@ export default function SuppliersPage() {
   const confirm = useConfirm();
   const { t } = useLocale();
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null); // null | 'new' | supplier object
   const [form, setForm] = useState(EMPTY_FORM);
   // Anything but the default "active" status filter needs archived rows
@@ -120,17 +121,11 @@ export default function SuppliersPage() {
   const visible = table.visible;
   const filterCount = table.filterCount;
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPage(1);
-  }, [search.query, table.filters, table.sort, storeId]);
-
   // Prefix match (no includeDeleted in the key here) invalidates both the
   // plain and the show-archived variant, since either one can change a save.
   const load = () => queryClient.invalidateQueries({ queryKey: ['suppliers', storeId] });
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  const pageRows = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([search.query, table.filters, table.sort, storeId]));
 
   function openCreate() {
     setForm(EMPTY_FORM);
@@ -223,7 +218,7 @@ export default function SuppliersPage() {
       <FilterChips table={table} />
       <DataTable
         table={table}
-        rows={pageRows}
+        rows={pager.pageRows}
         rowKey={(s) => s.id}
         loading={loading}
         // The search bar narrows rows before the table sees them, so "no
@@ -232,22 +227,7 @@ export default function SuppliersPage() {
         noMatchText={t.suppliers.noMatch}
       />
 
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-slate-600 dark:text-slate-300">
-          <span>
-            {fmt(t.suppliers.range, {
-              from: (page - 1) * PAGE_SIZE + 1,
-              to: Math.min(page * PAGE_SIZE, visible.length),
-              total: visible.length,
-            })}
-          </span>
-          <div className="flex items-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.previous}</button>
-            <span>{fmt(t.common.page, { page, pages: pageCount })}</span>
-            <button disabled={page === pageCount} onClick={() => setPage(page + 1)} className="px-3 py-1 border border-[var(--border)] rounded-lg disabled:opacity-40 cursor-pointer">{t.common.next}</button>
-          </div>
-        </div>
-      )}
+      <Pagination pager={pager} />
 
       {editing && (
         <Modal title={editing === 'new' ? t.suppliers.add : t.suppliers.editTitle} onClose={() => setEditing(null)}>
