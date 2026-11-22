@@ -5,8 +5,10 @@ import * as XLSX from 'xlsx';
 import { ApiError } from '@mart-system/api-client';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
-import { fmt as fill } from '../i18n/translate';
+import { fmt as fill, plural } from '../i18n/translate';
 import Modal from '../components/Modal.jsx';
+import DateRangeFilter from '../components/DateRangeFilter.jsx';
+import StoreSelect from '../components/StoreSelect.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import DataTable from '../components/DataTable.jsx';
 import FilterButton from '../components/FilterButton.jsx';
@@ -16,6 +18,7 @@ import { useSearch } from '../hooks/useSearch';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
+import { DATE_PRESETS, toApiRange, todayStr } from '../lib/dateRange';
 import { fmtKhr, fmtUsd, inMainCurrency, mainCurrencyOf, orderTotal, orderTotalKhr, roundKhr } from '../lib/orderTotals';
 
 // IMS counterpart of POS Order History (issue #6): the same filters, sorting,
@@ -30,42 +33,6 @@ const fmtDateTime = (iso, locale) =>
   new Date(iso).toLocaleString(locale === 'km' ? 'km-KH' : 'en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const itemCount = (o) => (o.items || []).reduce((sum, i) => sum + i.quantity, 0);
 const isVoided = (o) => o.status === 'VOIDED';
-
-// Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
-// UTC first, so anywhere east of UTC it can silently land on the wrong
-// calendar day for part of the local day.
-const toLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-// dateFrom/dateTo are plain 'YYYY-MM-DD' (<input type="date"> values, local
-// time, no timezone). Empty means unbounded on that side -- "All time" is
-// just both sides empty, not a distinct mode. Shared by the main list filter
-// and the export modal below.
-function getDateRange(dateFrom, dateTo) {
-  const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
-  let to = null;
-  if (dateTo) {
-    to = new Date(`${dateTo}T00:00:00`);
-    to.setDate(to.getDate() + 1); // exclusive upper bound -- through the end of the selected day
-  }
-  return { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null };
-}
-
-const DATE_PRESETS = ['today', 'yesterday', '7d', '30d', 'all'];
-
-// The {from, to} the date inputs land on for each shortcut -- shared by
-// applyDatePreset (sets it) and the active-chip check (detects it), so they
-// can never silently drift apart. 'month' is export-only (see ExportModal).
-function presetRange(preset) {
-  const today = new Date();
-  const fmt = toLocalDateStr;
-  const todayStr = fmt(today);
-  if (preset === 'today') return { from: todayStr, to: todayStr };
-  if (preset === 'yesterday') { const d = new Date(today); d.setDate(d.getDate() - 1); const y = fmt(d); return { from: y, to: y }; }
-  if (preset === '7d')  { const d = new Date(today); d.setDate(d.getDate() - 7);  return { from: fmt(d), to: todayStr }; }
-  if (preset === '30d') { const d = new Date(today); d.setDate(d.getDate() - 30); return { from: fmt(d), to: todayStr }; }
-  if (preset === 'month') return { from: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), to: todayStr };
-  return { from: '', to: '' }; // 'all'
-}
 
 // Headers come from t.sales.exportColumns[key].
 const EXPORT_COLUMNS = [
@@ -94,8 +61,8 @@ export default function SalesHistoryPage() {
 
   const [storeFilter, setStoreFilter] = useState(currentStoreId ?? '');
   // Free-form date range, not a fixed set of periods -- defaults to today.
-  const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
-  const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
   const [showVoided, setShowVoided] = useState(false);
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState(null);
@@ -115,32 +82,14 @@ export default function SalesHistoryPage() {
   const ordersQuery = useQuery({
     queryKey: ordersKey,
     queryFn: () => {
-      const { from, to } = getDateRange(dateFrom, dateTo);
-      const query = {};
+      const query = toApiRange(dateFrom, dateTo);
       if (storeFilter) query.storeId = storeFilter;
-      if (from) query.date_from = from;
-      if (to) query.date_to = to;
       return apiClient.get('/api/orders', query);
     },
     placeholderData: (previous) => previous, // keep the last rows on screen while a new filter loads
   });
   const orders = useMemo(() => ordersQuery.data ?? [], [ordersQuery.data]);
   const loading = ordersQuery.isPending;
-
-  // Quick shortcuts onto the same free-form range the date inputs edit --
-  // "All" is just both sides cleared, not a separate mode.
-  const applyDatePreset = (preset) => {
-    const { from, to } = presetRange(preset);
-    setDateFrom(from);
-    setDateTo(to);
-  };
-  // Highlights a preset chip only while the inputs still exactly match it --
-  // editing a date by hand deselects every chip, which is the correct "this
-  // is now a custom range" signal rather than a stale/misleading highlight.
-  const activeDatePreset = DATE_PRESETS.find((p) => {
-    const r = presetRange(p);
-    return r.from === dateFrom && r.to === dateTo;
-  });
 
   // The filter bar's search and show-voided toggle narrow the fetched rows
   // first; the table's filters (Filter button) narrow further. Its branch/register
@@ -177,7 +126,7 @@ export default function SalesHistoryPage() {
         render: (o) => fmtDateTime(o.created_at, locale),
       },
       ...(allBranches
-        ? [{ key: 'branch', label: t.sales.branch, sortValue: (o) => o.store_name, render: (o) => o.store_name, filter: { type: 'text', placeholder: t.sales.contains } }]
+        ? [{ key: 'branch', label: t.common.store, sortValue: (o) => o.store_name, render: (o) => o.store_name, filter: { type: 'text', placeholder: t.sales.contains } }]
         : []),
       { key: 'register', label: t.sales.register, sortValue: (o) => o.terminal_name, render: (o) => o.terminal_name, filter: { type: 'text', placeholder: t.sales.contains } },
       {
@@ -259,46 +208,16 @@ export default function SalesHistoryPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3 mb-4 bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.branch}</label>
-          <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-            <option value="">{t.sales.allBranches}</option>
-            {stores.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.dateRange}</label>
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
-              {DATE_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => applyDatePreset(preset)}
-                  className={`px-3 h-9 inline-flex items-center justify-center text-sm whitespace-nowrap border border-transparent cursor-pointer ${activeDatePreset === preset ? 'bg-[var(--accent)] text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                  {t.sales.presets[preset]}
-                </button>
-              ))}
-            </div>
-            <input
-              type="date"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-            />
-            <span className="text-slate-400 dark:text-slate-500">–</span>
-            <input
-              type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-            />
-          </div>
-        </div>
+        <StoreSelect value={storeFilter} onChange={setStoreFilter} />
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(from, to) => {
+            setDateFrom(from);
+            setDateTo(to);
+          }}
+          presets={DATE_PRESETS}
+        />
         <div className="flex-1 min-w-48">
           <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.search}</label>
           <SearchInput value={search.query} onChange={search.setQuery} placeholder={t.sales.searchPlaceholder} className="w-full" />
@@ -310,22 +229,18 @@ export default function SalesHistoryPage() {
         </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.revenue}</p>
-          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{revenue.primary}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{revenue.secondary}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.sales}</p>
-          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{counted.length}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t.sales.averageSale}</p>
-          <p className="text-xl font-semibold text-[var(--text-h)] mt-1">{average.primary}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{average.secondary}</p>
-        </div>
-      </div>
+      {/* A one-line summary, not stat cards: this page is the sales log, and
+          the Reports page owns the headline figures. What this adds is that
+          it follows the search and filters. */}
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+        {fill(t.sales.summary, {
+          count: counted.length,
+          sales: plural(counted.length, t.sales.saleOne, t.sales.saleMany),
+          revenue: revenue.primary,
+          average: average.primary,
+        })}
+        {(search.isActive || table.filterCount > 0) && ` (${t.sales.summaryFiltered})`}
+      </p>
 
       {(error || ordersQuery.isError) && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error || t.sales.loadFailed}</p>}
 
@@ -438,29 +353,20 @@ function OrderDetail({ order: o, onVoid }) {
 function ExportModal({ stores, defaultStoreId, onClose }) {
   const { t } = useLocale();
   const [storeId, setStoreId] = useState(defaultStoreId);
-  const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
-  const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
   const [payment, setPayment] = useState('all');
   const [includeVoided, setIncludeVoided] = useState(false);
   const [columns, setColumns] = useState(() => new Set(DEFAULT_EXPORT_COLUMNS));
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
-  const preset = (key) => {
-    const { from, to } = presetRange(key);
-    setDateFrom(from);
-    setDateTo(to);
-  };
-
   async function runExport() {
     setExporting(true);
     setError('');
     try {
-      const query = { limit: 5000 };
+      const query = { limit: 5000, ...toApiRange(dateFrom, dateTo) };
       if (storeId) query.storeId = storeId;
-      const { from, to } = getDateRange(dateFrom, dateTo);
-      if (from) query.date_from = from;
-      if (to) query.date_to = to;
       const rows = (await apiClient.get('/api/orders', query))
         .filter((o) => includeVoided || !isVoided(o))
         .filter((o) => payment === 'all' || o.payment_method === payment);
@@ -492,23 +398,7 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
       <div className="space-y-4">
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap gap-3 items-end">
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.branch}</label>
-            <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
-              <option value="">{t.sales.allBranches}</option>
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.from}</label>
-            <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.common.to}</label>
-            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm" />
-          </div>
+          <StoreSelect value={storeId} onChange={setStoreId} />
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">{t.sales.payment}</label>
             <select value={payment} onChange={(e) => setPayment(e.target.value)} className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm">
@@ -519,13 +409,15 @@ function ExportModal({ stores, defaultStoreId, onClose }) {
             </select>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {['today', 'yesterday', '7d', '30d', 'month', 'all'].map((key) => (
-            <button key={key} onClick={() => preset(key)} className="text-xs border border-[var(--border)] rounded-lg px-2.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-              {t.sales.exportPresets[key]}
-            </button>
-          ))}
-        </div>
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(from, to) => {
+            setDateFrom(from);
+            setDateTo(to);
+          }}
+          presets={DATE_PRESETS}
+        />
         <div>
           <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{t.sales.columns}</p>
           <div className="grid grid-cols-3 gap-2">

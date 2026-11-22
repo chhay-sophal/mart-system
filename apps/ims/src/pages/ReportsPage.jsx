@@ -2,45 +2,24 @@ import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
-import { useAuth } from '../auth/AuthContext.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import { useSearch } from '../hooks/useSearch';
 import DataTable from '../components/DataTable.jsx';
+import DateRangeFilter from '../components/DateRangeFilter.jsx';
+import StoreSelect from '../components/StoreSelect.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import FilterButton from '../components/FilterButton.jsx';
 import FilterChips from '../components/FilterChips.jsx';
 import { CategoryBreakdownChart, PaymentMethodsChart, SalesOverTimeChart, TopProductsChart } from '../components/ReportCharts.jsx';
 import { bucketTimeline } from '../lib/reportTimeline';
+import { DATE_PRESETS, toApiRange, todayStr } from '../lib/dateRange';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 import { fmt, plural } from '../i18n/translate';
 
-// Local-getter-based, not `date.toISOString().slice(0, 10)`: that converts to
-// UTC first, so anywhere east of UTC it silently returns yesterday's date for
-// the first few hours of the day.
-function dateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-const todayStr = () => dateStr(new Date());
-function daysAgoStr(days) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return dateStr(d);
-}
-
-// Quick ranges for the filter bar; each returns [from, to].
-const PRESETS = [
-  { key: 'today', range: () => [todayStr(), todayStr()] },
-  { key: 'yesterday', range: () => [daysAgoStr(1), daysAgoStr(1)] },
-  { key: 'last7Days', range: () => [daysAgoStr(6), todayStr()] },
-  {
-    key: 'thisMonth',
-    range: () => {
-      const d = new Date();
-      return [dateStr(new Date(d.getFullYear(), d.getMonth(), 1)), todayStr()];
-    },
-  },
-];
+// Every shared preset but "All time": the report always covers a bounded
+// range (and the server requires both ends).
+const REPORT_PRESETS = DATE_PRESETS.filter((key) => key !== 'all');
 
 // Revenue comes summed in both currencies (riel exact for riel sales). Other
 // figures are USD; riel stores see them converted at the store's rate.
@@ -143,26 +122,22 @@ function ShareBar({ ratio }) {
 }
 
 export default function ReportsPage() {
-  // Not scoped to the AppShell's single current store — "All stores" is a
-  // first-class option here, sourced from the full list in AuthContext.
-  const { stores } = useAuth();
   const { t, locale } = useLocale();
+  // Not scoped to the AppShell's single current store: "All stores" is a
+  // first-class option here, and the default.
   const [storeId, setStoreId] = useState('');
-  const [dateFrom, setDateFrom] = useState(todayStr());
-  const [dateTo, setDateTo] = useState(todayStr());
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
 
   // Cached per store + date range (lib/queryClient.js): flipping back to a
   // range already viewed is instant, refreshed in the background when stale.
   const reportQuery = useQuery({
     queryKey: queryKeys.dailySummary({ storeId, dateFrom, dateTo }),
+    // A date input cleared by hand leaves the range open-ended, which this
+    // report doesn't support: wait (showing the last report) until it's set.
+    enabled: Boolean(dateFrom && dateTo),
     queryFn: () => {
-      // date_to is exclusive server-side (createdAt < date_to), so push it to
-      // the start of the day AFTER the selected end date to include it whole.
-      // The T00:00:00 suffix makes these local midnights: a bare 'YYYY-MM-DD'
-      // parses as UTC midnight, which is 7am in Cambodia.
-      const inclusiveTo = new Date(`${dateTo}T00:00:00`);
-      inclusiveTo.setDate(inclusiveTo.getDate() + 1);
-      const query = { date_from: new Date(`${dateFrom}T00:00:00`).toISOString(), date_to: inclusiveTo.toISOString() };
+      const query = toApiRange(dateFrom, dateTo);
       if (storeId) query.storeId = storeId;
       return apiClient.get('/api/reports/daily-summary', query).then((data) => ({ ...data, dateFrom, dateTo }));
     },
@@ -257,69 +232,24 @@ export default function ReportsPage() {
     if (next.length) productsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  const activePreset = PRESETS.find((p) => {
-    const [from, to] = p.range();
-    return from === dateFrom && to === dateTo;
-  })?.key;
-
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.reports.title}</h1>
-        <select
-          value={storeId}
-          onChange={(e) => setStoreId(e.target.value)}
-          aria-label={t.common.store}
-          className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm bg-white dark:bg-slate-800"
-        >
-          <option value="">{t.common.allStores}</option>
-          {stores.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
       </div>
 
-      <div className={`flex flex-wrap items-center gap-3 mb-4 p-3 ${card}`}>
-        <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-sm">
-          {PRESETS.map((p, i) => (
-            <button
-              key={p.key}
-              onClick={() => {
-                const [from, to] = p.range();
-                setDateFrom(from);
-                setDateTo(to);
-              }}
-              className={`px-3 h-9 cursor-pointer ${i > 0 ? 'border-l border-[var(--border)]' : ''} ${
-                activePreset === p.key
-                  ? 'bg-[var(--accent)] text-white font-medium'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              {t.reports[p.key]}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">{t.common.from}</label>
-          <input
-            type="date"
-            value={dateFrom}
-            max={dateTo}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-          />
-          <label className="text-xs font-medium text-slate-600 dark:text-slate-300">{t.common.to}</label>
-          <input
-            type="date"
-            value={dateTo}
-            min={dateFrom}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-          />
-        </div>
-        {reportQuery.isFetching && !loading && <span className={`text-xs ${muted}`}>{t.common.loading}</span>}
+      <div className={`flex flex-wrap items-end gap-3 mb-4 p-4 ${card}`}>
+        <StoreSelect value={storeId} onChange={setStoreId} />
+        <DateRangeFilter
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(from, to) => {
+            setDateFrom(from);
+            setDateTo(to);
+          }}
+          presets={REPORT_PRESETS}
+        />
+        {reportQuery.isFetching && !loading && <span className={`text-xs pb-2.5 ${muted}`}>{t.common.loading}</span>}
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
