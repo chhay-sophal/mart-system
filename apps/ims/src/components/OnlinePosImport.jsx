@@ -162,7 +162,7 @@ export default function OnlinePosImport({ storeId, onImported }) {
   const settingEntries = file ? SETTING_KEYS.filter((key) => file.settings[key]).map((key) => [key, op.settingLabels[key]]) : [];
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
+    <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3">
       <h2 className="text-sm font-semibold text-[var(--text-h)]">{op.title}</h2>
       <p className="text-xs text-slate-500 dark:text-slate-400">
         {fillParts(op.intro, {

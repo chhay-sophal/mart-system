@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
+import { AlertCircle, Check, ChevronRight, Plus } from 'lucide-react';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { fmtKhr } from '../lib/orderTotals';
 import { useAuth } from '../auth/AuthContext.jsx';
 import OnlinePosImport from '../components/OnlinePosImport.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -15,36 +17,161 @@ const POS_SYNCED_DEFAULTS = { main_currency: 'USD', locale: 'km', exchange_rate:
 // Left over from when the shop image synced from IMS; it's set per register now
 // (issue #5), so it's kept out of the free-form list.
 const LEGACY_HIDDEN_KEYS = ['store_icon'];
+const isCustomKey = (key) => !POS_SYNCED_KEYS.includes(key) && !LEGACY_HIDDEN_KEYS.includes(key);
 
-const inputClass ='flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm';
-const saveButtonClass = 'text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer';
+const inputClass = 'w-full border border-[var(--border)] rounded-lg px-3 h-9 text-sm bg-white dark:bg-slate-800';
+const muted = 'text-slate-500 dark:text-slate-400';
+
+/** A settings card: title + hint (and an optional badge) on top, its fields, and a footer for saving. */
+function Section({ title, hint, badge, footer, children }) {
+  return (
+    <section className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
+      <div className="px-5 pt-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--text-h)]">{title}</h2>
+          {hint && <p className={`text-xs mt-1 ${muted}`}>{hint}</p>}
+        </div>
+        {badge}
+      </div>
+      <div className="px-5 py-4 space-y-4">{children}</div>
+      {footer && (
+        <div className="px-5 py-3 border-t border-[var(--border)] bg-slate-50 dark:bg-slate-900/40 flex items-center justify-end gap-3">
+          {footer}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** A label beside its control on wider screens, above it on narrow ones. */
+function Field({ label, htmlFor, help, error, children }) {
+  return (
+    <div className="grid sm:grid-cols-[10rem_1fr] gap-x-4 gap-y-1.5 sm:items-start">
+      <label htmlFor={htmlFor} className="text-sm text-slate-600 dark:text-slate-300 sm:pt-2">
+        {label}
+      </label>
+      <div>
+        {children}
+        {error ? (
+          <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">{error}</p>
+        ) : (
+          help && <p className={`text-xs mt-1.5 ${muted}`}>{help}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A small set of mutually exclusive choices, shown side by side. */
+function Segmented({ value, onChange, options, label }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-0.5 bg-slate-100 dark:bg-slate-700 p-0.5 rounded-lg">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={`px-3 h-8 rounded-md text-sm transition-colors cursor-pointer ${
+            value === o.value
+              ? 'bg-white dark:bg-slate-900 text-[var(--accent)] font-medium shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The footer's Save button and what happened: an error stays until the next
+ * save; "Saved" shows until the section is edited again, when it becomes
+ * "Unsaved changes". Save is only enabled when there's something to save.
+ */
+function SaveBar({ dirty, saving, status, canSave = true, onSave, label }) {
+  const { t } = useLocale();
+  const shown = status?.type === 'error' || (status && !dirty) ? status : null;
+  return (
+    <>
+      {shown ? (
+        <p
+          role="status"
+          className={`flex items-center gap-1.5 text-xs mr-auto ${shown.type === 'error' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}
+        >
+          {shown.type === 'error' ? <AlertCircle size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+          {shown.text}
+        </p>
+      ) : (
+        dirty && (
+          <p className="flex items-center gap-1.5 text-xs mr-auto text-amber-600 dark:text-amber-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+            {t.settings.unsaved}
+          </p>
+        )
+      )}
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || !dirty || !canSave}
+        className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-default cursor-pointer"
+      >
+        {saving ? t.common.saving : (label ?? t.common.save)}
+      </button>
+    </>
+  );
+}
+
+function StatusBadge({ tone, children }) {
+  const tones = {
+    good: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900',
+    neutral: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700',
+    warn: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900',
+  };
+  return (
+    <span className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-medium border rounded-full px-2.5 h-6 ${tones[tone]}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
 
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
-  const { reloadStores } = useAuth();
+  const { stores, reloadStores } = useAuth();
   const { t } = useLocale();
   const [settings, setSettings] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
 
   // The store's name in IMS (store picker, reports). What customers see -- shop
   // name, image, address, phone -- is set on each register (issue #5).
   const [storeName, setStoreName] = useState('');
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileMessage, setProfileMessage] = useState('');
-
-  const [posSyncedSaving, setPosSyncedSaving] = useState(false);
-  const [posSyncedMessage, setPosSyncedMessage] = useState('');
 
   // Bakong registered email lives in its own model (BakongCredential), not the
   // generic StoreSetting table, since a cached bearer token also lives there
   // and must never ride along on a response any staff role can read.
   const [bakongEmail, setBakongEmail] = useState('');
   const [bakongHasToken, setBakongHasToken] = useState(false);
-  const [bakongSaving, setBakongSaving] = useState(false);
-  const [bakongMessage, setBakongMessage] = useState('');
+
+  // Per section: which save is running, and how the last one went
+  // ({ type: 'success' | 'error', text }).
+  const [saving, setSaving] = useState({});
+  const [status, setStatus] = useState({});
+  const run = async (section, fn, successText, errorText) => {
+    setSaving((prev) => ({ ...prev, [section]: true }));
+    setStatus((prev) => ({ ...prev, [section]: null }));
+    try {
+      await fn();
+      setStatus((prev) => ({ ...prev, [section]: { type: 'success', text: successText } }));
+    } catch {
+      setStatus((prev) => ({ ...prev, [section]: { type: 'error', text: errorText } }));
+    } finally {
+      setSaving((prev) => ({ ...prev, [section]: false }));
+    }
+  };
 
   // Cached (lib/queryClient.js), so coming back to this page shows the last
   // values at once. storeSettings is shared with the Products page.
@@ -85,6 +212,20 @@ export default function SettingsPage() {
     setSeeded((prev) => ({ ...prev, store: storeId }));
   }
 
+  // What's saved, to tell which sections have unsaved edits.
+  const savedSettings = settingsQuery.data?.settings ?? {};
+  const savedPos = { ...POS_SYNCED_DEFAULTS, ...savedSettings };
+  const posSynced = { ...POS_SYNCED_DEFAULTS, ...settings };
+  const customKeys = Object.keys(settings).filter(isCustomKey).sort();
+
+  const profileDirty = storeName.trim() !== (storeQuery.data?.name ?? '');
+  const posDirty = POS_SYNCED_KEYS.some((key) => String(posSynced[key]) !== String(savedPos[key]));
+  const bakongDirty = bakongEmail.trim() !== (bakongQuery.data?.registeredEmail ?? '');
+  const customDirty = customKeys.some((key) => settings[key] !== savedSettings[key]);
+
+  const rate = Number(posSynced.exchange_rate);
+  const rateValid = String(posSynced.exchange_rate).trim() !== '' && Number.isFinite(rate) && rate > 0;
+
   // An import changes settings and the store behind this page's back: wait
   // for fresh copies, then refill the inputs from them.
   async function handleImported() {
@@ -96,68 +237,59 @@ export default function SettingsPage() {
     reloadStores();
   }
 
-  async function handleSaveProfile() {
-    setProfileSaving(true);
-    setProfileMessage('');
-    try {
-      const updated = await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
-      queryClient.setQueryData(queryKeys.store(storeId), updated);
-      reloadStores(); // the store picker shows the name too
-      setProfileMessage(t.settings.saved);
-    } catch {
-      setProfileMessage(t.settings.saveFailed);
-    } finally {
-      setProfileSaving(false);
+  const saveProfile = () =>
+    run(
+      'profile',
+      async () => {
+        const updated = await apiClient.patch(`/api/stores/${storeId}`, { name: storeName.trim() });
+        queryClient.setQueryData(queryKeys.store(storeId), updated);
+        setStoreName(updated.name ?? storeName.trim());
+        reloadStores(); // the store picker shows the name too
+      },
+      t.settings.saved,
+      t.settings.saveFailed
+    );
+
+  // Each section saves only its own keys, so saving one never sends another
+  // section's unsaved edits along with it.
+  async function putSettings(values) {
+    const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
+    if (res.settings) {
+      queryClient.setQueryData(queryKeys.storeSettings(storeId), res);
+      setSettings((prev) => ({ ...prev, ...Object.fromEntries(Object.keys(values).map((key) => [key, res.settings[key]])) }));
+    } else {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
     }
   }
 
-  const posSynced = { ...POS_SYNCED_DEFAULTS, ...settings };
+  const savePos = () =>
+    run(
+      'pos',
+      () => putSettings(Object.fromEntries(POS_SYNCED_KEYS.map((key) => [key, String(posSynced[key]).trim()]))),
+      t.settings.pos.saved,
+      t.settings.pos.saveFailed
+    );
 
-  async function handleSavePosSynced() {
-    setPosSyncedSaving(true);
-    setPosSyncedMessage('');
-    try {
-      const values = Object.fromEntries(POS_SYNCED_KEYS.map((key) => [key, String(posSynced[key])]));
-      const res = await apiClient.put(`/api/stores/${storeId}/settings`, { settings: values });
-      setSettings(res.settings ?? settings);
-      if (res.settings) queryClient.setQueryData(queryKeys.storeSettings(storeId), res);
-      else queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
-      setPosSyncedMessage(t.settings.pos.saved);
-    } catch {
-      setPosSyncedMessage(t.settings.pos.saveFailed);
-    } finally {
-      setPosSyncedSaving(false);
-    }
-  }
+  const saveBakong = () =>
+    run(
+      'bakong',
+      async () => {
+        const res = await apiClient.put(`/api/stores/${storeId}/bakong-credential`, { registeredEmail: bakongEmail.trim() });
+        setBakongHasToken(Boolean(res.hasToken));
+        setBakongEmail(res.registeredEmail ?? bakongEmail.trim());
+        queryClient.setQueryData(queryKeys.bakongCredential(storeId), res);
+      },
+      t.settings.saved,
+      t.settings.saveFailed
+    );
 
-  async function handleSaveBakongEmail() {
-    setBakongSaving(true);
-    setBakongMessage('');
-    try {
-      const res = await apiClient.put(`/api/stores/${storeId}/bakong-credential`, { registeredEmail: bakongEmail });
-      setBakongHasToken(Boolean(res.hasToken));
-      queryClient.setQueryData(queryKeys.bakongCredential(storeId), res);
-      setBakongMessage(t.settings.saved);
-    } catch {
-      setBakongMessage(t.settings.saveFailed);
-    } finally {
-      setBakongSaving(false);
-    }
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setMessage('');
-    try {
-      await apiClient.put(`/api/stores/${storeId}/settings`, { settings });
-      queryClient.invalidateQueries({ queryKey: queryKeys.storeSettings(storeId) });
-      setMessage(t.settings.saved);
-    } catch {
-      setMessage(t.settings.saveSettingsFailed);
-    } finally {
-      setSaving(false);
-    }
-  }
+  const saveCustom = () =>
+    run(
+      'custom',
+      () => putSettings(Object.fromEntries(customKeys.map((key) => [key, settings[key]]))),
+      t.settings.saved,
+      t.settings.saveSettingsFailed
+    );
 
   function addSetting() {
     if (!newKey.trim()) return;
@@ -166,159 +298,190 @@ export default function SettingsPage() {
     setNewValue('');
   }
 
-  const keys = Object.keys(settings)
-    .filter((key) => !POS_SYNCED_KEYS.includes(key) && !LEGACY_HIDDEN_KEYS.includes(key))
-    .sort();
+  // Bakong: no email yet, registered but no token minted yet, or connected.
+  const savedEmail = bakongQuery.data?.registeredEmail ?? '';
+  const bakongState = !savedEmail ? 'notSetUp' : bakongHasToken ? 'connected' : 'notUsed';
+  const bakongBadge = {
+    connected: <StatusBadge tone="good">{t.settings.bakong.statusConnected}</StatusBadge>,
+    notUsed: <StatusBadge tone="neutral">{t.settings.bakong.statusNotUsed}</StatusBadge>,
+    notSetUp: <StatusBadge tone="warn">{t.settings.bakong.statusNotSetUp}</StatusBadge>,
+  }[bakongState];
+
+  const currentStoreName = storeQuery.data?.name ?? stores.find((s) => s.id === storeId)?.name ?? '';
 
   return (
-    <div className="max-w-xl">
-      <h1 className="text-lg font-semibold text-[var(--text-h)] mb-4">{t.settings.title}</h1>
+    // A form, not a table like the other pages: a readable column, centered.
+    <div className="max-w-3xl mx-auto space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold text-[var(--text-h)]">{t.settings.title}</h1>
+        {currentStoreName && <p className={`text-xs mt-0.5 ${muted}`}>{fmt(t.settings.subtitle, { store: currentStoreName })}</p>}
+      </div>
 
-      {(message || settingsQuery.isError) && (
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">{message || t.settings.loadFailed}</p>
+      {settingsQuery.isError && (
+        <p className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400">
+          <AlertCircle size={16} aria-hidden="true" />
+          {t.settings.loadFailed}
+        </p>
       )}
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.profile.title}</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.profile.hint}</p>
-        <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.profile.storeName}</label>
-          <input value={storeName} placeholder={t.settings.profile.storeNamePlaceholder} onChange={(e) => setStoreName(e.target.value)} className={inputClass} />
-        </div>
-        <div className="flex items-center justify-end gap-3">
-          {(profileMessage || storeQuery.isError) && (
-            <p className="text-xs text-slate-600 dark:text-slate-300">{profileMessage || t.settings.profile.loadFailed}</p>
-          )}
-          <button onClick={handleSaveProfile} disabled={profileSaving || !storeName.trim()} className={saveButtonClass}>
-            {profileSaving ? t.common.saving : t.common.save}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.pos.title}</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.pos.hint}</p>
-        <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.mainCurrency}</label>
-          <select
-            value={posSynced.main_currency}
-            onChange={(e) => setSettings({ ...settings, main_currency: e.target.value })}
-            className={inputClass}
-          >
-            <option value="USD">{t.settings.pos.usd}</option>
-            <option value="KHR">{t.settings.pos.khr}</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.mainLanguage}</label>
-          <select
-            value={posSynced.locale}
-            onChange={(e) => setSettings({ ...settings, locale: e.target.value })}
-            className={inputClass}
-          >
-            <option value="km">{t.settings.pos.khmer}</option>
-            <option value="en">{t.settings.pos.english}</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="w-32 text-sm text-slate-600 dark:text-slate-300 shrink-0">{t.settings.pos.exchangeRate}</label>
+      <Section
+        title={t.settings.profile.title}
+        hint={t.settings.profile.hint}
+        footer={
+          <SaveBar
+            dirty={profileDirty}
+            saving={saving.profile}
+            status={storeQuery.isError ? { type: 'error', text: t.settings.profile.loadFailed } : status.profile}
+            canSave={Boolean(storeName.trim())}
+            onSave={saveProfile}
+          />
+        }
+      >
+        <Field label={t.settings.profile.storeName} htmlFor="store-name">
           <input
-            type="number"
-            min="1"
-            value={posSynced.exchange_rate}
-            onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
+            id="store-name"
+            value={storeName}
+            placeholder={t.settings.profile.storeNamePlaceholder}
+            onChange={(e) => setStoreName(e.target.value)}
             className={inputClass}
           />
-          <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{t.settings.pos.perUsd}</span>
-        </div>
-        <div className="flex items-center justify-end gap-3">
-          {posSyncedMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{posSyncedMessage}</p>}
-          <button onClick={handleSavePosSynced} disabled={posSyncedSaving || loading} className={saveButtonClass}>
-            {posSyncedSaving ? t.common.saving : t.common.save}
-          </button>
-        </div>
-      </div>
+        </Field>
+      </Section>
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3 mb-4">
-        <h2 className="text-sm font-semibold text-[var(--text-h)]">{t.settings.bakong.title}</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{t.settings.bakong.hint}</p>
-        <div className="flex items-center gap-3">
+      <Section
+        title={t.settings.pos.title}
+        hint={t.settings.pos.hint}
+        footer={<SaveBar dirty={posDirty} saving={saving.pos} status={status.pos} canSave={!loading && rateValid} onSave={savePos} />}
+      >
+        <Field label={t.settings.pos.mainCurrency}>
+          <Segmented
+            label={t.settings.pos.mainCurrency}
+            value={posSynced.main_currency}
+            onChange={(v) => setSettings({ ...settings, main_currency: v })}
+            options={[
+              { value: 'USD', label: t.settings.pos.usd },
+              { value: 'KHR', label: t.settings.pos.khr },
+            ]}
+          />
+        </Field>
+        <Field label={t.settings.pos.mainLanguage}>
+          <Segmented
+            label={t.settings.pos.mainLanguage}
+            value={posSynced.locale}
+            onChange={(v) => setSettings({ ...settings, locale: v })}
+            options={[
+              { value: 'km', label: t.settings.pos.khmer },
+              { value: 'en', label: t.settings.pos.english },
+            ]}
+          />
+        </Field>
+        <Field
+          label={t.settings.pos.exchangeRate}
+          htmlFor="exchange-rate"
+          error={rateValid ? null : t.settings.pos.rateInvalid}
+          help={fmt(t.settings.pos.ratePreview, { one: fmtKhr(rate), ten: fmtKhr(rate * 10) })}
+        >
+          <div className="relative max-w-56">
+            <input
+              id="exchange-rate"
+              type="number"
+              min="1"
+              inputMode="decimal"
+              value={posSynced.exchange_rate}
+              onChange={(e) => setSettings({ ...settings, exchange_rate: e.target.value })}
+              aria-invalid={!rateValid}
+              className={`${inputClass} pr-28 tabular-nums ${rateValid ? '' : 'border-red-400 dark:border-red-500'}`}
+            />
+            <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${muted}`}>{t.settings.pos.perUsd}</span>
+          </div>
+        </Field>
+      </Section>
+
+      <Section
+        title={t.settings.bakong.title}
+        hint={t.settings.bakong.hint}
+        badge={bakongBadge}
+        footer={<SaveBar dirty={bakongDirty} saving={saving.bakong} status={status.bakong} canSave={Boolean(bakongEmail.trim())} onSave={saveBakong} />}
+      >
+        <Field label={t.settings.bakong.email} htmlFor="bakong-email" help={t.settings.bakong.statusHint[bakongState]}>
           <input
+            id="bakong-email"
             type="email"
             placeholder={t.settings.bakong.emailPlaceholder}
             value={bakongEmail}
             onChange={(e) => setBakongEmail(e.target.value)}
-            className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+            className={inputClass}
           />
-          <button
-            onClick={handleSaveBakongEmail}
-            disabled={bakongSaving || !bakongEmail}
-            className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
-          >
-            {bakongSaving ? t.common.saving : t.common.save}
-          </button>
-        </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {fmt(t.settings.bakong.status, {
-            status: bakongHasToken ? t.settings.bakong.connected : t.settings.bakong.notUsed,
-          })}
-        </p>
-        {bakongMessage && <p className="text-xs text-slate-600 dark:text-slate-300">{bakongMessage}</p>}
-      </div>
+        </Field>
+      </Section>
 
-      <div className="bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl p-5 space-y-3">
-        {loading ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">{t.common.loading}</p>
-        ) : (
-          <>
-            {keys.map((key) => (
-              <div key={key} className="flex items-center gap-3">
-                <label className="w-40 text-sm text-slate-600 dark:text-slate-300 shrink-0">{key}</label>
+      <OnlinePosImport storeId={storeId} onImported={handleImported} />
+
+      {/* Rarely needed, so folded away; opening it keeps any edits. */}
+      <details className="group bg-white dark:bg-slate-800 border border-[var(--border)] rounded-xl overflow-hidden">
+        <summary className="px-5 py-4 flex items-start gap-2 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+          <ChevronRight size={16} aria-hidden="true" className={`mt-0.5 shrink-0 transition-transform group-open:rotate-90 ${muted}`} />
+          <span>
+            <span className="block text-sm font-semibold text-[var(--text-h)]">{t.settings.custom.title}</span>
+            <span className={`block text-xs mt-1 ${muted}`}>{t.settings.custom.hint}</span>
+          </span>
+          {customDirty && <span className="ml-auto w-2 h-2 mt-1.5 rounded-full bg-amber-500 shrink-0" title={t.settings.unsaved} />}
+        </summary>
+        <div className="px-5 pb-4 space-y-3">
+          {loading ? (
+            <p className={`text-sm ${muted}`}>{t.common.loading}</p>
+          ) : customKeys.length === 0 ? (
+            <p className={`text-sm ${muted}`}>{t.settings.custom.empty}</p>
+          ) : (
+            customKeys.map((key) => (
+              <div key={key} className="grid sm:grid-cols-[12rem_1fr] gap-x-4 gap-y-1 sm:items-center">
+                <label htmlFor={`setting-${key}`} className="text-xs font-mono text-slate-600 dark:text-slate-300 break-all">
+                  {key}
+                </label>
                 <input
+                  id={`setting-${key}`}
                   value={settings[key]}
                   onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
-                  className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
+                  className={inputClass}
                 />
               </div>
-            ))}
-
-            <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
-              <input
-                placeholder={t.settings.custom.keyPlaceholder}
-                value={newKey}
-                onChange={(e) => setNewKey(e.target.value)}
-                className="w-40 border border-[var(--border)] rounded-lg px-3 h-9 text-sm shrink-0"
-              />
-              <input
-                placeholder={t.settings.custom.valuePlaceholder}
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                className="flex-1 border border-[var(--border)] rounded-lg px-3 h-9 text-sm"
-              />
-              <button onClick={addSetting} className="text-sm font-medium text-[var(--accent)] cursor-pointer">
-                {t.common.add}
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="text-sm font-medium bg-[var(--accent)] text-white rounded-lg px-4 h-9 inline-flex items-center justify-center disabled:opacity-60 cursor-pointer"
-              >
-                {saving ? t.common.saving : t.settings.saveChanges}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="mt-4">
-        <OnlinePosImport
-          storeId={storeId}
-          onImported={handleImported}
-        />
-      </div>
+            ))
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addSetting();
+            }}
+            className="grid sm:grid-cols-[12rem_1fr_auto] gap-2 pt-3 border-t border-[var(--border)]"
+          >
+            <input
+              placeholder={t.settings.custom.keyPlaceholder}
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              aria-label={t.settings.custom.keyPlaceholder}
+              className={`${inputClass} font-mono`}
+            />
+            <input
+              placeholder={t.settings.custom.valuePlaceholder}
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              aria-label={t.settings.custom.valuePlaceholder}
+              className={inputClass}
+            />
+            <button
+              type="submit"
+              disabled={!newKey.trim()}
+              className="text-sm font-medium border border-[var(--border)] rounded-lg px-3 h-9 inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-default cursor-pointer"
+            >
+              <Plus size={16} aria-hidden="true" />
+              {t.common.add}
+            </button>
+          </form>
+        </div>
+        <div className="px-5 py-3 border-t border-[var(--border)] bg-slate-50 dark:bg-slate-900/40 flex items-center justify-end gap-3">
+          <SaveBar dirty={customDirty} saving={saving.custom} status={status.custom} canSave={!loading} onSave={saveCustom} label={t.settings.saveChanges} />
+        </div>
+      </details>
     </div>
   );
 }
