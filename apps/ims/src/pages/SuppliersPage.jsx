@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { suppliersQuery as suppliersQueryOptions } from '../lib/queries';
 import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
@@ -47,18 +48,11 @@ export default function SuppliersPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null); // null | 'new' | supplier object
   const [form, setForm] = useState(EMPTY_FORM);
-  // Anything but the default "active" status filter needs archived rows
-  // included in what the backend returns at all. The filter itself lives in
-  // useDataTable below, which needs this query's rows -- so it's mirrored
-  // here, updated during render (not in an effect) to avoid a stale frame.
-  const [includeDeleted, setIncludeDeleted] = useState(false);
 
+  // The one shared supplier list (archived included; the Status filter
+  // below hides those by default), the same cache Products reads.
   const queryClient = useQueryClient();
-  const suppliersQuery = useQuery({
-    queryKey: queryKeys.suppliers(storeId, includeDeleted),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/suppliers${includeDeleted ? '?includeDeleted=true' : ''}`),
-    enabled: Boolean(storeId),
-  });
+  const suppliersQuery = useQuery(suppliersQueryOptions(storeId));
   const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
   const loading = suppliersQuery.isPending;
   // The top search bar: name, phone, or email.
@@ -116,14 +110,10 @@ export default function SuppliersPage() {
       },
     ],
   });
-  const wantDeleted = !(table.filters.status.length === 1 && table.filters.status[0] === 'active');
-  if (wantDeleted !== includeDeleted) setIncludeDeleted(wantDeleted);
   const visible = table.visible;
   const filterCount = table.filterCount;
 
-  // Prefix match (no includeDeleted in the key here) invalidates both the
-  // plain and the show-archived variant, since either one can change a save.
-  const load = () => queryClient.invalidateQueries({ queryKey: ['suppliers', storeId] });
+  const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.suppliers() });
 
   const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([search.query, table.filters, table.sort, storeId]));
 

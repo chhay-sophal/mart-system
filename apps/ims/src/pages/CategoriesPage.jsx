@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOutletContext } from 'react-router-dom';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { categoriesQuery as categoriesQueryOptions } from '../lib/queries';
 import { useDataTable } from '../hooks/useDataTable';
 import Modal from '../components/Modal.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
@@ -21,17 +22,11 @@ export default function CategoriesPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(null); // null | 'new' | category object
   const [name, setName] = useState('');
-  // Same pattern as SuppliersPage: anything but the default "active" status
-  // filter needs archived rows from the backend, and the filter lives in
-  // useDataTable (which needs this query's rows), so it's mirrored here.
-  const [includeDeleted, setIncludeDeleted] = useState(false);
 
+  // The one shared category list (archived included; the Status filter
+  // below hides those by default), the same cache Products reads.
   const queryClient = useQueryClient();
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories(storeId, includeDeleted),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/categories${includeDeleted ? '?includeDeleted=true' : ''}`),
-    enabled: Boolean(storeId),
-  });
+  const categoriesQuery = useQuery(categoriesQueryOptions(storeId));
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const search = useSearch(categories, [(c) => c.name]);
 
@@ -81,16 +76,13 @@ export default function CategoriesPage() {
       },
     ],
   });
-  const wantDeleted = !(table.filters.status.length === 1 && table.filters.status[0] === 'active');
-  if (wantDeleted !== includeDeleted) setIncludeDeleted(wantDeleted);
   const visible = table.visible;
   const filterCount = table.filterCount;
 
-  // Prefix match covers both the plain and show-archived lists; products
-  // too, since they show their category's name.
+  // Products too, since they show their category's name.
   const load = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['categories', storeId] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories() }),
       queryClient.invalidateQueries({ queryKey: ['products'] }),
     ]);
 

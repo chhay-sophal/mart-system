@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { accessTokenRef, apiClient } from '../lib/apiClient';
-import { queryClient } from '../lib/queryClient';
+import { queryClient, queryKeys } from '../lib/queryClient';
+import { setTabSyncUser, userIdOfToken } from '../lib/tabSync';
 
 const REFRESH_TOKEN_KEY = 'ims:refreshToken';
 // Access tokens are 15m server-side; refresh a bit early so an in-flight
@@ -33,11 +34,16 @@ export function AuthProvider({ children }) {
   const applyTokens = useCallback((accessToken, refreshToken) => {
     accessTokenRef.current = accessToken;
     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    // Lets other open tabs share their cache with this one (lib/tabSync.js);
+    // set before any page mounts, so it can start from their data.
+    setTabSyncUser(userIdOfToken(accessToken));
   }, []);
 
   const clearAuth = useCallback(() => {
     accessTokenRef.current = null;
-    // Cached data belongs to the signed-in user; never show it to the next one.
+    // Cached data belongs to the signed-in user; never show it to the next
+    // one, and stop exchanging it with other tabs.
+    setTabSyncUser(null);
     queryClient.clear();
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
@@ -47,8 +53,14 @@ export function AuthProvider({ children }) {
     setStatus('anonymous');
   }, []);
 
-  const loadStores = useCallback(async () => {
-    const list = await apiClient.get('/api/stores');
+  // Through the cache, so a tab opened next to an already signed-in one
+  // reuses its list. `force` (after a rename) always refetches.
+  const loadStores = useCallback(async (force = false) => {
+    const list = await queryClient.fetchQuery({
+      queryKey: queryKeys.stores(),
+      queryFn: () => apiClient.get('/api/stores'),
+      ...(force ? { staleTime: 0 } : {}),
+    });
     setStores(list);
     setCurrentStoreId((prev) => (prev && list.some((s) => s.id === prev) ? prev : list[0]?.id ?? null));
   }, []);
@@ -121,7 +133,7 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(
     // reloadStores: re-reads the store picker's list, e.g. after a rename.
-    () => ({ status, user, stores, currentStoreId, setCurrentStoreId, login, logout, reloadStores: loadStores }),
+    () => ({ status, user, stores, currentStoreId, setCurrentStoreId, login, logout, reloadStores: () => loadStores(true) }),
     [status, user, stores, currentStoreId, login, logout, loadStores]
   );
 

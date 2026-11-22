@@ -8,6 +8,10 @@ import { AuthProvider } from './auth/AuthContext.jsx'
 import { ConfirmProvider } from './components/ConfirmDialog.jsx'
 import { LocaleProvider } from './i18n/LocaleContext.jsx'
 import { queryClient } from './lib/queryClient'
+import { startTabSync } from './lib/tabSync'
+
+// Before anything renders, so this tab can ask the open ones for their cache.
+startTabSync(queryClient)
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

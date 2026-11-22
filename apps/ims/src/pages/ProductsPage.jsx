@@ -4,6 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
+import { categoriesQuery as categoriesQueryOptions, suppliersQuery as suppliersQueryOptions } from '../lib/queries';
 import { physicalKeyChar } from '../lib/physicalKey';
 import {
   STATUS_FILTERS,
@@ -190,19 +191,13 @@ export default function ProductsPage() {
 
   // Also backs the read-only supplier-details popup (click a product's
   // supplier name) -- reuses this instead of a separate fetch per click.
-  const suppliersQuery = useQuery({
-    queryKey: queryKeys.suppliers(storeId),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/suppliers`),
-    enabled: Boolean(storeId),
-  });
-  const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
+  // The shared lists (lib/queries.js) include archived entries; only active
+  // ones are offered here.
+  const suppliersQuery = useQuery(suppliersQueryOptions(storeId));
+  const suppliers = useMemo(() => (suppliersQuery.data ?? []).filter((s) => !s.isDeleted), [suppliersQuery.data]);
   // Active categories, for the form's picker.
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories(storeId),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/categories`),
-    enabled: Boolean(storeId),
-  });
-  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
+  const categoriesQuery = useQuery(categoriesQueryOptions(storeId));
+  const categories = useMemo(() => (categoriesQuery.data ?? []).filter((c) => !c.isDeleted), [categoriesQuery.data]);
   // The Category column's filter choices: every category the loaded products
   // actually use (archived ones included), plus "No category".
   const categoryOptions = useMemo(() => {
@@ -418,7 +413,7 @@ export default function ProductsPage() {
       queryClient.invalidateQueries({ queryKey: ['products'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
       // Category product counts change when a product moves or is archived.
-      queryClient.invalidateQueries({ queryKey: ['categories'] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories() }),
     ]);
 
   function openCreate() {
