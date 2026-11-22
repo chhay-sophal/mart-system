@@ -39,6 +39,7 @@ export default function TransfersPage() {
     rows: transfers,
     // Ties fall back to from-store, so the order is stable and predictable.
     initialSort: { col: 'from', dir: 'asc' },
+    persistKey: 'transfers:table',
     columns: [
       { key: 'from', label: t.common.from, render: (r) => r.fromStoreName, sortValue: (r) => r.fromStoreName, filter: { type: 'text', placeholder: t.transfers.filterStore } },
       { key: 'to', label: t.common.to, render: (r) => r.toStoreName, sortValue: (r) => r.toStoreName, filter: { type: 'text', placeholder: t.transfers.filterStore } },

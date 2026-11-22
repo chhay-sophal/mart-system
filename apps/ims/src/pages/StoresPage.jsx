@@ -21,6 +21,7 @@ export default function StoresPage() {
   const table = useDataTable({
     rows: stores,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'stores:table',
     columns: [
       { key: 'name', label: t.common.name, cellClassName: 'font-medium', sortValue: (s) => s.name, filter: { type: 'text', placeholder: t.stores.filterName } },
       { key: 'code', label: t.stores.code, cellClassName: muted, sortValue: (s) => s.code ?? '', filter: contains },

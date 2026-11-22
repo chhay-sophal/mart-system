@@ -28,11 +28,12 @@ export default function CategoriesPage() {
   const queryClient = useQueryClient();
   const categoriesQuery = useQuery(categoriesQueryOptions(storeId));
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
-  const search = useSearch(categories, [(c) => c.name]);
+  const search = useSearch(categories, [(c) => c.name], { persistKey: 'categories:search' });
 
   const table = useDataTable({
     rows: search.results,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'categories:table',
     columns: [
       { key: 'name', label: t.common.name, cellClassName: 'font-medium', sortValue: (c) => c.name, filter: { type: 'text', placeholder: t.categories.filterName } },
       {

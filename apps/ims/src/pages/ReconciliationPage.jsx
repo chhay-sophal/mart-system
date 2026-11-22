@@ -37,6 +37,7 @@ export default function ReconciliationPage() {
   const table = useDataTable({
     rows,
     initialSort: { col: 'stock', dir: 'asc' },
+    persistKey: 'reconciliation:table',
     columns: [
       {
         key: 'store', label: t.common.store, cellClassName: 'text-slate-500 dark:text-slate-400', render: (r) => r.storeName,

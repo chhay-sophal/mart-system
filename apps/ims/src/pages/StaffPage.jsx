@@ -48,6 +48,7 @@ export default function StaffPage() {
   const table = useDataTable({
     rows: staff,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'staff:table',
     columns: [
       { key: 'name', label: t.common.name, sortValue: (r) => r.name, filter: { type: 'text', placeholder: t.staff.filterName } },
       {

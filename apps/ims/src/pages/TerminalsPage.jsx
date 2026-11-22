@@ -57,6 +57,7 @@ export default function TerminalsPage() {
   const table = useDataTable({
     rows: terminals,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'terminals:table',
     columns: [
       { key: 'name', label: t.common.name, sortValue: (r) => r.name, filter: { type: 'text', placeholder: t.terminals.filterName } },
       {

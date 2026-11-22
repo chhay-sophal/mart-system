@@ -27,6 +27,8 @@ import Pagination from '../components/Pagination.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { usePagination } from '../hooks/usePagination';
+import { usePersistentState } from '../hooks/usePersistentState';
+import { useStoreFilterState } from '../hooks/useFilterState';
 import ColumnFilter, { filterInput } from '../components/ColumnFilter.jsx';
 import ImportExportWizard from './ImportExportWizard.jsx';
 import { useLocale } from '../i18n/LocaleContext.jsx';
@@ -131,15 +133,22 @@ export default function ProductsPage() {
   const { t } = useLocale();
   const [error, setError] = useState(''); // save/delete errors
   // This page's own store filter -- independent of the header's global store
-  // switcher. '' means "All stores"; null means "not initialized yet" (stores
-  // haven't loaded), which keeps the products query disabled below.
-  const [viewStoreId, setViewStoreId] = useState(null);
+  // switcher once picked here, and remembered across visits like the search,
+  // filters, sort and page. Until then it follows the header's store. ''
+  // means "All stores"; null means no store is known yet, which keeps the
+  // products query disabled below.
+  const [pickedStoreId, setViewStoreId] = useStoreFilterState('products:store', null);
+  const viewStoreId = pickedStoreId ?? storeId ?? null;
   // Search bar (issue #8), applied in the browser before the table's own
   // per-column filters/sort (useDataTable below).
   // Mirrors the table's status filter (kept in step by `table` below): the
   // products query needs it before the table hook can run, since the hook
-  // needs the query's rows.
-  const [statusFilter, setStatusFilter] = useState(['active']);
+  // needs the query's rows. Remembered alongside the table's filters (and
+  // always set together with them), so a remembered "Archived" filter also
+  // fetches archived rows.
+  const [statusFilter, setStatusFilter] = usePersistentState('products:status', ['active'], (saved) =>
+    Array.isArray(saved) ? saved : undefined
+  );
   const [editing, setEditing] = useState(null); // null | 'new' | product object
   const [form, setForm] = useState(EMPTY_FORM);
   const [showImportExport, setShowImportExport] = useState(false);
@@ -153,15 +162,6 @@ export default function ProductsPage() {
   // The status column's own filter drives this -- anything but the default
   // "active only" needs archived rows included in what the backend returns at all.
   const includeDeleted = !(statusFilter.length === 1 && statusFilter[0] === 'active');
-
-  // Seeds the view filter from the header's current store the first time it's
-  // available, but never again -- once the user's picked a store (or "All
-  // stores") here, switching the header's store elsewhere shouldn't silently
-  // override this page's own choice.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (storeId && viewStoreId === null) setViewStoreId(storeId);
-  }, [storeId, viewStoreId]);
 
   // Cached (lib/queryClient.js): re-opening the tab shows the last list at
   // once and refreshes it in the background when stale.
@@ -216,11 +216,12 @@ export default function ProductsPage() {
     : null;
 
   // Deferred, so typing stays responsive while a long list re-filters.
-  const search = useSearch(products, [(p) => p.name, (p) => p.barcode]);
+  const search = useSearch(products, [(p) => p.name, (p) => p.barcode], { persistKey: 'products:search' });
 
   const baseTable = useDataTable({
     rows: search.results,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'products:table',
     columns: [
       {
         key: 'select',
@@ -360,7 +361,7 @@ export default function ProductsPage() {
   const visible = baseTable.visible;
   const filterCount = baseTable.filterCount;
 
-  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([baseTable.filters, baseTable.sort, search.query, viewStoreId]));
+  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([baseTable.filters, baseTable.sort, search.query, viewStoreId]), 'products:page');
   const pageRows = pager.pageRows;
   // Archived rows aren't selectable (their own checkbox is disabled), so
   // "select all" shouldn't try to select them either. Keyed by storeProductId,

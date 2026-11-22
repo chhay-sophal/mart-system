@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
@@ -6,6 +6,7 @@ import { useLocale } from '../i18n/LocaleContext.jsx';
 import { useDataTable } from '../hooks/useDataTable';
 import { useSearch } from '../hooks/useSearch';
 import { usePagination } from '../hooks/usePagination';
+import { useDateRangeState, useStoreFilterState } from '../hooks/useFilterState';
 import DataTable from '../components/DataTable.jsx';
 import DateRangeFilter from '../components/DateRangeFilter.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
@@ -15,7 +16,7 @@ import FilterChips from '../components/FilterChips.jsx';
 import Pagination from '../components/Pagination.jsx';
 import { CategoryBreakdownChart, PaymentMethodsChart, SalesOverTimeChart, TopProductsChart } from '../components/ReportCharts.jsx';
 import { bucketTimeline } from '../lib/reportTimeline';
-import { DATE_PRESETS, toApiRange, todayStr } from '../lib/dateRange';
+import { DATE_PRESETS, toApiRange } from '../lib/dateRange';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 import { fmt, plural } from '../i18n/translate';
 
@@ -130,10 +131,10 @@ function ShareBar({ ratio }) {
 export default function ReportsPage() {
   const { t, locale } = useLocale();
   // Not scoped to the AppShell's single current store: "All stores" is a
-  // first-class option here, and the default.
-  const [storeId, setStoreId] = useState('');
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
+  // first-class option here, and the default. Both are remembered while you
+  // visit other pages (hooks/useFilterState.js).
+  const [storeId, setStoreId] = useStoreFilterState('reports:store', '');
+  const [dateFrom, dateTo, setDateRange] = useDateRangeState('reports:range', REPORT_PRESETS);
 
   // Cached per store + date range (lib/queryClient.js): flipping back to a
   // range already viewed is instant, refreshed in the background when stale.
@@ -167,10 +168,12 @@ export default function ReportsPage() {
     [report]
   );
 
-  const search = useSearch(products, [(p) => p.name, (p) => p.barcode]);
+  // Search, filters, sort and page are remembered across visits too.
+  const search = useSearch(products, [(p) => p.name, (p) => p.barcode], { persistKey: 'reports:search' });
   const table = useDataTable({
     rows: search.results,
     initialSort: { col: 'revenue', dir: 'desc' },
+    persistKey: 'reports:products',
     columns: [
       {
         key: 'name', label: t.reports.product, sortValue: (p) => p.name,
@@ -231,7 +234,8 @@ export default function ReportsPage() {
   const pager = usePagination(
     table.visible,
     PRODUCTS_PAGE_SIZE,
-    JSON.stringify([storeId, dateFrom, dateTo, search.query, table.sort, table.filters])
+    JSON.stringify([storeId, dateFrom, dateTo, search.query, table.sort, table.filters]),
+    'reports:page'
   );
 
   // Clicking a category in the breakdown narrows the products table to it
@@ -255,10 +259,7 @@ export default function ReportsPage() {
         <DateRangeFilter
           dateFrom={dateFrom}
           dateTo={dateTo}
-          onChange={(from, to) => {
-            setDateFrom(from);
-            setDateTo(to);
-          }}
+          onChange={setDateRange}
           presets={REPORT_PRESETS}
         />
         {reportQuery.isFetching && !loading && <span className={`text-xs pb-2.5 ${muted}`}>{t.common.loading}</span>}

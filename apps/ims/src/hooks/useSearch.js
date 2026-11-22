@@ -1,4 +1,5 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo } from 'react';
+import { usePersistentState } from './usePersistentState';
 
 const norm = (value) => String(value ?? '').trim().toLowerCase();
 
@@ -13,10 +14,11 @@ const norm = (value) => String(value ?? '').trim().toLowerCase();
  *   ...feed search.results into useDataTable.
  *
  * Filtering runs on a deferred copy of the query, so typing stays responsive
- * on long lists.
+ * on long lists. With `persistKey`, the query is remembered across page
+ * visits (hooks/usePersistentState.js).
  */
-export function useSearch(rows, fields) {
-  const [query, setQuery] = useState('');
+export function useSearch(rows, fields, { persistKey } = {}) {
+  const [query, setQuery] = usePersistentState(persistKey, '', (saved) => (typeof saved === 'string' ? saved : undefined));
   const deferred = useDeferredValue(query);
 
   const results = useMemo(() => {

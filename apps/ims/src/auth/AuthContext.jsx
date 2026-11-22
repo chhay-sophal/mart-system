@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { accessTokenRef, apiClient } from '../lib/apiClient';
 import { queryClient, queryKeys } from '../lib/queryClient';
 import { setTabSyncUser } from '../lib/tabSync';
+import { clearFilterState } from '../lib/filterState';
 import {
   ACCESS_TOKEN_KEY,
   REFRESH_TOKEN_KEY,
@@ -55,6 +56,8 @@ export function AuthProvider({ children }) {
     // one, and stop exchanging it with other tabs.
     setTabSyncUser(null);
     queryClient.clear();
+    // Remembered filters (store ids, ranges) were the last user's too.
+    clearFilterState();
     if (!keepStorage) clearStoredTokens();
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     setUser(null);

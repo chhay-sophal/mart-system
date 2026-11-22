@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { usePersistentState } from './usePersistentState';
 
 /**
  * Filter + sort state for a <DataTable>, driven entirely by its column
@@ -95,11 +96,22 @@ function comparatorOf(col) {
   return null;
 }
 
-export function useDataTable({ rows, columns, initialSort }) {
+// With `persistKey`, the filters and sort are remembered across page visits
+// (hooks/usePersistentState.js). Saved filters for columns that no longer exist
+// are dropped, and a saved sort on a missing column falls back to initialSort.
+export function useDataTable({ rows, columns, initialSort, persistKey }) {
   const filterable = useMemo(() => columns.filter((c) => c.filter), [columns]);
   const emptyFilters = useMemo(() => Object.fromEntries(filterable.map((c) => [c.key, emptyOf(c.filter)])), [filterable]);
-  const [filters, setFilters] = useState(emptyFilters);
-  const [sort, setSort] = useState(initialSort);
+  const [filters, setFilters] = usePersistentState(persistKey && `${persistKey}:filters`, emptyFilters, (saved) =>
+    saved && typeof saved === 'object'
+      ? { ...emptyFilters, ...Object.fromEntries(Object.entries(saved).filter(([key]) => key in emptyFilters)) }
+      : undefined
+  );
+  const [sort, setSort] = usePersistentState(persistKey && `${persistKey}:sort`, initialSort, (saved) =>
+    saved && columns.some((c) => c.key === saved.col && (c.sortValue || c.compare)) && (saved.dir === 'asc' || saved.dir === 'desc')
+      ? saved
+      : undefined
+  );
   const valueOf = (c) => filters[c.key] ?? emptyOf(c.filter);
 
   const visible = useMemo(() => {

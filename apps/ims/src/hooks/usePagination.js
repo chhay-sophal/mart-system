@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { usePersistentState } from './usePersistentState';
 
 /**
  * Client-side paging over an already filtered + sorted list (pair with
@@ -12,9 +12,13 @@ import { useState } from 'react';
  * (new search, sort, filters, range...) the page goes back to 1, so a
  * narrower list never leaves you on a page past its end. The page is also
  * clamped to the last one, for lists that shrink without a key change.
+ * With `persistKey`, the page is remembered across page visits (kept only
+ * if the listing's resetKey still matches when you come back).
  */
-export function usePagination(rows, pageSize, resetKey = '') {
-  const [state, setState] = useState({ page: 1, key: resetKey });
+export function usePagination(rows, pageSize, resetKey = '', persistKey = null) {
+  const [state, setState] = usePersistentState(persistKey, { page: 1, key: resetKey }, (saved) =>
+    saved && Number.isInteger(saved.page) && typeof saved.key === 'string' ? saved : undefined
+  );
   // Reset during render rather than in an effect, so the stale page is
   // never rendered first.
   if (state.key !== resetKey) setState({ page: 1, key: resetKey });

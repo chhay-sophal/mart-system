@@ -17,6 +17,8 @@ import Pagination from '../components/Pagination.jsx';
 import SearchInput from '../components/SearchInput.jsx';
 import { useSearch } from '../hooks/useSearch';
 import { usePagination } from '../hooks/usePagination';
+import { useDateRangeState, useStoreFilterState } from '../hooks/useFilterState';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { apiClient } from '../lib/apiClient';
 import { queryKeys } from '../lib/queryClient';
 import { printReceipt } from '../lib/receipt';
@@ -61,11 +63,12 @@ export default function SalesHistoryPage() {
   const { stores } = useAuth();
   const { t, locale } = useLocale();
 
-  const [storeFilter, setStoreFilter] = useState(currentStoreId ?? '');
-  // Free-form date range, not a fixed set of periods -- defaults to today.
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
-  const [showVoided, setShowVoided] = useState(false);
+  // Store, range, search, filters, sort and page are all remembered while
+  // you visit other pages (hooks/useFilterState.js, usePersistentState.js). The store defaults to the header's; the
+  // range is free-form (presets are shortcuts), defaulting to today.
+  const [storeFilter, setStoreFilter] = useStoreFilterState('sales:store', currentStoreId ?? '');
+  const [dateFrom, dateTo, setDateRange] = useDateRangeState('sales:range', DATE_PRESETS);
+  const [showVoided, setShowVoided] = usePersistentState('sales:showVoided', false);
   const [expandedId, setExpandedId] = useState(null);
 
   const [error, setError] = useState('');
@@ -102,12 +105,13 @@ export default function SalesHistoryPage() {
     (o) => o.terminal_name,
     (o) => o.store_name,
     (o) => (o.items || []).flatMap((i) => [i.product_name, i.barcode]),
-  ]);
+  ], { persistKey: 'sales:search' });
 
   const nowrap = 'whitespace-nowrap';
   const table = useDataTable({
     rows: search.results,
     initialSort: { col: 'date', dir: 'desc' },
+    persistKey: 'sales:orders',
     columns: [
       {
         key: 'receipt', label: t.sales.receiptNo, cellClassName: `font-medium ${nowrap}`, sortValue: (o) => o.receipt_no,
@@ -159,7 +163,12 @@ export default function SalesHistoryPage() {
   });
   const filtered = table.visible;
 
-  const pager = usePagination(filtered, PAGE_SIZE, JSON.stringify([storeFilter, dateFrom, dateTo, search.query, showVoided, table.sort, table.filters]));
+  const pager = usePagination(
+    filtered,
+    PAGE_SIZE,
+    JSON.stringify([storeFilter, dateFrom, dateTo, search.query, showVoided, table.sort, table.filters]),
+    'sales:page'
+  );
 
   const counted = filtered.filter((o) => !isVoided(o));
   const revenueUsd = counted.reduce((sum, o) => sum + Number(o.total_amount), 0);
@@ -208,10 +217,7 @@ export default function SalesHistoryPage() {
         <DateRangeFilter
           dateFrom={dateFrom}
           dateTo={dateTo}
-          onChange={(from, to) => {
-            setDateFrom(from);
-            setDateTo(to);
-          }}
+          onChange={setDateRange}
           presets={DATE_PRESETS}
         />
         <div className="flex-1 min-w-48">

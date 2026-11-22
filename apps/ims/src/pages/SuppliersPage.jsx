@@ -56,13 +56,14 @@ export default function SuppliersPage() {
   const suppliers = useMemo(() => suppliersQuery.data ?? [], [suppliersQuery.data]);
   const loading = suppliersQuery.isPending;
   // The top search bar: name, phone, or email.
-  const search = useSearch(suppliers, [(s) => s.name, (s) => s.phone1, (s) => s.phone2, (s) => s.email]);
+  const search = useSearch(suppliers, [(s) => s.name, (s) => s.phone1, (s) => s.phone2, (s) => s.email], { persistKey: 'suppliers:search' });
 
   const muted = 'text-slate-500 dark:text-slate-400';
   const contains = { type: 'text', placeholder: t.suppliers.contains };
   const table = useDataTable({
     rows: search.results,
     initialSort: { col: 'name', dir: 'asc' },
+    persistKey: 'suppliers:table',
     columns: [
       { key: 'name', label: t.common.name, cellClassName: 'font-medium', sortValue: (s) => s.name, filter: { type: 'text', placeholder: t.suppliers.filterName } },
       { key: 'phone1', label: t.suppliers.phone1, cellClassName: muted, sortValue: (s) => s.phone1, filter: contains },
@@ -115,7 +116,7 @@ export default function SuppliersPage() {
 
   const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.suppliers() });
 
-  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([search.query, table.filters, table.sort, storeId]));
+  const pager = usePagination(visible, PAGE_SIZE, JSON.stringify([search.query, table.filters, table.sort, storeId]), 'suppliers:page');
 
   function openCreate() {
     setForm(EMPTY_FORM);
