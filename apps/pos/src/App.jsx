@@ -28,6 +28,7 @@ import { ApiClient, ApiError } from '@mart-system/api-client';
 import { usdToKhr } from './khr';
 import { useCustomerDisplay } from './hooks/useCustomerDisplay';
 import { useShortcuts } from './hooks/useShortcuts';
+import { useKhqrWatcher } from './hooks/useKhqrWatcher';
 import ShortcutHelp from './ShortcutHelp';
 import ConfirmDialog from './ConfirmDialog';
 import PinPrompt from './PinPrompt';
@@ -37,9 +38,12 @@ import { invalidateSales, queryClient, queryKeys } from './queryClient';
 import { combosFor, displayCombo } from './shortcuts';
 import { STANDBY_IMAGE_KEY } from './standbyImage';
 
-// A KHQR expires 5 minutes after it's made (backend payments.service.ts); an
-// unpaid one is replaced a little before that, so the customer never scans a dead QR.
-const KHQR_REFRESH_MS = 4.5 * 60 * 1000;
+// A KHQR expires 5 minutes after it's made (backend payments.service.ts). An
+// unpaid one is taken off screen a little before that, so the customer never
+// scans a dead QR; it's still watched until it expires (useKhqrWatcher).
+const KHQR_DISPLAY_MS = 4.5 * 60 * 1000;
+// Tries at saving a paid KHQR sale before the cashier is asked to retry.
+const KHQR_SAVE_ATTEMPTS = 3;
 
 // A scanner (or someone typing) emits the physical key regardless of layout,
 // but the OS still maps it through whatever input language is active --
@@ -98,6 +102,17 @@ export default function App() {
   // While set, the QR panel stops retrying on its own: it falls back to Bank
   // QR, or offers a retry when there are no bank QRs to fall back to.
   const [khqrError, setKhqrError] = useState(null);
+  // A KHQR was paid and its sale is being saved / couldn't be saved
+  // ({ qr, message }) -- the customer has paid, so they must never be asked
+  // to pay again.
+  const [khqrSaving, setKhqrSaving] = useState(false);
+  const [khqrSaveError, setKhqrSaveError] = useState(null);
+  // A KHQR payment that doesn't match the current sale (an earlier QR paid
+  // after the total changed, or after the sale was finished another way).
+  const [unmatchedKhqr, setUnmatchedKhqr] = useState(null);
+  // Why the QR panel offers Generate KHQR again: the QR on screen expired,
+  // or the total changed after it was made ('expired' | 'changed' | null).
+  const [khqrReplaced, setKhqrReplaced] = useState(null);
   const [staticQrBank, setStaticQrBank] = useState('');
   // Fixed bank KHQR images from Settings > KHQR (issue #12).
   const [staticQrCodes, setStaticQrCodes] = useState([]);
@@ -380,6 +395,7 @@ export default function App() {
 
   // Declared here (rather than lower down with the other checkout handlers) so
   // it's defined before the KHQR-polling effect below references it.
+  // Throws if the sale can't be saved: handleKhqrPaid retries and reports it.
   async function autoCommitKhqrOrder(khqrDetails) {
     const cartSnapshot = [...cart];
     const payload = {
@@ -401,7 +417,7 @@ export default function App() {
       },
     };
 
-    try {
+    {
       const data = await client.post('/api/orders/checkout', payload);
       setCheckoutResult(data);
       invalidateSales(); // History and Daily Summary show the new sale right away
@@ -432,8 +448,6 @@ export default function App() {
       setPaymentMethod('CASH');
       setTxDiscountValue('');
       setTxDiscountType('fixed');
-    } catch (err) {
-      console.error('Error auto-finalizing transaction process:', err);
     }
   }
 
@@ -496,31 +510,6 @@ export default function App() {
     storeIcon, storeName, totalKhr, totalUsd, staticQrBank, staticQrImage,
   ]);
 
-  useEffect(() => {
-    let pollingInterval = null;
-
-    if (paymentMethod === 'KHQR' && activeKhqr?.md5_hash) {
-      pollingInterval = setInterval(async () => {
-        try {
-          const data = await client.get(`/api/payments/check-status/${activeKhqr.md5_hash}`);
-          if (data.status === 'PAID') {
-            clearInterval(pollingInterval);
-            await autoCommitKhqrOrder(activeKhqr);
-          }
-        } catch (err) {
-          console.error('Error running automated payment check:', err);
-        }
-      }, 3000);
-    }
-
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-    };
-    // autoCommitKhqrOrder is intentionally excluded — it's unmemoized, so listing
-    // it would restart this interval every render. cart is already listed, so the
-    // interval already restarts (with a fresh closure) whenever cart changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKhqr, paymentMethod, cart, client]);
 
   useEffect(() => {
     if (backendStatus !== 'ready') return;
@@ -591,12 +580,70 @@ export default function App() {
     notify((t[locale].products.added || 'Added {name} ({qty} in cart)').replace('{name}', product.name).replace('{qty}', quantity), 'success');
   };
 
+  // The cashier makes the KHQR (Generate KHQR) once every item is scanned.
+  // It's for one exact amount: if the total changes afterwards it comes off
+  // screen, and so does an unpaid one shortly before it expires; either way
+  // the panel offers Generate KHQR again, and the old QR is still watched.
+  const qrAmount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
+  const khqrStale =
+    activeKhqr != null &&
+    (activeKhqr.currency !== mainCurrency || Math.abs(Number(activeKhqr.amount) - qrAmount) > 0.000001);
+  // Dropped during render (not in an effect), so a QR for an old total is
+  // never shown, not even for a frame. Covers every way the total changes:
+  // scans, quantities, discounts.
+  if (khqrStale) {
+    setActiveKhqr(null);
+    setKhqrReplaced('changed');
+  }
+
+  // A watched KHQR was paid (useKhqrWatcher reports each payment once). If it
+  // pays for the sale on screen, save that sale -- retrying, and never
+  // silently: the customer has paid. If not (an earlier QR, paid after the
+  // total changed or the sale was finished another way), flag it for the
+  // cashier instead of guessing.
+  const handleKhqrPaid = async (qr) => {
+    const pays = cart.length > 0 && qr.currency === mainCurrency && Math.abs(Number(qr.amount) - qrAmount) < 0.000001;
+    if (!pays) {
+      setUnmatchedKhqr(qr);
+      return;
+    }
+    setKhqrSaving(true);
+    setKhqrSaveError(null);
+    let lastError;
+    for (let attempt = 1; attempt <= KHQR_SAVE_ATTEMPTS; attempt++) {
+      try {
+        await autoCommitKhqrOrder(qr);
+        setKhqrSaving(false);
+        return;
+      } catch (err) {
+        lastError = err;
+        console.error(`Saving the KHQR sale failed (attempt ${attempt})`, err);
+        if (attempt < KHQR_SAVE_ATTEMPTS) await new Promise((r) => setTimeout(r, 1500 * attempt));
+      }
+    }
+    setKhqrSaving(false);
+    setKhqrSaveError({ qr, message: lastError?.body?.error || lastError?.message || '' });
+  };
+  const { watch: watchKhqr, checkErrors: khqrCheckErrors } = useKhqrWatcher(client, {
+    onPaid: handleKhqrPaid,
+    // The one on screen expired unpaid: take it off, offer a new one.
+    onExpired: (qr) => {
+      if (activeKhqr?.md5_hash !== qr.md5_hash) return;
+      setActiveKhqr(null);
+      setKhqrReplaced('expired');
+    },
+  });
+  const khqrCheckError = activeKhqr ? khqrCheckErrors[activeKhqr.md5_hash] : null;
+
   const fetchKHQRString = async () => {
     const amount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
     if (amount <= 0) return;
     setKhqrLoading(true);
+    setKhqrError(null);
+    setKhqrReplaced(null);
     try {
       const data = await client.post('/api/payments/khqr', { amount, currency: mainCurrency });
+      watchKhqr(data);
       setActiveKhqr({ ...data, created_at: Date.now() });
       setKhqrError(null);
     } catch (err) {
@@ -612,30 +659,21 @@ export default function App() {
     setKhqrLoading(false);
   };
 
-  // Selecting QR means "show a KHQR": it's made as soon as there's something
-  // to pay for, remade when the total changes (a QR is for one exact amount),
-  // and remade shortly before it expires (5 minutes, server-side) if unpaid.
-  const qrAmount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
-  const khqrStale =
-    activeKhqr != null &&
-    (activeKhqr.currency !== mainCurrency || Math.abs(Number(activeKhqr.amount) - qrAmount) > 0.000001);
-  // Dropped during render (not in an effect), so a QR for an old total is
-  // never shown or checked, not even for a frame; the effect below remakes it.
-  // Covers every way the total changes: scans, quantities, discounts.
-  if (khqrStale) setActiveKhqr(null);
+  // Takes an unpaid QR off screen shortly before it expires.
   useEffect(() => {
-    if (paymentMethod !== 'KHQR' || khqrLoading || khqrError || qrAmount <= 0 || checkoutResult) return;
-    if (activeKhqr) {
-      const remaining = activeKhqr.created_at + KHQR_REFRESH_MS - Date.now();
-      const timer = setTimeout(() => setActiveKhqr(null), Math.max(0, remaining));
-      return () => clearTimeout(timer);
-    }
-    // A short pause, so scanning several items in a row makes one QR, not one per scan.
-    const timer = setTimeout(fetchKHQRString, 300);
+    if (!activeKhqr) return;
+    const timer = setTimeout(() => {
+      setActiveKhqr(null);
+      setKhqrReplaced('expired');
+    }, Math.max(0, activeKhqr.created_at + KHQR_DISPLAY_MS - Date.now()));
     return () => clearTimeout(timer);
-    // fetchKHQRString is unmemoized; the values it reads are listed instead.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentMethod, activeKhqr, khqrLoading, khqrError, qrAmount, mainCurrency, checkoutResult]);
+  }, [activeKhqr]);
+
+  const khqrAmountText = (qr) =>
+    qr.currency === 'KHR' ? `${Math.round(Number(qr.amount)).toLocaleString()} ៛` : `$${Number(qr.amount).toFixed(2)}`;
+  const khqrRefText = (qr) => qr.md5_hash.substring(0, 8).toUpperCase();
+  const khqrNotice = (template, qr, reason = '') =>
+    template.replace('{amount}', khqrAmountText(qr)).replace('{ref}', khqrRefText(qr)).replace('{reason}', reason);
 
   // From the QR panel: show the bank QRs instead (or back to KHQR).
   const switchToBankQr = () => {
@@ -647,6 +685,7 @@ export default function App() {
   const switchToKhqr = () => {
     setPaymentMethod('KHQR');
     setKhqrError(null);
+    setKhqrReplaced(null);
     setCheckoutResult(null);
   };
 
@@ -687,6 +726,7 @@ export default function App() {
     setAmountPaidKhr('');
     setStaticQrBank('');
     setKhqrError(null);
+    setKhqrReplaced(null);
     setPaymentMethod('CASH');
   };
 
@@ -886,8 +926,12 @@ export default function App() {
       lock: { run: () => { setShowShortcuts(false); setSession(null); } },
       manualBarcode: { run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
       payCash: { when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
-      // F7 opens QR (a KHQR); F8 goes straight to its bank QRs.
-      payKhqr: { when: () => onRegister, run: () => switchToKhqr() },
+      // F7 opens QR, and pressed again there generates the KHQR; F8 goes
+      // straight to its bank QRs.
+      payKhqr: {
+        when: () => onRegister,
+        run: () => (paymentMethod === 'KHQR' && !activeKhqr && !khqrLoading && !khqrSaving ? fetchKHQRString() : switchToKhqr()),
+      },
       payStaticQr: { when: () => onRegister, run: () => switchToBankQr() },
       checkout: { when: () => onRegister && canCheckout, run: () => handleCheckout() },
       clearCart: { when: () => onRegister && cart.length > 0, run: () => setClearCartPrompt(true) },
@@ -1533,6 +1577,30 @@ export default function App() {
               </div>
             </div>
 
+            {/* KHQR payments that need the cashier: one paid but not yet saved, and
+                one that doesn't match the sale on screen. Shown whatever the
+                payment method, until dealt with. */}
+            {khqrSaveError && (
+              <div role="alert" className="mb-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 p-3 rounded-xl text-xs space-y-2">
+                <p className="font-semibold">{khqrNotice(t[locale].khqrSaveFailed, khqrSaveError.qr, khqrSaveError.message)}</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleKhqrPaid(khqrSaveError.qr)} disabled={khqrSaving} className="py-1.5 px-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-lg cursor-pointer">
+                    {khqrSaving ? t[locale].paymentReceivedSaving : t[locale].retrySave}
+                  </button>
+                  <button type="button" onClick={() => { setUnmatchedKhqr(khqrSaveError.qr); setKhqrSaveError(null); }} className="py-1.5 px-3 font-bold rounded-lg cursor-pointer hover:underline">
+                    {t[locale].dismiss}
+                  </button>
+                </div>
+              </div>
+            )}
+            {unmatchedKhqr && (
+              <div role="alert" className="mb-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 p-3 rounded-xl text-xs space-y-2">
+                <p className="font-semibold">{khqrNotice(t[locale].khqrUnmatched, unmatchedKhqr)}</p>
+                <button type="button" onClick={() => setUnmatchedKhqr(null)} className="py-1.5 px-3 font-bold rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40">
+                  {t[locale].dismiss}
+                </button>
+              </div>
+            )}
             <div>
               <label className="block text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-400 uppercase mb-1 font-display">{t[locale].settlementType}</label>
               {/* QR covers both KHQR (confirmed automatically) and the bank
@@ -1727,13 +1795,23 @@ export default function App() {
                 >
                   {staticQrBank ? t[locale].confirmReceived : `${t[locale].selectBank}...`}
                 </button>
-                <button type="button" onClick={switchToKhqr} className="w-full text-center text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const retry = Boolean(khqrError);
+                    switchToKhqr();
+                    if (retry) fetchKHQRString();
+                  }}
+                  className="w-full text-center text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                >
                   {khqrError ? t[locale].retryKhqr : t[locale].backToKhqr}
                 </button>
               </div>
             ) : (
               <div className="space-y-4 bg-rose-50/30 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900 p-5 rounded-2xl flex flex-col items-center">
-                {activeKhqr ? (
+                {khqrSaving ? (
+                  <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-display animate-pulse">{t[locale].paymentReceivedSaving}</p>
+                ) : activeKhqr ? (
                   <>
                     <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl shadow-xs border border-rose-100 dark:border-rose-900">
                       <QRCodeCanvas value={activeKhqr.qr_string} size={160} level={"M"} includeMargin={true} />
@@ -1742,6 +1820,11 @@ export default function App() {
                       <p className="font-bold text-xs text-slate-800 dark:text-slate-100 font-display">{t[locale].scanToPay}</p>
                       <p className="text-[10px] text-rose-500 font-bold mt-0.5">{t[locale].ref}: {activeKhqr.md5_hash.substring(0, 8).toUpperCase()}</p>
                       <p className="text-[9px] text-slate-400 dark:text-slate-400 mt-2 font-display animate-pulse">{t[locale].waitingPayment}</p>
+                      {khqrCheckError != null && (
+                        <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-2">
+                          {t[locale].khqrCheckFailed.replace('{reason}', khqrCheckError)}
+                        </p>
+                      )}
                     </div>
                   </>
                 ) : khqrError ? (
@@ -1749,16 +1832,34 @@ export default function App() {
                     <p className="text-xs font-semibold text-rose-700 dark:text-rose-400">{khqrError}</p>
                     <button
                       type="button"
-                      onClick={() => setKhqrError(null)}
+                      onClick={fetchKHQRString}
                       className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
                     >
                       {t[locale].retryKhqr}
                     </button>
                   </div>
-                ) : totalUsd <= 0 ? (
-                  <p className="text-xs text-slate-400 dark:text-slate-400 font-bold font-display">{t[locale].qrAddItems}</p>
-                ) : (
+                ) : khqrLoading ? (
                   <p className="text-xs text-slate-400 dark:text-slate-400 font-bold font-display animate-pulse">{t[locale].assemblingPacket}</p>
+                ) : (
+                  <div className="text-center space-y-2">
+                    {khqrReplaced && (
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {khqrReplaced === 'expired' ? t[locale].khqrExpired : t[locale].khqrTotalChanged}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={fetchKHQRString}
+                      disabled={qrAmount <= 0}
+                      title={`${t[locale].generateQr}${keyHint('payKhqr')}`}
+                      className="py-3 px-5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors cursor-pointer"
+                    >
+                      {t[locale].generateQr}
+                    </button>
+                    {qrAmount <= 0 && (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-400 font-bold font-display">{t[locale].qrAddItems}</p>
+                    )}
+                  </div>
                 )}
                 {staticQrBanks.length > 0 && (
                   <button type="button" onClick={switchToBankQr} className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">

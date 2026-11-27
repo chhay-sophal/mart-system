@@ -38,6 +38,16 @@ router.post('/api/orders/checkout', (req, res) => {
     return res.status(400).json({ error: 'Cannot check out an empty cart' });
   }
 
+  // One KHQR pays for one sale. If this QR already completed a sale (a repeat
+  // "paid" result, or a retried save), answer with that sale instead of
+  // recording the payment twice.
+  if (payment_method === 'KHQR' && khqr_data?.md5_hash) {
+    const existing = query('SELECT order_id FROM khqr_transactions WHERE md5_hash = ? AND deleted_at IS NULL', [khqr_data.md5_hash])[0];
+    if (existing) {
+      return res.status(200).json({ message: 'Already recorded', order_id: existing.order_id, duplicate: true, change_due_khr: 0 });
+    }
+  }
+
   // The total is stored in the currency the register charged in -- the
   // store's main currency -- at payment precision (money.js): USD to the cent,
   // riel to the note, exactly as the cashier saw it. Change is worked out from
