@@ -1,75 +1,127 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Watches every KHQR this register shows until it's paid or truly expired,
-// and reports each payment exactly once.
+// Watches every KHQR this register shows until it's paid or expired, and
+// reports each payment exactly once -- while spending as few Bakong status
+// checks as possible, since Bakong limits them:
 //
-// - One check at a time: the next round only starts after the previous one
-//   finished, so a slow answer can never overlap a fresh one (overlapping
-//   "paid" answers used to save one payment as two sales).
-// - A QR stays watched after it's replaced on screen (new total, refresh
-//   before expiry) or the cashier switches method: it remains payable until
-//   it expires, and a payment to it must not go unnoticed.
-// - A QR whose checks keep failing gets an error the panel can show, instead
-//   of "waiting for payment" forever.
+// - The cashier presses Check payment once the customer says they've paid:
+//   one check, right away (checkNow).
+// - The QR on screen is also checked every 20 seconds, as a backup.
+// - A QR that's off screen (replaced for a new total, expired off screen, or
+//   the cashier moved on) is not checked again until after it expires: one
+//   final check then catches a payment made to it late.
+// - One check at a time: a slow answer can never overlap another (overlapping
+//   "paid" answers once saved one payment as two sales).
 
-const POLL_MS = 3000;
-// Failed checks in a row before the cashier is told.
-const FAILURES_BEFORE_ERROR = 3;
-// The backend reports EXPIRED two minutes after expiry; if it can't be
-// reached at all, stop on this side a little after that.
-const GIVE_UP_AFTER_EXPIRY_MS = 3 * 60 * 1000;
+const TICK_MS = 1000;
+const AUTO_CHECK_MS = 20 * 1000;
+// The backend calls an unpaid QR EXPIRED two minutes after expiry; the final
+// check of an off-screen QR comes just after that, so it gets a definite answer.
+const FINAL_CHECK_AFTER_EXPIRY_MS = 2.5 * 60 * 1000;
+// If the backend can't be reached at all, stop a little after that.
+const GIVE_UP_AFTER_EXPIRY_MS = 4 * 60 * 1000;
 const DEFAULT_LIFETIME_MS = 5 * 60 * 1000;
 
-const errorText = (err) => err?.body?.error || err?.message || '';
+// Never empty: an empty message would read as "no error".
+const errorText = (err) => err?.body?.error || err?.message || 'Unknown error';
 
 /**
  * The watcher itself, without React (so it can be tested on its own).
  * handlers(): the current { onPaid, onExpired }; onPaid(qr) is awaited
  * before the next check, so saving the sale finishes first.
- * setError(md5, message | null): a QR's checks keep failing, or recovered.
+ * setError(md5, message | null): a QR's last check failed, or recovered.
+ * setChecking(md5, boolean): a check of that QR is running.
  */
-export function createKhqrWatcher({ client, handlers, setError, pollMs = POLL_MS, now = Date.now }) {
+export function createKhqrWatcher({
+  client,
+  handlers,
+  setError,
+  setChecking = () => {},
+  tickMs = TICK_MS,
+  autoCheckMs = AUTO_CHECK_MS,
+  finalCheckAfterExpiryMs = FINAL_CHECK_AFTER_EXPIRY_MS,
+  now = Date.now,
+}) {
   const watches = new Map();
+  let activeMd5 = null;
   let stopped = false;
   let timer = null;
 
+  const finish = (qr, status) => {
+    watches.delete(qr.md5_hash);
+    setError(qr.md5_hash, null);
+    for (const resolve of qr.waiters.splice(0)) resolve(status);
+  };
+
+  // When this QR should next be checked, if it's still pending.
+  const schedule = (qr) => {
+    if (qr.md5_hash === activeMd5) qr.nextCheckAt = now() + autoCheckMs;
+    else qr.nextCheckAt = Math.max(now() + autoCheckMs, qr.expiresAt + finalCheckAfterExpiryMs);
+  };
+
   const check = async (qr) => {
-    if (now() > qr.expiresAt + GIVE_UP_AFTER_EXPIRY_MS) {
-      watches.delete(qr.md5_hash);
-      setError(qr.md5_hash, null);
+    const manual = qr.manual;
+    qr.manual = false;
+    if (!manual && now() > qr.expiresAt + GIVE_UP_AFTER_EXPIRY_MS) {
+      finish(qr, 'EXPIRED');
       handlers().onExpired?.(qr);
       return;
     }
+    setChecking(qr.md5_hash, true);
     try {
-      const { status } = await client.get(`/api/payments/check-status/${encodeURIComponent(qr.md5_hash)}`);
-      qr.failures = 0;
+      const path = `/api/payments/check-status/${encodeURIComponent(qr.md5_hash)}${manual ? '?manual=1' : ''}`;
+      const { status } = await client.get(path);
       setError(qr.md5_hash, null);
       if (status === 'PAID') {
-        watches.delete(qr.md5_hash);
+        finish(qr, 'PAID');
         await handlers().onPaid?.(qr);
       } else if (status === 'EXPIRED') {
-        watches.delete(qr.md5_hash);
+        finish(qr, 'EXPIRED');
         handlers().onExpired?.(qr);
+      } else {
+        schedule(qr);
+        for (const resolve of qr.waiters.splice(0)) resolve('PENDING');
       }
     } catch (err) {
-      qr.failures += 1;
-      if (qr.failures >= FAILURES_BEFORE_ERROR) setError(qr.md5_hash, errorText(err));
+      setError(qr.md5_hash, errorText(err));
+      schedule(qr);
+      for (const resolve of qr.waiters.splice(0)) resolve('ERROR');
+    } finally {
+      setChecking(qr.md5_hash, false);
     }
   };
 
-  const round = async () => {
-    for (const qr of [...watches.values()]) {
+  const tick = async () => {
+    // Manual checks first, then whatever is due, one at a time.
+    const due = [...watches.values()]
+      .filter((qr) => qr.manual || qr.nextCheckAt <= now())
+      .sort((a, b) => Number(b.manual) - Number(a.manual));
+    for (const qr of due) {
       if (stopped) return;
-      await check(qr);
+      if (watches.has(qr.md5_hash)) await check(qr);
     }
-    if (!stopped) timer = setTimeout(round, pollMs);
+    if (!stopped) timer = setTimeout(tick, tickMs);
   };
-  timer = setTimeout(round, pollMs);
+  timer = setTimeout(tick, tickMs);
 
   return {
     watch(qr) {
       const expiresAt = Date.parse(qr.expires_at) || now() + DEFAULT_LIFETIME_MS;
-      watches.set(qr.md5_hash, { ...qr, expiresAt, failures: 0 });
+      watches.set(qr.md5_hash, { ...qr, expiresAt, nextCheckAt: now() + autoCheckMs, manual: false, waiters: [] });
+    },
+    /** The QR now on screen (or null): only it gets the regular checks. */
+    setActive(md5) {
+      if (md5 === activeMd5) return;
+      const previous = watches.get(activeMd5);
+      activeMd5 = md5;
+      if (previous) schedule(previous);
+    },
+    /** Check this QR right away; resolves to PAID / PENDING / EXPIRED / ERROR (null if not watched). */
+    checkNow(md5) {
+      const qr = watches.get(md5);
+      if (!qr) return Promise.resolve(null);
+      qr.manual = true;
+      return new Promise((resolve) => qr.waiters.push(resolve));
     },
     stop() {
       stopped = true;
@@ -80,32 +132,41 @@ export function createKhqrWatcher({ client, handlers, setError, pollMs = POLL_MS
 
 /**
  * watch(qr): start watching a QR ({ md5_hash, amount, currency, expires_at }).
+ * setActive(md5 | null): the QR on screen. checkNow(md5): Check payment.
  * onPaid(qr) / onExpired(qr): see createKhqrWatcher; the latest ones are
  * always used, since they read the current cart and total.
- * checkErrors: { [md5_hash]: message } for QRs whose checks keep failing.
+ * checkErrors / checking: { [md5_hash]: message } and { [md5_hash]: true }.
  */
 export function useKhqrWatcher(client, { onPaid, onExpired }) {
   const handlers = useRef({ onPaid, onExpired });
   const watcher = useRef(null);
   const [checkErrors, setCheckErrors] = useState({});
+  const [checking, setCheckingState] = useState({});
 
   useEffect(() => {
     handlers.current = { onPaid, onExpired };
   });
 
   useEffect(() => {
-    const setError = (md5, message) =>
-      setCheckErrors((prev) => {
-        if ((prev[md5] ?? null) === message) return prev;
+    const keyed = (setter) => (md5, value) =>
+      setter((prev) => {
+        if ((prev[md5] ?? null) === (value || null)) return prev;
         const next = { ...prev };
-        if (message === null) delete next[md5];
-        else next[md5] = message;
+        if (!value) delete next[md5];
+        else next[md5] = value;
         return next;
       });
-    watcher.current = createKhqrWatcher({ client, handlers: () => handlers.current, setError });
+    watcher.current = createKhqrWatcher({
+      client,
+      handlers: () => handlers.current,
+      setError: keyed(setCheckErrors),
+      setChecking: keyed(setCheckingState),
+    });
     return () => watcher.current.stop();
   }, [client]);
 
   const watch = useCallback((qr) => watcher.current?.watch(qr), []);
-  return { watch, checkErrors };
+  const setActive = useCallback((md5) => watcher.current?.setActive(md5), []);
+  const checkNow = useCallback((md5) => watcher.current?.checkNow(md5) ?? Promise.resolve(null), []);
+  return { watch, setActive, checkNow, checkErrors, checking };
 }

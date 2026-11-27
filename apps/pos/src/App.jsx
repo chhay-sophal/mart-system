@@ -113,6 +113,8 @@ export default function App() {
   // Why the QR panel offers Generate KHQR again: the QR on screen expired,
   // or the total changed after it was made ('expired' | 'changed' | null).
   const [khqrReplaced, setKhqrReplaced] = useState(null);
+  // The QR (md5) whose last Check payment answered "not received yet".
+  const [khqrNotYet, setKhqrNotYet] = useState(null);
   const [staticQrBank, setStaticQrBank] = useState('');
   // Fixed bank KHQR images from Settings > KHQR (issue #12).
   const [staticQrCodes, setStaticQrCodes] = useState([]);
@@ -448,6 +450,8 @@ export default function App() {
       setPaymentMethod('CASH');
       setTxDiscountValue('');
       setTxDiscountType('fixed');
+      setAmountPaidUsd('');
+      setAmountPaidKhr('');
     }
   }
 
@@ -624,7 +628,13 @@ export default function App() {
     setKhqrSaving(false);
     setKhqrSaveError({ qr, message: lastError?.body?.error || lastError?.message || '' });
   };
-  const { watch: watchKhqr, checkErrors: khqrCheckErrors } = useKhqrWatcher(client, {
+  const {
+    watch: watchKhqr,
+    setActive: setActiveWatchedKhqr,
+    checkNow: checkKhqrNow,
+    checkErrors: khqrCheckErrors,
+    checking: khqrChecking,
+  } = useKhqrWatcher(client, {
     onPaid: handleKhqrPaid,
     // The one on screen expired unpaid: take it off, offer a new one.
     onExpired: (qr) => {
@@ -634,6 +644,19 @@ export default function App() {
     },
   });
   const khqrCheckError = activeKhqr ? khqrCheckErrors[activeKhqr.md5_hash] : null;
+  // Only the QR on screen gets regular checks; the rest wait for one final
+  // check after they expire (useKhqrWatcher), to save Bakong's limited checks.
+  useEffect(() => {
+    setActiveWatchedKhqr(activeKhqr?.md5_hash ?? null);
+  }, [activeKhqr, setActiveWatchedKhqr]);
+  // Check payment: the customer says they've paid, so ask right away.
+  const checkKhqrPayment = async () => {
+    if (!activeKhqr) return;
+    const md5 = activeKhqr.md5_hash;
+    setKhqrNotYet(null);
+    const status = await checkKhqrNow(md5);
+    if (status === 'PENDING') setKhqrNotYet(md5);
+  };
 
   const fetchKHQRString = async () => {
     const amount = mainCurrency === 'KHR' ? totalKhr : totalUsd;
@@ -676,9 +699,12 @@ export default function App() {
     template.replace('{amount}', khqrAmountText(qr)).replace('{ref}', khqrRefText(qr)).replace('{reason}', reason);
 
   // From the QR panel: show the bank QRs instead (or back to KHQR).
+  // Switching method (on purpose or by accident) keeps this sale's KHQR: it's
+  // still payable, so it stays watched, Check payment stays available, and
+  // switching back to QR shows the same QR. Only a new total, expiry or the
+  // end of the sale retires it.
   const switchToBankQr = () => {
     setPaymentMethod('STATIC_QR');
-    setActiveKhqr(null);
     setStaticQrBank('');
     setCheckoutResult(null);
   };
@@ -688,6 +714,30 @@ export default function App() {
     setKhqrReplaced(null);
     setCheckoutResult(null);
   };
+
+  // In the Cash and Bank QR panels while this sale still has a KHQR open.
+  const openKhqrReminder = activeKhqr && (
+    <div role="status" className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 p-3 rounded-xl text-[11px] space-y-2">
+      <p className="font-semibold">{t[locale].khqrStillOpen.replace('{ref}', activeKhqr.md5_hash.substring(0, 8).toUpperCase())}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => checkKhqrPayment()}
+          disabled={Boolean(khqrChecking[activeKhqr.md5_hash])}
+          className="py-1.5 px-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white font-bold rounded-lg cursor-pointer"
+        >
+          {khqrChecking[activeKhqr.md5_hash] ? t[locale].checkingPayment : t[locale].checkPayment}
+        </button>
+        <button type="button" onClick={switchToKhqr} className="py-1.5 px-2 font-bold rounded-lg cursor-pointer hover:underline">
+          {t[locale].showQr}
+        </button>
+      </div>
+      {khqrNotYet === activeKhqr.md5_hash && !khqrChecking[activeKhqr.md5_hash] && (
+        <p className="font-semibold">{t[locale].notReceivedYet}</p>
+      )}
+      {khqrCheckError != null && <p className="font-semibold text-amber-700 dark:text-amber-400">{t[locale].khqrCheckFailed.replace('{reason}', khqrCheckError)}</p>}
+    </div>
+  );
 
   // Cart edits act on one line (lineId): a product can be on several lines.
   const updateQuantity = (lineId, delta) => {
@@ -925,12 +975,16 @@ export default function App() {
       settings: { when: () => session?.role === 'ADMIN', run: () => openSettings() },
       lock: { run: () => { setShowShortcuts(false); setSession(null); } },
       manualBarcode: { run: () => { goTo('REGISTER'); setShowManualInput(true); focusSoon(manualInputRef); } },
-      payCash: { when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); focusSoon(tenderKhrRef); } },
-      // F7 opens QR, and pressed again there generates the KHQR; F8 goes
-      // straight to its bank QRs.
+      payCash: { when: () => onRegister, run: () => { setPaymentMethod('CASH'); setCheckoutResult(null); focusSoon(tenderKhrRef); } },
+      // F7 opens QR; pressed again there it generates the KHQR, and once it's
+      // shown, checks the payment. F8 goes straight to the bank QRs.
       payKhqr: {
         when: () => onRegister,
-        run: () => (paymentMethod === 'KHQR' && !activeKhqr && !khqrLoading && !khqrSaving ? fetchKHQRString() : switchToKhqr()),
+        run: () => {
+          if (paymentMethod !== 'KHQR') return switchToKhqr();
+          if (activeKhqr) return checkKhqrPayment();
+          if (!khqrLoading && !khqrSaving) fetchKHQRString();
+        },
       },
       payStaticQr: { when: () => onRegister, run: () => switchToBankQr() },
       checkout: { when: () => onRegister && canCheckout, run: () => handleCheckout() },
@@ -1609,7 +1663,7 @@ export default function App() {
                   record which of the two was used. */}
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => { setPaymentMethod('CASH'); setCheckoutResult(null); setActiveKhqr(null); }}
+                  onClick={() => { setPaymentMethod('CASH'); setCheckoutResult(null); }}
                   className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${paymentMethod === 'CASH' ? 'bg-slate-900 text-white border-slate-900 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {t[locale].cash}
@@ -1625,6 +1679,7 @@ export default function App() {
 
             {paymentMethod === 'CASH' ? (
               <div className="space-y-2">
+                {openKhqrReminder}
                 <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700 flex flex-col">
                   {/* Main currency's field always shows; the other currency's
                       field (Settings > Payment > Tendered Amount Presets) is
@@ -1763,6 +1818,7 @@ export default function App() {
               </div>
             ) : paymentMethod === 'STATIC_QR' ? (
               <div className="space-y-3 bg-amber-50/30 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900 p-4 rounded-2xl">
+                {openKhqrReminder}
                 {khqrError && (
                   <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-100/60 dark:bg-amber-900/30 rounded-lg px-2.5 py-1.5">{khqrError}</p>
                 )}
@@ -1819,7 +1875,19 @@ export default function App() {
                     <div className="text-center">
                       <p className="font-bold text-xs text-slate-800 dark:text-slate-100 font-display">{t[locale].scanToPay}</p>
                       <p className="text-[10px] text-rose-500 font-bold mt-0.5">{t[locale].ref}: {activeKhqr.md5_hash.substring(0, 8).toUpperCase()}</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-400 mt-2 font-display animate-pulse">{t[locale].waitingPayment}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-display">{t[locale].waitingPayment}</p>
+                      <button
+                        type="button"
+                        onClick={checkKhqrPayment}
+                        disabled={Boolean(khqrChecking[activeKhqr.md5_hash])}
+                        title={`${t[locale].checkPayment}${keyHint('payKhqr')}`}
+                        className="mt-2 py-2 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      >
+                        {khqrChecking[activeKhqr.md5_hash] ? t[locale].checkingPayment : t[locale].checkPayment}
+                      </button>
+                      {khqrNotYet === activeKhqr.md5_hash && !khqrChecking[activeKhqr.md5_hash] && (
+                        <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 mt-2">{t[locale].notReceivedYet}</p>
+                      )}
                       {khqrCheckError != null && (
                         <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-2">
                           {t[locale].khqrCheckFailed.replace('{reason}', khqrCheckError)}

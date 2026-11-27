@@ -73,7 +73,10 @@ router.get('/api/payments/check-status/:md5_hash', async (req, res) => {
   }
 
   try {
-    const response = await fetch(`${config.backendUrl}/api/payments/khqr/${encodeURIComponent(req.params.md5_hash)}/status`, {
+    // ?manual=1 (the cashier pressed Check payment) is passed on: the backend
+    // then asks Bakong sooner than it would for an automatic check.
+    const manual = req.query.manual === '1' ? '?manual=1' : '';
+    const response = await fetch(`${config.backendUrl}/api/payments/khqr/${encodeURIComponent(req.params.md5_hash)}/status${manual}`, {
       headers: authHeaders(config),
       signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
     });
