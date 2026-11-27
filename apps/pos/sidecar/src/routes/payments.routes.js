@@ -9,8 +9,9 @@ function authHeaders(config) {
 
 // Never wait on the backend indefinitely: the register shows a clear error
 // instead of hanging, and a status check never piles up behind a stuck one.
-// Making a QR gets longer, since a sleeping backend can take a while to wake.
-const GENERATE_TIMEOUT_MS = 20_000;
+// Making a QR gives up after 10 seconds, so a customer isn't kept waiting:
+// the register then falls back to the bank QRs.
+const GENERATE_TIMEOUT_MS = 10_000;
 const STATUS_TIMEOUT_MS = 8_000;
 
 function backendError(err) {

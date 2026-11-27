@@ -671,12 +671,14 @@ export default function App() {
       setKhqrError(null);
     } catch (err) {
       console.error('Failed to create KHQR', err);
-      setKhqrError(t[locale].khqrUnavailable);
-      // Bank QR still works offline: switch to it rather than leave the
-      // cashier at a dead end. With no bank QRs set up, the panel offers a retry.
+      setKhqrError(t[locale].khqrUnavailable.replace('{reason}', err?.body?.error || err?.message || ''));
+      // Bank QR still works offline: fall back to it, with the first bank (the
+      // admin's order in Settings > KHQR) already showing on both screens, so
+      // the customer can pay at once; the cashier can still pick another bank.
+      // With no bank QRs set up, the panel offers a retry instead.
       if (staticQrBanks.length > 0) {
         setPaymentMethod('STATIC_QR');
-        setStaticQrBank('');
+        setStaticQrBank(staticQrBanks[0]);
       }
     }
     setKhqrLoading(false);
