@@ -3,11 +3,13 @@ import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
 import { FIXTURE_PASSWORD, FIXTURE_TERMINAL_SECRET, resetDatabase, seedFixtures } from "./helpers";
+import { resetBakongCheckThrottle } from "../src/modules/payments/payments.service";
 
 const app = buildApp();
 
 beforeEach(async () => {
   await resetDatabase();
+  resetBakongCheckThrottle();
 });
 
 afterEach(() => {
@@ -156,23 +158,82 @@ describe("GET /api/payments/khqr/:md5Hash/status", () => {
     expect(res.body.status).toBe("PENDING");
   });
 
-  it("refuses to confirm a payment that doesn't match the QR as issued", async () => {
+  it("refuses a payment whose amount or currency doesn't match the QR as issued", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+    });
+
+    for (const [data, label] of [
+      [{ amount: 0.5, currency: "USD", toAccountId: "merchant@bank" }, "amount"],
+      [{ amount: 2.5, currency: "KHR", toAccountId: "merchant@bank" }, "currency"],
+    ] as const) {
+      const { md5Hash } = await issueKhqr(terminal.id, 2.5);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data })));
+      const res = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+      expect(res.status, label).toBe(409);
+      expect((await prisma.issuedKhqr.findUnique({ where: { md5Hash } }))?.status, label).toBe("PENDING");
+    }
+  });
+
+  it("confirms a payment whose receiving account Bakong formats differently (only logged)", async () => {
     const { store, terminal } = await seedFixtures();
     await prisma.bakongCredential.create({
       data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
     });
     const { md5Hash } = await issueKhqr(terminal.id, 2.5);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data: { amount: "2.5", currency: "usd", toAccountId: "000123456" } }))
+    );
 
-    for (const [data, label] of [
-      [{ amount: 0.5, currency: "USD", toAccountId: "merchant@bank" }, "amount"],
-      [{ amount: 2.5, currency: "KHR", toAccountId: "merchant@bank" }, "currency"],
-      [{ amount: 2.5, currency: "USD", toAccountId: "someone-else@bank" }, "account"],
-    ] as const) {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data })));
+    const res = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+
+    expect(res.body.status).toBe("PAID");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("receiving account"));
+    warn.mockRestore();
+  });
+
+  it("asks Bakong about one QR at most every few seconds, however often registers check", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+    });
+    const { md5Hash } = await issueKhqr(terminal.id);
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ responseCode: 1, errorCode: 1, responseMessage: "Transaction could not be found." }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (let i = 0; i < 4; i++) {
       const res = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
-      expect(res.status, label).toBe(409);
+      expect(res.body.status).toBe("PENDING");
     }
-    expect((await prisma.issuedKhqr.findUnique({ where: { md5Hash } }))?.status).toBe("PENDING");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a Bakong error (e.g. a request limit) instead of reading it as not paid", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+    });
+    const { md5Hash } = await issueKhqr(terminal.id);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ responseCode: 1, errorCode: 15, responseMessage: "Too many requests" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe("Bakong: Too many requests");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Too many requests"));
+
+    // Within the throttle window the error is repeated, not hidden as "pending",
+    // and Bakong isn't asked again.
+    const again = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+    expect(again.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it("reports EXPIRED once an unpaid QR is past its expiry (plus grace)", async () => {
