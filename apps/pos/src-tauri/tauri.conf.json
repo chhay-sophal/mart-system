@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "concurrently -k --names vite,sidecar \"npm:dev\" \"npm:sidecar\"",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
