@@ -45,7 +45,8 @@ paymentsRouter.get(
   "/payments/khqr/:md5Hash/status",
   requireTerminal,
   asyncHandler(async (req, res) => {
-    const status = await checkKhqrStatus(req.terminal!.storeId, req.params.md5Hash!);
+    // ?manual=1: the cashier pressed Check payment, so Bakong may be asked sooner.
+    const status = await checkKhqrStatus(req.terminal!.storeId, req.params.md5Hash!, { manual: req.query.manual === "1" });
     res.json({ status });
   })
 );

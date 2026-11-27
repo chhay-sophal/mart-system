@@ -195,6 +195,30 @@ describe("GET /api/payments/khqr/:md5Hash/status", () => {
     warn.mockRestore();
   });
 
+  it("lets a cashier's Check payment ask Bakong again after 3 seconds, automatic checks only after 20", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+    });
+    const { md5Hash } = await issueKhqr(terminal.id);
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ responseCode: 1, errorCode: 1, responseMessage: "Transaction could not be found." }));
+    vi.stubGlobal("fetch", fetchMock);
+    const start = Date.now();
+    const at = vi.spyOn(Date, "now");
+    const check = (offsetMs: number, manual: boolean) => {
+      at.mockReturnValue(start + offsetMs);
+      return request(app).get(`/api/payments/khqr/${md5Hash}/status${manual ? "?manual=1" : ""}`).set(terminalHeaders(terminal.id));
+    };
+
+    await check(0, false); // asks Bakong
+    await check(2_000, true); // manual, but under 3s: reused
+    await check(4_000, true); // manual, over 3s: asks Bakong
+    await check(10_000, false); // automatic, under 20s since the last: reused
+    await check(25_000, false); // automatic, over 20s: asks Bakong
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    at.mockRestore();
+  });
+
   it("asks Bakong about one QR at most every few seconds, however often registers check", async () => {
     const { store, terminal } = await seedFixtures();
     await prisma.bakongCredential.create({

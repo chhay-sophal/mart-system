@@ -11,14 +11,13 @@ const KHQR_LIFETIME_MS = 5 * 60 * 1000;
 // A payment made just before expiry can take a moment to show up at Bakong,
 // so an unpaid QR is only called EXPIRED this long after its expiry.
 const KHQR_EXPIRY_GRACE_MS = 2 * 60 * 1000;
-// Bakong limits how many status checks a token may make, while registers ask
-// every few seconds (older versions with no limit at all). So Bakong itself is
-// asked about any one QR at most this often -- more often while it's new,
-// when the customer is most likely paying -- and in between the last answer
-// is reused. An unpaid QR costs ~36 Bakong calls instead of ~140.
-const BAKONG_CHECK_INTERVAL_NEW_MS = 5 * 1000;
-const BAKONG_CHECK_INTERVAL_MS = 15 * 1000;
-const NEW_QR_AGE_MS = 60 * 1000;
+// Bakong limits how many status checks a token may make, while registers may
+// ask every few seconds (older versions with no limit at all). So Bakong
+// itself is asked about any one QR at most every 20 seconds, the last answer
+// reused in between -- except when the cashier presses Check payment (the
+// customer says they've paid), which may ask again after 3 seconds.
+const BAKONG_CHECK_INTERVAL_MS = 20 * 1000;
+const BAKONG_MANUAL_CHECK_INTERVAL_MS = 3 * 1000;
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -212,15 +211,20 @@ const lastBakongCheck = new Map<string, { at: number; status?: KhqrStatus; error
  * generateKhqr are answered for, and a payment only counts when it matches
  * the QR as issued; the result is saved, so a paid QR stays PAID (and a paid
  * QR whose sale never arrived can be found later). Bakong is asked at most
- * every few seconds per QR, and its errors are reported, not read as unpaid.
+ * every 20 seconds per QR (3 when `manual`: the cashier pressed Check
+ * payment), and its errors are reported, not read as unpaid.
  */
-export async function checkKhqrStatus(storeId: string, md5Hash: string): Promise<KhqrStatus> {
+export async function checkKhqrStatus(
+  storeId: string,
+  md5Hash: string,
+  { manual = false }: { manual?: boolean } = {}
+): Promise<KhqrStatus> {
   const issued = await prisma.issuedKhqr.findUnique({ where: { md5Hash } });
   if (!issued || issued.storeId !== storeId) throw notFound("This store issued no KHQR with that reference");
   if (issued.status === "PAID") return "PAID";
 
   const now = Date.now();
-  const interval = now - issued.createdAt.getTime() < NEW_QR_AGE_MS ? BAKONG_CHECK_INTERVAL_NEW_MS : BAKONG_CHECK_INTERVAL_MS;
+  const interval = manual ? BAKONG_MANUAL_CHECK_INTERVAL_MS : BAKONG_CHECK_INTERVAL_MS;
   const last = lastBakongCheck.get(md5Hash);
   if (last && now - last.at < interval) {
     if (last.error) throw last.error;
