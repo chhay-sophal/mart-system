@@ -86,6 +86,7 @@ model Store {
   transfersFrom    StockTransfer[]   @relation("TransferFromStore")
   transfersTo      StockTransfer[]   @relation("TransferToStore")
   bakongCredential BakongCredential?
+  issuedKhqrs      IssuedKhqr[]
 }
 
 model User {
@@ -278,7 +279,7 @@ model Order {
 }
 
 model OrderItem {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   orderId          String
   productId        String
   quantity         Int
@@ -286,7 +287,7 @@ model OrderItem {
   // Item discount on this line, in total (not per unit), in `currency`: the
   // line was charged priceAtSale × quantity − discount. A sale-wide discount
   // isn't spread over lines; it's only in Order.totalAmountMinor.
-  discountMinor    Int      @default(0)
+  discountMinor    Int       @default(0)
   currency         Currency
   // The store's cost price for one unit when the sale was made, in
   // `costCurrency` (which can differ from the sale line's `currency`). Null
@@ -309,6 +310,29 @@ model BakongCredential {
   apiTokenUpdatedAt DateTime?
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// Every KHQR the backend makes, recorded when it's made. A payment is only
+// confirmed for a QR this store actually issued, at the amount and into the
+// account it was issued for -- and a QR that was paid but whose sale never
+// arrived can still be found here.
+model IssuedKhqr {
+  md5Hash     String     @id
+  storeId     String
+  terminalId  String?
+  qrString    String
+  // The Bakong account the QR pays into.
+  accountId   String
+  currency    Currency
+  amountMinor Int
+  expiresAt   DateTime
+  status      KhqrStatus @default(PENDING)
+  paidAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
 }
 
 model PaymentTransaction {

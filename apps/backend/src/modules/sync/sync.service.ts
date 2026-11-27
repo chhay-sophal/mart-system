@@ -103,17 +103,22 @@ async function applySaleCompleted(
   }
 
   if (payload.khqrMd5Hash) {
-    // By the time a sale reaches sync, payment already cleared (POS polled
-    // Bakong and only calls checkout once it saw PAID) — record it as such.
+    // The register only completes a KHQR sale once it saw PAID -- but that's
+    // the register's word. The payment counts as PAID only if this backend
+    // issued that QR for this store and itself confirmed it paid (payments
+    // service); otherwise the sale is still recorded, its payment left
+    // PENDING (unconfirmed) rather than trusted.
+    const issued = await tx.issuedKhqr.findUnique({ where: { md5Hash: payload.khqrMd5Hash } });
+    const confirmed = issued?.storeId === terminal.storeId && issued.status === "PAID";
     await tx.paymentTransaction.create({
       data: {
         orderId: order.id,
         md5Hash: payload.khqrMd5Hash,
-        qrString: payload.khqrQrString ?? "",
+        qrString: issued?.qrString ?? payload.khqrQrString ?? "",
         bankName: payload.khqrBankName ?? null,
-        currency: payload.currency,
-        amountMinor: toMinorUnits(payload.totalAmount, payload.currency),
-        status: "PAID",
+        currency: confirmed ? issued.currency : payload.currency,
+        amountMinor: confirmed ? issued.amountMinor : toMinorUnits(payload.totalAmount, payload.currency),
+        status: confirmed ? "PAID" : "PENDING",
       },
     });
   }

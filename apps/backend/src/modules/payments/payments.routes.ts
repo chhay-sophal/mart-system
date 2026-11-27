@@ -37,7 +37,7 @@ paymentsRouter.post(
   requireTerminal,
   asyncHandler(async (req, res) => {
     const input = generateKhqrSchema.parse(req.body);
-    res.json(await generateKhqr(req.terminal!.storeId, input));
+    res.json(await generateKhqr(req.terminal!, input));
   })
 );
 

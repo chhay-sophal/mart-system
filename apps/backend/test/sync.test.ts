@@ -264,7 +264,47 @@ describe("POST /api/sync/push", () => {
     expect(res.status).toBe(401);
   });
 
-  it("creates a PaymentTransaction when the sale carries KHQR details", async () => {
+  it("records a KHQR payment as PAID only when this backend confirmed that QR for this store", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
+    await prisma.issuedKhqr.create({
+      data: {
+        md5Hash: "confirmed-md5",
+        storeId: store.id,
+        terminalId: terminal.id,
+        qrString: "00020101...issued-khqr",
+        accountId: "merchant@bank",
+        currency: "USD",
+        amountMinor: 150,
+        expiresAt: new Date(Date.now() + 60_000),
+        status: "PAID",
+      },
+    });
+
+    const event = saleEvent({
+      payload: {
+        ...saleEvent().payload,
+        items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }],
+        paymentMethod: "KHQR",
+        khqrMd5Hash: "confirmed-md5",
+        khqrQrString: "00020101...khqr-string",
+      },
+    });
+
+    const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
+    expect(res.body.results[0].status).toBe("applied");
+
+    const transaction = await prisma.paymentTransaction.findUnique({ where: { md5Hash: "confirmed-md5" } });
+    expect(transaction).toMatchObject({
+      orderId: res.body.results[0].orderId,
+      qrString: "00020101...issued-khqr",
+      currency: "USD",
+      amountMinor: 150,
+      status: "PAID",
+    });
+  });
+
+  it("still records a KHQR sale whose QR this backend never confirmed, but leaves its payment unconfirmed", async () => {
     const { store, terminal } = await seedFixtures();
     const { product } = await addProduct(store.id, { name: "Widget", price: 1.5, stock: 10 });
 
@@ -273,7 +313,7 @@ describe("POST /api/sync/push", () => {
         ...saleEvent().payload,
         items: [{ productId: product.id, quantity: 1, priceAtSale: 1.5, currency: "USD" }],
         paymentMethod: "KHQR",
-        khqrMd5Hash: "abc123md5",
+        khqrMd5Hash: "never-issued-md5",
         khqrQrString: "00020101...khqr-string",
       },
     });
@@ -281,12 +321,8 @@ describe("POST /api/sync/push", () => {
     const res = await request(app).post("/api/sync/push").set(terminalHeaders(terminal.id)).send({ events: [event] });
     expect(res.body.results[0].status).toBe("applied");
 
-    const transaction = await prisma.paymentTransaction.findUnique({ where: { md5Hash: "abc123md5" } });
-    expect(transaction).toMatchObject({
-      orderId: res.body.results[0].orderId,
-      qrString: "00020101...khqr-string",
-      status: "PAID",
-    });
+    const transaction = await prisma.paymentTransaction.findUnique({ where: { md5Hash: "never-issued-md5" } });
+    expect(transaction).toMatchObject({ orderId: res.body.results[0].orderId, status: "PENDING" });
   });
 
   it("records cashierUserId on the created order when the sale carries one", async () => {

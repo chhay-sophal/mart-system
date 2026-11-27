@@ -13,8 +13,11 @@ export interface KhqrGenerateResponse {
   md5Hash: string;
   amount: number;
   currency: Currency;
+  /** When the QR stops being payable (ISO time). */
+  expiresAt: string;
 }
 
+/** EXPIRED: unpaid and past its expiry, so the register can stop waiting for it. */
 export interface KhqrStatusResponse {
   status: KhqrStatus;
 }
