@@ -20,6 +20,9 @@ const TABLES = [
   "SyncEvent",
   "SyncCursor",
   "StoreSetting",
+  "DailyProductStat",
+  "DailyStoreStat",
+  "StatsCursor",
   "User",
   "Store",
 ];

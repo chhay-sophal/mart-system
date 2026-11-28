@@ -49,7 +49,17 @@ export async function listNegativeStock(user: ReportUser, storeId?: string) {
 }
 
 /** Ported from online-pos/backend-desktop/server.js:495-550, one store at a time, using Prisma instead of raw SQL. */
-export async function computeStoreDailySummary(storeId: string, dateFrom: Date, dateTo: Date) {
+/**
+ * `dayOf` (used by Analytics, which keeps per-day totals): also total each
+ * product's sales per day, by whatever calendar day `dayOf` assigns an
+ * order -- returned as productsByDay.
+ */
+export async function computeStoreDailySummary(
+  storeId: string,
+  dateFrom: Date,
+  dateTo: Date,
+  { dayOf }: { dayOf?: (at: Date) => string } = {}
+) {
   const [exchangeRateSetting, mainCurrencySetting] = await Promise.all([
     prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "exchange_rate" } } }),
     prisma.storeSetting.findUnique({ where: { storeId_key: { storeId, key: "main_currency" } } }),
@@ -133,6 +143,8 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     string,
     { orderCount: number; revenue: number; revenueKhr: number; profit: number; profitKhr: number }
   >();
+  // Only with `dayOf`: day -> product -> what it sold that day.
+  const productsByDay = new Map<string, Map<string, { qty: number; revenue: number; revenueKhr: number }>>();
 
   for (const order of orders) {
     const orderRate = rateOf(order);
@@ -196,6 +208,16 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
       agg.revenue += lineRevenue;
       agg.revenueKhr += lineRevenueKhr;
       productAgg.set(item.productId, agg);
+      if (dayOf) {
+        const day = dayOf(order.createdAt);
+        const byProduct = productsByDay.get(day) ?? new Map();
+        const sold = byProduct.get(item.productId) ?? { qty: 0, revenue: 0, revenueKhr: 0 };
+        sold.qty += item.quantity;
+        sold.revenue += lineRevenue;
+        sold.revenueKhr += lineRevenueKhr;
+        byProduct.set(item.productId, sold);
+        productsByDay.set(day, byProduct);
+      }
 
       const cost =
         item.costAtSaleMinor !== null && item.costCurrency !== null
@@ -277,6 +299,7 @@ export async function computeStoreDailySummary(storeId: string, dateFrom: Date, 
     topProducts,
     allProducts,
     timeline,
+    productsByDay,
   };
 }
 

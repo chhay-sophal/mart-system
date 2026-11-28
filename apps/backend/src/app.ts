@@ -17,6 +17,7 @@ import { stockTransfersRouter } from "./modules/stockTransfers/stockTransfers.ro
 import { legacyImportRouter } from "./modules/legacyImport/legacyImport.routes";
 import { terminalReportsRouter } from "./modules/terminalReports/terminalReports.routes";
 import { ordersRouter } from "./modules/orders/orders.routes";
+import { analyticsRouter } from "./modules/analytics/analytics.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function buildApp(): Express {
@@ -43,6 +44,7 @@ export function buildApp(): Express {
   app.use("/api", syncRouter);
   app.use("/api", paymentsRouter);
   app.use("/api", reportsRouter);
+  app.use("/api", analyticsRouter);
   app.use("/api", stockTransfersRouter);
   app.use("/api", legacyImportRouter);
   app.use("/api", terminalReportsRouter);

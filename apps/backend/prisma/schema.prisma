@@ -77,16 +77,19 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userRoles        UserStoreRole[]
-  terminals        Terminal[]
-  storeProducts    StoreProduct[]
-  stockMovements   StockMovement[]
-  orders           Order[]
-  settings         StoreSetting[]
-  transfersFrom    StockTransfer[]   @relation("TransferFromStore")
-  transfersTo      StockTransfer[]   @relation("TransferToStore")
-  bakongCredential BakongCredential?
-  issuedKhqrs      IssuedKhqr[]
+  userRoles         UserStoreRole[]
+  terminals         Terminal[]
+  storeProducts     StoreProduct[]
+  stockMovements    StockMovement[]
+  orders            Order[]
+  settings          StoreSetting[]
+  transfersFrom     StockTransfer[]    @relation("TransferFromStore")
+  transfersTo       StockTransfer[]    @relation("TransferToStore")
+  bakongCredential  BakongCredential?
+  issuedKhqrs       IssuedKhqr[]
+  dailyStats        DailyStoreStat[]
+  dailyProductStats DailyProductStat[]
+  statsCursor       StatsCursor?
 }
 
 model User {
@@ -175,7 +178,6 @@ model Product {
 
   @@index([supplierId])
   @@index([categoryId])
-
   // Catalog sync: products changed since a register's last pull.
   @@index([updatedAt])
 }
@@ -226,7 +228,6 @@ model StoreProduct {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, productId])
-
   // Catalog sync: this store's prices/stock changed since a register's last pull.
   @@index([storeId, updatedAt])
 }
@@ -344,6 +345,55 @@ model IssuedKhqr {
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId, status])
+}
+
+// One store's sales for one local calendar day, kept for the Analytics page so
+// long ranges read a row per day instead of every order and item. Worked out
+// with the same rules as Reports (computeStoreDailySummary) and recomputed
+// whenever that day's orders change (see analytics.service.ts). Money in each
+// currency's minor units, like Order.
+model DailyStoreStat {
+  storeId          String
+  // "YYYY-MM-DD" in the store's own time zone.
+  date             String
+  orderCount       Int
+  revenueMinor     Int
+  revenueKhr       Int
+  grossProfitMinor Int
+  grossProfitKhr   Int
+  // Per local hour 0-23: [orders, revenueMinor, revenueKhr], as JSON.
+  hourly           String
+  // An order of that day changed since it was worked out: redo when next needed.
+  stale            Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, date])
+}
+
+// What each product sold in a store on one local calendar day (Analytics'
+// product movers), alongside DailyStoreStat.
+model DailyProductStat {
+  storeId      String
+  date         String
+  productId    String
+  quantity     Int
+  revenueMinor Int
+  revenueKhr   Int
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, date, productId])
+}
+
+// Up to when a store's daily stats account for every order change: orders
+// updated after this are the ones whose days need redoing.
+model StatsCursor {
+  storeId         String   @id
+  computedThrough DateTime
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 }
 
 model PaymentTransaction {
