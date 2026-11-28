@@ -377,6 +377,34 @@ async function getStoreSettingsSnapshot(storeId: string): Promise<StoreSettingsS
   };
 }
 
+/**
+ * Which of this store's products changed since `since`: its own price/stock
+ * row, the product itself, or the product's category (a renamed category
+ * changes every product's shown name without touching the products).
+ *
+ * Every register asks this every 20 seconds, almost always to hear "nothing".
+ * Three small lookups, each answered from an index on updatedAt, cost close
+ * to nothing when nothing changed -- unlike one query OR-ing the three across
+ * joined tables, which had to read every one of the store's products each time.
+ */
+async function changedProductIds(storeId: string, since: Date): Promise<string[]> {
+  const [storeProducts, products, categories] = await Promise.all([
+    prisma.storeProduct.findMany({ where: { storeId, updatedAt: { gt: since } }, select: { productId: true } }),
+    prisma.product.findMany({ where: { updatedAt: { gt: since } }, select: { id: true } }),
+    prisma.category.findMany({ where: { updatedAt: { gt: since } }, select: { id: true } }),
+  ]);
+  const inRenamedCategories = categories.length
+    ? await prisma.product.findMany({ where: { categoryId: { in: categories.map((c) => c.id) } }, select: { id: true } })
+    : [];
+  return [
+    ...new Set([
+      ...storeProducts.map((sp) => sp.productId),
+      ...products.map((p) => p.id),
+      ...inRenamedCategories.map((p) => p.id),
+    ]),
+  ];
+}
+
 export async function pullCatalog(
   storeId: string,
   since?: string
@@ -393,20 +421,7 @@ export async function pullCatalog(
   const sinceDate = since ? new Date(since) : null;
 
   const rows = await prisma.storeProduct.findMany({
-    where: {
-      storeId,
-      ...(sinceDate
-        ? {
-            OR: [
-              { updatedAt: { gt: sinceDate } },
-              { product: { updatedAt: { gt: sinceDate } } },
-              // A renamed category changes every product's shown name
-              // without touching the products themselves.
-              { product: { category: { updatedAt: { gt: sinceDate } } } },
-            ],
-          }
-        : {}),
-    },
+    where: { storeId, ...(sinceDate ? { productId: { in: await changedProductIds(storeId, sinceDate) } } : {}) },
     include: { product: { include: { category: { select: { name: true } } } } },
   });
 

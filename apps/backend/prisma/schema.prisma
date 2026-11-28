@@ -173,6 +173,9 @@ model Product {
 
   @@index([supplierId])
   @@index([categoryId])
+
+  // Catalog sync: products changed since a register's last pull.
+  @@index([updatedAt])
 }
 
 // Global, like Product -- not store-scoped (the same vendor can supply
@@ -187,6 +190,9 @@ model Category {
   updatedAt DateTime @updatedAt
 
   products Product[]
+
+  // Catalog sync: categories renamed since a register's last pull.
+  @@index([updatedAt])
 }
 
 model Supplier {
@@ -218,6 +224,9 @@ model StoreProduct {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, productId])
+
+  // Catalog sync: this store's prices/stock changed since a register's last pull.
+  @@index([storeId, updatedAt])
 }
 
 model StockMovement {

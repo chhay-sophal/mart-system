@@ -417,6 +417,22 @@ describe("GET /api/sync/pull", () => {
     expect(delta.body.productUpserts[0]).toMatchObject({ productId: product.id, categoryName: "Beverages" });
   });
 
+  it("re-sends a product edited itself, but never one this store doesn't stock", async () => {
+    const { store, terminal } = await seedFixtures();
+    const { product } = await addProduct(store.id, { name: "Widget", price: 1, stock: 5 });
+    const elsewhere = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    const { product: notStockedHere } = await addProduct(elsewhere.id, { name: "Gadget", price: 2, stock: 5 });
+
+    const first = await request(app).get("/api/sync/pull").set(terminalHeaders(terminal.id));
+    await new Promise((r) => setTimeout(r, 5));
+    await prisma.product.update({ where: { id: product.id }, data: { name: "Widget Pro" } });
+    await prisma.product.update({ where: { id: notStockedHere.id }, data: { name: "Gadget Pro" } });
+
+    const delta = await request(app).get("/api/sync/pull").query({ since: first.body.cursor }).set(terminalHeaders(terminal.id));
+    expect(delta.body.productUpserts).toHaveLength(1);
+    expect(delta.body.productUpserts[0]).toMatchObject({ productId: product.id, name: "Widget Pro" });
+  });
+
   it("includes the store's IMS-managed settings in full on every pull", async () => {
     const { store, terminal } = await seedFixtures();
 
