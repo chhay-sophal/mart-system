@@ -118,6 +118,8 @@ export default function App() {
   const [khqrReplaced, setKhqrReplaced] = useState(null);
   // The QR (md5) whose last Check payment answered "not received yet".
   const [khqrNotYet, setKhqrNotYet] = useState(null);
+  // Asking the cashier to confirm a KHQR payment by hand (after a check failed).
+  const [confirmManualKhqr, setConfirmManualKhqr] = useState(false);
   const [staticQrBank, setStaticQrBank] = useState('');
   // Fixed bank KHQR images from Settings > KHQR (issue #12).
   const [staticQrCodes, setStaticQrCodes] = useState([]);
@@ -419,6 +421,8 @@ export default function App() {
         md5_hash: khqrDetails.md5_hash,
         qr_string: khqrDetails.qr_string,
         currency: khqrDetails.currency,
+        // The cashier confirmed it by hand: the backend re-checks it with Bakong later.
+        ...(khqrDetails.manual ? { manual: true } : {}),
       },
     };
 
@@ -634,6 +638,7 @@ export default function App() {
   const {
     watch: watchKhqr,
     checkNow: checkKhqrNow,
+    unwatch: unwatchKhqr,
     checkErrors: khqrCheckErrors,
     checking: khqrChecking,
   } = useKhqrWatcher(client, {
@@ -644,8 +649,24 @@ export default function App() {
       setActiveKhqr(null);
       setKhqrReplaced('expired');
     },
+    // Bakong recorded a payment for this QR that doesn't match it (wrong
+    // amount/currency): never completes the sale, always shown.
+    onMismatch: (qr, reason) => setUnmatchedKhqr({ ...qr, reason }),
   });
   const khqrCheckError = activeKhqr ? khqrCheckErrors[activeKhqr.md5_hash] : null;
+  // Confirm received manually: only offered after a check failed (no
+  // connection, Bakong's limit), when the cashier can see the payment in
+  // their banking app. Saved as a KHQR sale for this QR, marked as confirmed
+  // by hand (the backend re-checks it with Bakong later), and no longer
+  // watched, so a late automatic check can't flag it as unmatched.
+  const confirmKhqrManually = async () => {
+    setConfirmManualKhqr(false);
+    if (!activeKhqr) return;
+    const qr = activeKhqr;
+    unwatchKhqr(qr.md5_hash);
+    await handleKhqrPaid({ ...qr, manual: true });
+  };
+
   // Check payment: the customer says they've paid, so ask right away.
   const checkKhqrPayment = async () => {
     if (!activeKhqr) return;
@@ -1184,6 +1205,16 @@ export default function App() {
         }}
       />
     )}
+    {confirmManualKhqr && activeKhqr && (
+      <ConfirmDialog
+        title={t[locale].confirmManuallyTitle}
+        body={khqrNotice(t[locale].confirmManuallyBody, activeKhqr)}
+        cancelLabel={sc.cancel || 'Cancel'}
+        confirmLabel={t[locale].confirmManuallyConfirm}
+        onCancel={() => setConfirmManualKhqr(false)}
+        onConfirm={confirmKhqrManually}
+      />
+    )}
     {clearCartPrompt && (
       <ConfirmDialog
         title={sc.clearCartTitle || 'Clear the cart?'}
@@ -1659,7 +1690,11 @@ export default function App() {
             )}
             {unmatchedKhqr && (
               <div role="alert" className="mb-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 p-3 rounded-xl text-xs space-y-2">
-                <p className="font-semibold">{khqrNotice(t[locale].khqrUnmatched, unmatchedKhqr)}</p>
+                <p className="font-semibold">
+                  {unmatchedKhqr.reason
+                    ? khqrNotice(t[locale].khqrMismatch, unmatchedKhqr, unmatchedKhqr.reason)
+                    : khqrNotice(t[locale].khqrUnmatched, unmatchedKhqr)}
+                </p>
                 <button type="button" onClick={() => setUnmatchedKhqr(null)} className="py-1.5 px-3 font-bold rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40">
                   {t[locale].dismiss}
                 </button>
@@ -1898,9 +1933,18 @@ export default function App() {
                         <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 mt-2">{t[locale].notReceivedYet}</p>
                       )}
                       {khqrCheckError != null && (
-                        <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-2">
-                          {t[locale].khqrCheckFailed.replace('{reason}', khqrCheckError)}
-                        </p>
+                        <>
+                          <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 mt-2">
+                            {t[locale].khqrCheckFailed.replace('{reason}', khqrCheckError)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmManualKhqr(true)}
+                            className="mt-2 py-1.5 px-3 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-bold rounded-lg text-[11px] cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                          >
+                            {t[locale].confirmManually}
+                          </button>
+                        </>
                       )}
                     </div>
                   </>

@@ -151,10 +151,12 @@ router.post('/api/orders/checkout', (req, res) => {
     }
 
     if (payment_method === 'KHQR' && khqr_data) {
+      // CASHIER_CONFIRMED: the register couldn't check, so the cashier
+      // confirmed it by hand (the backend re-checks it with Bakong later).
       run(
         `INSERT INTO khqr_transactions (order_id, md5_hash, qr_string, bank_name, transaction_currency, amount, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'SUCCESS', ?, ?)`,
-        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, khqr_data.currency === totalCurrency ? total : totalUsd, localNow(), localNow()]
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, khqr_data.md5_hash, khqr_data.qr_string, khqr_data.bank_name || 'Bakong Network', khqr_data.currency, khqr_data.currency === totalCurrency ? total : totalUsd, khqr_data.manual ? 'CASHIER_CONFIRMED' : 'SUCCESS', localNow(), localNow()]
       );
     }
 
