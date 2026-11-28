@@ -16,7 +16,7 @@ import FilterChips from '../components/FilterChips.jsx';
 import Pagination from '../components/Pagination.jsx';
 import { CategoryBreakdownChart, PaymentMethodsChart, SalesOverTimeChart, TopProductsChart } from '../components/ReportCharts.jsx';
 import { bucketTimeline } from '../lib/reportTimeline';
-import { DATE_PRESETS, toApiRange } from '../lib/dateRange';
+import { DATE_PRESETS, previousRange, toApiRange } from '../lib/dateRange';
 import { inMainCurrency, usdToKhr } from '../lib/orderTotals';
 import { fmt, plural } from '../i18n/translate';
 
@@ -128,6 +128,30 @@ function ShareBar({ ratio }) {
   );
 }
 
+// Both reports cover the same store choice, and the previous one is the
+// period just before the one on screen.
+function isPreviousPeriodOf(prev, current) {
+  if (!prev || !current) return false;
+  const expected = previousRange(current.dateFrom, current.dateTo);
+  return prev.dateFrom === expected.from && prev.dateTo === expected.to;
+}
+
+/** "▲ 12.3% vs previous period": up is good for every figure shown here. */
+function Change({ current, previous, label }) {
+  if (!previous) {
+    return current ? <p className="text-xs mt-1 text-slate-400 dark:text-slate-500">— {label}</p> : null;
+  }
+  const change = (current - previous) / Math.abs(previous);
+  const flat = Math.abs(change) < 0.0005;
+  const tone = flat ? 'text-slate-500 dark:text-slate-400' : change > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+  return (
+    <p className={`text-xs mt-1 tabular-nums ${tone}`}>
+      {flat ? '=' : change > 0 ? '▲' : '▼'} {Math.abs(change * 100).toFixed(1)}%{' '}
+      <span className="text-slate-400 dark:text-slate-500">{label}</span>
+    </p>
+  );
+}
+
 export default function ReportsPage() {
   const { t, locale } = useLocale();
   // Not scoped to the AppShell's single current store: "All stores" is a
@@ -138,24 +162,40 @@ export default function ReportsPage() {
 
   // Cached per store + date range (lib/queryClient.js): flipping back to a
   // range already viewed is instant, refreshed in the background when stale.
+  const fetchReport = (from, to) => {
+    const query = toApiRange(from, to);
+    if (storeId) query.storeId = storeId;
+    return apiClient.get('/api/reports/daily-summary', query).then((data) => ({ ...data, dateFrom: from, dateTo: to }));
+  };
   const reportQuery = useQuery({
     queryKey: queryKeys.dailySummary({ storeId, dateFrom, dateTo }),
     // A date input cleared by hand leaves the range open-ended, which this
     // report doesn't support: wait (showing the last report) until it's set.
     enabled: Boolean(dateFrom && dateTo),
-    queryFn: () => {
-      const query = toApiRange(dateFrom, dateTo);
-      if (storeId) query.storeId = storeId;
-      return apiClient.get('/api/reports/daily-summary', query).then((data) => ({ ...data, dateFrom, dateTo }));
-    },
+    queryFn: () => fetchReport(dateFrom, dateTo),
     placeholderData: (previous) => previous, // keep the last report on screen while a new range loads
   });
+  // The same-length period just before, for the "vs previous period" changes.
+  // It has already ended, so it's cached for longer (lib/queryClient.js).
+  const prevRange = dateFrom && dateTo ? previousRange(dateFrom, dateTo) : null;
+  const prevQuery = useQuery({
+    queryKey: queryKeys.dailySummary({ storeId, dateFrom: prevRange?.from, dateTo: prevRange?.to }),
+    enabled: Boolean(prevRange),
+    queryFn: () => fetchReport(prevRange.from, prevRange.to),
+  });
+  // Only when it belongs to the report on screen (not one still loading).
+  const prevReport =
+    prevQuery.data && isPreviousPeriodOf(prevQuery.data, reportQuery.data) ? prevQuery.data : null;
   const report = reportQuery.data ?? null;
   const loading = reportQuery.isPending;
   const error = reportQuery.isError ? t.reports.loadFailed : '';
 
   const mainCurrency = report?.combined.mainCurrency ?? 'USD';
   const totalRevenue = report?.combined.totalRevenue ?? 0;
+  // A figure in the main currency, for comparing two periods.
+  const inMain = (usd, khr) => (mainCurrency === 'KHR' ? khr : usd);
+  const shortDate = (d) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString(locale === 'km' ? 'km-KH' : 'en-US', { month: 'short', day: 'numeric' });
   const products = useMemo(() => (report ? mergeProducts(report.byStore) : []), [report]);
   const methods = useMemo(() => (report ? mergeMethods(report.byStore) : []), [report]);
   const categories = useMemo(() => mergeCategories(products, t.reports.uncategorized), [products, t]);
@@ -167,6 +207,17 @@ export default function ReportsPage() {
     () => (report ? bucketTimeline(report.byStore.flatMap((s) => s.timeline), report.dateFrom, report.dateTo) : null),
     [report]
   );
+  // The previous period's buckets, lined up with this one's: the same hour of
+  // the day before, or the same position (1st day, 2nd day...) in the period.
+  const previousBuckets = useMemo(() => {
+    if (!timeline || !prevReport) return null;
+    const prev = bucketTimeline(prevReport.byStore.flatMap((s) => s.timeline), prevReport.dateFrom, prevReport.dateTo);
+    if (timeline.unit === 'hour') {
+      const byHour = new Map(prev.buckets.map((b) => [b.key, b]));
+      return timeline.buckets.map((b) => byHour.get(b.key) ?? null);
+    }
+    return timeline.buckets.map((_, i) => prev.buckets[i] ?? null);
+  }, [timeline, prevReport]);
 
   // Search, filters, sort and page are remembered across visits too.
   const search = useSearch(products, [(p) => p.name, (p) => p.barcode], { persistKey: 'reports:search' });
@@ -271,20 +322,26 @@ export default function ReportsPage() {
         <p className={`text-sm ${muted}`}>{t.common.loading}</p>
       ) : !report ? null : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
             {[
-              { key: 'revenue', label: t.reports.revenue, value: inMainCurrency(mainCurrency, report.combined.totalRevenue, report.combined.totalRevenueKhr) },
-              { key: 'orders', label: t.reports.orders, value: { primary: report.combined.orderCount } },
-              { key: 'avgOrder', label: t.reports.avgOrder, value: inMainCurrency(mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr) },
-              { key: 'grossProfit', label: t.reports.grossProfit, value: inMainCurrency(mainCurrency, report.combined.grossProfit, report.combined.grossProfitKhr) },
+              { key: 'revenue', label: t.reports.revenue, value: inMainCurrency(mainCurrency, report.combined.totalRevenue, report.combined.totalRevenueKhr), amount: (c) => inMain(c.totalRevenue, c.totalRevenueKhr) },
+              { key: 'orders', label: t.reports.orders, value: { primary: report.combined.orderCount }, amount: (c) => c.orderCount },
+              { key: 'avgOrder', label: t.reports.avgOrder, value: inMainCurrency(mainCurrency, report.combined.avgOrder, report.combined.avgOrderKhr), amount: (c) => inMain(c.avgOrder, c.avgOrderKhr) },
+              { key: 'grossProfit', label: t.reports.grossProfit, value: inMainCurrency(mainCurrency, report.combined.grossProfit, report.combined.grossProfitKhr), amount: (c) => inMain(c.grossProfit, c.grossProfitKhr) },
             ].map((c) => (
               <div key={c.key} className={`p-4 ${card}`}>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{c.label}</p>
                 <p className="text-xl font-semibold text-[var(--text-h)] mt-1 tabular-nums">{c.value.primary}</p>
                 {c.value.secondary && <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{c.value.secondary}</p>}
+                {prevReport && <Change current={c.amount(report.combined)} previous={c.amount(prevReport.combined)} label={t.reports.vsPrevious} />}
               </div>
             ))}
           </div>
+          {prevReport && (
+            <p className={`text-xs mb-4 ${muted}`}>
+              {fmt(t.reports.comparedWith, { from: shortDate(prevReport.dateFrom), to: shortDate(prevReport.dateTo) })}
+            </p>
+          )}
 
           {report.combined.uncostedProductCount > 0 && (
             <p className="text-xs text-amber-600 dark:text-amber-400 -mt-2 mb-4">
@@ -302,10 +359,18 @@ export default function ReportsPage() {
               <h2 className="text-sm font-semibold text-[var(--text-h)] mb-2">{t.reports.salesOverTime}</h2>
               <SalesOverTimeChart
                 buckets={timeline.buckets}
+                previous={previousBuckets}
                 unit={timeline.unit}
                 mainCurrency={mainCurrency}
                 locale={locale}
-                labels={{ title: t.reports.salesOverTime, revenue: t.reports.revenue, profit: t.reports.profit, orders: t.reports.orders, empty: t.reports.noSales }}
+                labels={{
+                  title: t.reports.salesOverTime,
+                  revenue: t.reports.revenue,
+                  profit: t.reports.profit,
+                  orders: t.reports.orders,
+                  previous: t.reports.previousRevenue,
+                  empty: t.reports.noSales,
+                }}
               />
             </div>
             <div className={`p-4 ${card}`}>

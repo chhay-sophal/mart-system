@@ -51,3 +51,18 @@ export function toApiRange(dateFrom, dateTo) {
   }
   return query;
 }
+
+/**
+ * The period of the same length just before a range (both ends inclusive):
+ * a single day compares with the day before, 7 days with the 7 before them.
+ */
+export function previousRange(dateFrom, dateTo) {
+  const from = new Date(`${dateFrom}T00:00:00`);
+  const to = new Date(`${dateTo}T00:00:00`);
+  const days = Math.round((to - from) / 86_400_000) + 1;
+  const prevTo = new Date(from);
+  prevTo.setDate(prevTo.getDate() - 1);
+  const prevFrom = new Date(prevTo);
+  prevFrom.setDate(prevFrom.getDate() - (days - 1));
+  return { from: toLocalDateStr(prevFrom), to: toLocalDateStr(prevTo) };
+}

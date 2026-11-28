@@ -50,7 +50,7 @@ const HEIGHT = 240;
 const M = { top: 12, right: 8, bottom: 24, left: 56 };
 
 /** Revenue and profit side by side per time bucket, on one money axis. */
-export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels }) {
+export function SalesOverTimeChart({ buckets, previous = null, unit, mainCurrency, locale, labels }) {
   const [ref, width] = useWidth();
   const [hover, setHover] = useState(null);
 
@@ -68,7 +68,10 @@ export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels
   ];
 
   const hasSales = buckets.some((b) => b.orderCount > 0);
-  const values = buckets.flatMap((b) => [revenueOf(b), profitOf(b)]);
+  // The previous period's revenue, one point per bucket (null where it has
+  // none), drawn as a neutral dashed baseline rather than another series.
+  const prevRevenue = previous ? previous.map((b) => (b ? revenueOf(b) : null)) : null;
+  const values = [...buckets.flatMap((b) => [revenueOf(b), profitOf(b)]), ...(prevRevenue ?? []).filter((v) => v !== null)];
   const step = niceStep((Math.max(0, ...values) - Math.min(0, ...values)) / 4);
   const yMax = Math.max(step, Math.ceil(Math.max(0, ...values) / step) * step);
   const yMin = Math.floor(Math.min(0, ...values) / step) * step;
@@ -96,6 +99,12 @@ export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels
             {s.label}
           </span>
         ))}
+        {prevRevenue && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-4 border-t-2 border-dashed border-slate-400 dark:border-slate-500" aria-hidden="true" />
+            {labels.previous}
+          </span>
+        )}
       </div>
       <div ref={ref} className="relative" style={{ height: HEIGHT }}>
         {width > 0 && (
@@ -123,7 +132,7 @@ export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels
                       {label(b)}
                     </text>
                   )}
-                  {/* Hit target: the whole band, not just the thin bars. */}
+                  {/* Hit target: the whole band, not just the thin bars (drawn last, on top). */}
                   <rect
                     x={M.left + i * band}
                     y={M.top}
@@ -136,6 +145,19 @@ export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels
                 </g>
               );
             })}
+            {prevRevenue && (
+              <polyline
+                points={prevRevenue
+                  .map((v, i) => (v === null ? null : `${M.left + i * band + band / 2},${y(v)}`))
+                  .filter(Boolean)
+                  .join(' ')}
+                fill="none"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                strokeLinejoin="round"
+                className="stroke-slate-400 dark:stroke-slate-500 pointer-events-none"
+              />
+            )}
           </svg>
         )}
         {!hasSales && (
@@ -165,6 +187,14 @@ export function SalesOverTimeChart({ buckets, unit, mainCurrency, locale, labels
               <span>{labels.orders}</span>
               <span className="tabular-nums text-[var(--text-h)]">{hovered.orderCount}</span>
             </p>
+            {previous?.[hover] && (
+              <p className="flex justify-between gap-3 text-slate-500 dark:text-slate-400 mt-0.5">
+                <span>{labels.previous}</span>
+                <span className="tabular-nums text-[var(--text-h)]">
+                  {inMainCurrency(mainCurrency, previous[hover].revenue, previous[hover].revenueKhr).primary}
+                </span>
+              </p>
+            )}
           </div>
         )}
       </div>
