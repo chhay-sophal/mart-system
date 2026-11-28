@@ -12,7 +12,7 @@ There's a real chicken-and-egg dependency between the two: the backend's `CORS_A
    - `TURSO_AUTH_TOKEN` — your real Turso auth token.
    - `JWT_SECRET` — a long random value (reuse your local one, or generate a new one — just don't reuse it anywhere else).
    - `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` / `CASHIER_SESSION_TTL` / `PASSWORD_BCRYPT_COST` / `PIN_BCRYPT_COST` — copy straight from your local `.env` (these aren't secrets, just not hardcoded in the Blueprint).
-   - `BAKONG_REGISTERED_EMAIL` — the email registered with Bakong's Open API, if the stores take KHQR. It gets the token that checks KHQR payments, so treat it as a secret: it's never shown in IMS (Settings only says whether it's set). One per deployment, shared by its stores.
+   - `BAKONG_REGISTERED_EMAIL` — the email registered with Bakong's Open API, if the stores take KHQR. It gets the token that checks KHQR payments, so treat it as a secret: it's never shown in IMS or returned by the API. One per deployment, shared by its stores.
    - `CORS_ALLOWED_ORIGINS` — **leave a placeholder for now** (e.g. `https://placeholder.pages.dev`) — the real IMS URL doesn't exist until step 2. You'll come back and fix this in step 3.
 3. Deploy. Once live, note the assigned URL (`https://mart-system-backend-XXXX.onrender.com` or whatever Render assigns) and confirm it's actually healthy:
    ```sh

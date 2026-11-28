@@ -31,7 +31,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-for (const prefix of [['stores'], ['store'], ['store-settings'], ['bakong-credential'], ['categories'], ['suppliers'], ['staff'], ['terminals']]) {
+for (const prefix of [['stores'], ['store'], ['store-settings'], ['categories'], ['suppliers'], ['staff'], ['terminals']]) {
   queryClient.setQueryDefaults(prefix, { staleTime: REFERENCE_MS });
 }
 
@@ -58,7 +58,6 @@ export const queryKeys = {
   staff: (storeId) => ['staff', storeId],
   storeSettings: (storeId) => ['store-settings', storeId],
   store: (storeId) => ['store', storeId],
-  bakongCredential: (storeId) => ['bakong-credential', storeId],
   terminals: (storeId) => ['terminals', storeId],
   transfers: () => ['transfers'],
   orders: (params) => ['orders', params],

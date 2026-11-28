@@ -124,20 +124,6 @@ function SaveBar({ dirty, saving, status, canSave = true, onSave, label }) {
   );
 }
 
-function StatusBadge({ tone, children }) {
-  const tones = {
-    good: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900',
-    neutral: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-700',
-    warn: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900',
-  };
-  return (
-    <span className={`shrink-0 inline-flex items-center gap-1.5 text-xs font-medium border rounded-full px-2.5 h-6 ${tones[tone]}`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" />
-      {children}
-    </span>
-  );
-}
-
 export default function SettingsPage() {
   const { storeId } = useOutletContext();
   const { stores, reloadStores } = useAuth();
@@ -173,11 +159,6 @@ export default function SettingsPage() {
   const settingsQuery = useQuery({
     queryKey: queryKeys.storeSettings(storeId),
     queryFn: () => apiClient.get(`/api/stores/${storeId}/settings`),
-    enabled: Boolean(storeId),
-  });
-  const bakongQuery = useQuery({
-    queryKey: queryKeys.bakongCredential(storeId),
-    queryFn: () => apiClient.get(`/api/stores/${storeId}/bakong-credential`),
     enabled: Boolean(storeId),
   });
   const storeQuery = useQuery({
@@ -273,17 +254,6 @@ export default function SettingsPage() {
     setNewValue('');
   }
 
-  // Bakong: the registered email is a server setting (BAKONG_REGISTERED_EMAIL),
-  // never shown or edited here -- only whether it's set (and where), masked,
-  // and whether a token has been obtained with it.
-  const bakong = bakongQuery.data;
-  const bakongState = !bakong?.configured ? 'notSetUp' : bakong.hasToken ? 'connected' : 'notUsed';
-  const bakongBadge = {
-    connected: <StatusBadge tone="good">{t.settings.bakong.statusConnected}</StatusBadge>,
-    notUsed: <StatusBadge tone="neutral">{t.settings.bakong.statusNotUsed}</StatusBadge>,
-    notSetUp: <StatusBadge tone="warn">{t.settings.bakong.statusNotSetUp}</StatusBadge>,
-  }[bakongState];
-
   const currentStoreName = storeQuery.data?.name ?? stores.find((s) => s.id === storeId)?.name ?? '';
 
   return (
@@ -372,26 +342,6 @@ export default function SettingsPage() {
             <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${muted}`}>{t.settings.pos.perUsd}</span>
           </div>
         </Field>
-      </Section>
-
-      <Section
-        title={t.settings.bakong.title}
-        hint={t.settings.bakong.hint}
-        badge={bakongQuery.isSuccess ? bakongBadge : null}
-      >
-        {bakongQuery.isError ? (
-          <p className="text-sm text-red-600 dark:text-red-400">{t.settings.loadFailed}</p>
-        ) : (
-          <Field label={t.settings.bakong.email} help={t.settings.bakong.statusHint[bakongState]}>
-            <p className="text-sm text-[var(--text-h)] sm:pt-2">
-              {!bakong
-                ? t.common.loading
-                : !bakong.configured
-                  ? t.settings.bakong.notConfigured
-                  : (bakong.source === 'server' ? t.settings.bakong.onServer : t.settings.bakong.onStore).replace('{email}', bakong.maskedEmail)}
-            </p>
-          </Field>
-        )}
       </Section>
 
       <OnlinePosImport storeId={storeId} onImported={handleImported} />
