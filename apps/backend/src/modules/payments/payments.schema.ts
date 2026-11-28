@@ -13,7 +13,3 @@ export const generateKhqrSchema = z.object({
   merchantCity: optionalText,
   storePhone: optionalText,
 });
-
-export const bakongCredentialSchema = z.object({
-  registeredEmail: z.string().email(),
-});

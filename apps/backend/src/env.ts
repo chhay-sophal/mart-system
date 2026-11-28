@@ -20,6 +20,11 @@ const envSchema = z.object({
   // API doesn't ship wide open to any origin; optional in dev/test so local
   // work isn't blocked by not having set it yet.
   CORS_ALLOWED_ORIGINS: z.string().optional(),
+  // The email registered with Bakong's Open API. Sending it to Bakong is all
+  // it takes to get an API token, so it's a secret kept here rather than in
+  // the database or anywhere the API returns. One per deployment, shared by
+  // its stores. Blank counts as unset.
+  BAKONG_REGISTERED_EMAIL: z.preprocess((v) => (v === "" ? undefined : v), z.string().trim().email().optional()),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -3,7 +3,8 @@ import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
 import { FIXTURE_PASSWORD, FIXTURE_TERMINAL_SECRET, resetDatabase, seedFixtures } from "./helpers";
-import { resetBakongCheckThrottle, reverifyUnconfirmedKhqrPayment } from "../src/modules/payments/payments.service";
+import { getBakongCredentialView, resetBakongCheckThrottle, reverifyUnconfirmedKhqrPayment } from "../src/modules/payments/payments.service";
+import { env } from "../src/env";
 
 const app = buildApp();
 
@@ -14,6 +15,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  env.BAKONG_REGISTERED_EMAIL = undefined;
 });
 
 function terminalHeaders(terminalId: string) {
@@ -439,22 +441,70 @@ describe("re-checking unconfirmed KHQR payments", () => {
 });
 
 describe("Bakong credential management", () => {
-  it("lets an admin set the registered email without ever exposing a cached token", async () => {
+  it("shows admins a masked email and token status only, never the email or the token", async () => {
     const { store } = await seedFixtures();
+    // A store's email saved before BAKONG_REGISTERED_EMAIL existed: the fallback.
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "secret-token" },
+    });
     const token = await loginAsAdmin();
 
-    const put = await request(app)
+    const res = await request(app).get(`/api/stores/${store.id}/bakong-credential`).set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ configured: true, source: "store", maskedEmail: "ow•••••@store.test", hasToken: true });
+    expect(JSON.stringify(res.body)).not.toContain("owner@");
+    expect(JSON.stringify(res.body)).not.toContain("secret-token");
+  });
+
+  it("uses the server's BAKONG_REGISTERED_EMAIL over a store's saved one", async () => {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({ data: { storeId: store.id, registeredEmail: "old@store.test" } });
+    env.BAKONG_REGISTERED_EMAIL = "shop@example.com";
+
+    expect(await getBakongCredentialView(store.id)).toEqual({
+      configured: true,
+      source: "server",
+      maskedEmail: "sh•••••@example.com",
+      hasToken: false,
+    });
+
+    const { md5Hash } = await issueKhqr(terminal.id);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { token: "env-token" } }))
+      .mockResolvedValueOnce(jsonResponse({ responseCode: 1, errorCode: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+
+    expect(fetchMock.mock.calls[0][0]).toContain("renew_token");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "shop@example.com" });
+  });
+
+  it("shares one token across stores when the email is the server's", async () => {
+    const { store } = await seedFixtures();
+    const other = await prisma.store.create({ data: { code: "OTHER", name: "Other Store" } });
+    env.BAKONG_REGISTERED_EMAIL = "shop@example.com";
+    await prisma.bakongCredential.create({ data: { storeId: store.id, apiToken: "shared-token", apiTokenUpdatedAt: new Date() } });
+
+    // The other store has no token row of its own, yet holds the shared token.
+    expect((await getBakongCredentialView(other.id)).hasToken).toBe(true);
+  });
+
+  it("reports not configured when there's no email anywhere", async () => {
+    const { store } = await seedFixtures();
+    expect(await getBakongCredentialView(store.id)).toEqual({ configured: false, source: null, maskedEmail: null, hasToken: false });
+  });
+
+  it("offers no way to set or read the email through the API", async () => {
+    const { store } = await seedFixtures();
+    const token = await loginAsAdmin();
+    const res = await request(app)
       .put(`/api/stores/${store.id}/bakong-credential`)
       .set("Authorization", `Bearer ${token}`)
       .send({ registeredEmail: "owner@store.test" });
-    expect(put.status).toBe(200);
-    expect(put.body).toEqual({ registeredEmail: "owner@store.test", hasToken: false });
-    expect(put.body).not.toHaveProperty("apiToken");
-
-    const get = await request(app)
-      .get(`/api/stores/${store.id}/bakong-credential`)
-      .set("Authorization", `Bearer ${token}`);
-    expect(get.body).toEqual({ registeredEmail: "owner@store.test", hasToken: false });
+    expect(res.status).toBe(404);
   });
 
   it("rejects a cashier session token entirely", async () => {

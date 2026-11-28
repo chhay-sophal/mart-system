@@ -3,32 +3,20 @@ import { asyncHandler } from "../../middleware/asyncHandler";
 import { requireAccessToken } from "../../middleware/requireAccessToken";
 import { requireRole } from "../../middleware/requireRole";
 import { requireTerminal } from "../../middleware/requireTerminal";
-import { bakongCredentialSchema, generateKhqrSchema } from "./payments.schema";
-import {
-  checkKhqrStatus,
-  generateKhqr,
-  getBakongCredentialView,
-  setBakongRegisteredEmail,
-} from "./payments.service";
+import { generateKhqrSchema } from "./payments.schema";
+import { checkKhqrStatus, generateKhqr, getBakongCredentialView } from "./payments.service";
 
 export const paymentsRouter: Router = Router();
 
+// Status only (configured or not, masked email, token held): the registered
+// email itself lives in the server's BAKONG_REGISTERED_EMAIL setting and is
+// never returned or set through the API.
 paymentsRouter.get(
   "/stores/:storeId/bakong-credential",
   requireAccessToken,
   requireRole(["ADMIN"]),
   asyncHandler(async (req, res) => {
     res.json(await getBakongCredentialView(req.params.storeId!));
-  })
-);
-
-paymentsRouter.put(
-  "/stores/:storeId/bakong-credential",
-  requireAccessToken,
-  requireRole(["ADMIN"]),
-  asyncHandler(async (req, res) => {
-    const { registeredEmail } = bakongCredentialSchema.parse(req.body);
-    res.json(await setBakongRegisteredEmail(req.params.storeId!, registeredEmail));
   })
 );
 

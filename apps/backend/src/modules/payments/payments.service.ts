@@ -1,6 +1,7 @@
 import { BakongKHQR, IndividualInfo, khqrData, type KhqrOptionalData } from "bakong-khqr";
 import type { Currency, KhqrStatus } from "@mart-system/shared-types";
 import { prisma } from "../../prisma";
+import { env } from "../../env";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/httpError";
 import { toMinorUnits } from "../../lib/money";
 import { logger } from "../../lib/logger";
@@ -42,18 +43,48 @@ async function getStoreSettingsMap(storeId: string): Promise<Record<string, stri
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 }
 
-export async function getBakongCredentialView(storeId: string) {
+// The email Bakong issues API tokens for: the server's BAKONG_REGISTERED_EMAIL
+// setting. A store's own email, saved in the database before that setting
+// existed, is the fallback until the setting is added.
+async function registeredEmailFor(storeId: string): Promise<string | null> {
+  if (env.BAKONG_REGISTERED_EMAIL) return env.BAKONG_REGISTERED_EMAIL;
   const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
-  return { registeredEmail: credential?.registeredEmail ?? null, hasToken: Boolean(credential?.apiToken) };
+  return credential?.registeredEmail ?? null;
 }
 
-export async function setBakongRegisteredEmail(storeId: string, registeredEmail: string) {
-  await prisma.bakongCredential.upsert({
-    where: { storeId },
-    create: { storeId, registeredEmail },
-    update: { registeredEmail },
-  });
-  return getBakongCredentialView(storeId);
+// The token to use. With the server's email every store shares one token --
+// the newest any store holds -- so stores never renew over each other.
+async function currentToken(storeId: string): Promise<string | null> {
+  if (env.BAKONG_REGISTERED_EMAIL) {
+    const latest = await prisma.bakongCredential.findFirst({
+      where: { apiToken: { not: null } },
+      orderBy: { apiTokenUpdatedAt: "desc" },
+    });
+    return latest?.apiToken ?? null;
+  }
+  const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
+  return credential?.apiToken ?? null;
+}
+
+// "so•••••@gmail.com": enough to tell which email it is, not enough to use it.
+function maskEmail(email: string): string {
+  const [local = "", domain = ""] = email.split("@");
+  return `${local.slice(0, local.length > 3 ? 2 : 1)}•••••@${domain}`;
+}
+
+/**
+ * What IMS may know about Bakong for a store: whether an email is configured
+ * and where (the server setting, or a store's legacy saved one), a masked
+ * form of it, and whether a token is held. Never the email or the token.
+ */
+export async function getBakongCredentialView(storeId: string) {
+  const email = await registeredEmailFor(storeId);
+  return {
+    configured: Boolean(email),
+    source: env.BAKONG_REGISTERED_EMAIL ? "server" : email ? "store" : null,
+    maskedEmail: email ? maskEmail(email) : null,
+    hasToken: Boolean(await currentToken(storeId)),
+  };
 }
 
 export async function generateKhqr(
@@ -115,9 +146,8 @@ export async function generateKhqr(
 }
 
 async function renewBakongToken(storeId: string): Promise<string> {
-  const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
-  const email = credential?.registeredEmail;
-  if (!email) throw badRequest("This store has no Bakong registered email configured yet");
+  const email = await registeredEmailFor(storeId);
+  if (!email) throw badRequest("No Bakong registered email is configured: set BAKONG_REGISTERED_EMAIL on the server");
 
   const response = await fetchWithTimeout(
     BAKONG_RENEW_TOKEN_URL,
@@ -130,7 +160,7 @@ async function renewBakongToken(storeId: string): Promise<string> {
 
   await prisma.bakongCredential.upsert({
     where: { storeId },
-    create: { storeId, registeredEmail: email, apiToken: token, apiTokenUpdatedAt: new Date() },
+    create: { storeId, apiToken: token, apiTokenUpdatedAt: new Date() },
     update: { apiToken: token, apiTokenUpdatedAt: new Date() },
   });
 
@@ -143,14 +173,16 @@ async function renewBakongToken(storeId: string): Promise<string> {
 const pendingRenewals = new Map<string, Promise<string>>();
 
 function renewTokenOnce(storeId: string, rejectedToken?: string): Promise<string> {
-  const pending = pendingRenewals.get(storeId);
+  // One shared token (the server's email) is renewed once for all stores.
+  const key = env.BAKONG_REGISTERED_EMAIL ? "*" : storeId;
+  const pending = pendingRenewals.get(key);
   if (pending) return pending;
   const renewal = (async () => {
-    const current = await prisma.bakongCredential.findUnique({ where: { storeId } });
-    if (current?.apiToken && current.apiToken !== rejectedToken) return current.apiToken;
+    const current = await currentToken(storeId);
+    if (current && current !== rejectedToken) return current;
     return renewBakongToken(storeId);
-  })().finally(() => pendingRenewals.delete(storeId));
-  pendingRenewals.set(storeId, renewal);
+  })().finally(() => pendingRenewals.delete(key));
+  pendingRenewals.set(key, renewal);
   return renewal;
 }
 
@@ -205,8 +237,7 @@ function isNotFound(body: BakongStatusBody | null): boolean {
 // Asks Bakong about one QR with the store's token, renewing it (once per
 // store) and retrying if it has expired.
 async function askBakong(storeId: string, md5Hash: string): Promise<{ response: Response; body: BakongStatusBody | null }> {
-  const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
-  let token = credential?.apiToken ?? (await renewTokenOnce(storeId));
+  let token = (await currentToken(storeId)) ?? (await renewTokenOnce(storeId));
   let response = await callBakongCheckStatus(token, md5Hash);
   if (response.status === 401) {
     token = await renewTokenOnce(storeId, token);
