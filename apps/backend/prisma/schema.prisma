@@ -123,6 +123,8 @@ model UserStoreRole {
 
   @@id([userId, storeId])
   @@index([storeId])
+  // Catalog sync: staff PINs changed since a register's last pull.
+  @@index([storeId, updatedAt])
 }
 
 model RefreshToken {
