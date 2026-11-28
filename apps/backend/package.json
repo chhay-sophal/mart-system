@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:turso": "node scripts/apply-turso-migrations.mjs",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:sales": "tsx prisma/seed-sales.ts",
     "db:studio": "prisma studio",
     "create-admin": "tsx scripts/create-admin.ts",
     "fix-order-timestamps": "tsx scripts/fix-synced-order-timestamps.ts"
