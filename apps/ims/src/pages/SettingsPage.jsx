@@ -150,12 +150,6 @@ export default function SettingsPage() {
   // name, image, address, phone -- is set on each register (issue #5).
   const [storeName, setStoreName] = useState('');
 
-  // Bakong registered email lives in its own model (BakongCredential), not the
-  // generic StoreSetting table, since a cached bearer token also lives there
-  // and must never ride along on a response any staff role can read.
-  const [bakongEmail, setBakongEmail] = useState('');
-  const [bakongHasToken, setBakongHasToken] = useState(false);
-
   // Per section: which save is running, and how the last one went
   // ({ type: 'success' | 'error', text }).
   const [saving, setSaving] = useState({});
@@ -197,15 +191,10 @@ export default function SettingsPage() {
   // once per store (and again after an import) -- never on a background
   // refresh, which would wipe out whatever is being typed. Done during
   // render, React's pattern for state derived from a changing input.
-  const [seeded, setSeeded] = useState({ settings: null, bakong: null, store: null });
+  const [seeded, setSeeded] = useState({ settings: null, store: null });
   if (settingsQuery.data && seeded.settings !== storeId) {
     setSettings(settingsQuery.data.settings ?? {});
     setSeeded((prev) => ({ ...prev, settings: storeId }));
-  }
-  if (bakongQuery.data && seeded.bakong !== storeId) {
-    setBakongEmail(bakongQuery.data.registeredEmail ?? '');
-    setBakongHasToken(Boolean(bakongQuery.data.hasToken));
-    setSeeded((prev) => ({ ...prev, bakong: storeId }));
   }
   if (storeQuery.data && seeded.store !== storeId) {
     setStoreName(storeQuery.data.name ?? '');
@@ -220,7 +209,6 @@ export default function SettingsPage() {
 
   const profileDirty = storeName.trim() !== (storeQuery.data?.name ?? '');
   const posDirty = POS_SYNCED_KEYS.some((key) => String(posSynced[key]) !== String(savedPos[key]));
-  const bakongDirty = bakongEmail.trim() !== (bakongQuery.data?.registeredEmail ?? '');
   const customDirty = customKeys.some((key) => settings[key] !== savedSettings[key]);
 
   const rate = Number(posSynced.exchange_rate);
@@ -270,19 +258,6 @@ export default function SettingsPage() {
       t.settings.pos.saveFailed
     );
 
-  const saveBakong = () =>
-    run(
-      'bakong',
-      async () => {
-        const res = await apiClient.put(`/api/stores/${storeId}/bakong-credential`, { registeredEmail: bakongEmail.trim() });
-        setBakongHasToken(Boolean(res.hasToken));
-        setBakongEmail(res.registeredEmail ?? bakongEmail.trim());
-        queryClient.setQueryData(queryKeys.bakongCredential(storeId), res);
-      },
-      t.settings.saved,
-      t.settings.saveFailed
-    );
-
   const saveCustom = () =>
     run(
       'custom',
@@ -298,9 +273,11 @@ export default function SettingsPage() {
     setNewValue('');
   }
 
-  // Bakong: no email yet, registered but no token minted yet, or connected.
-  const savedEmail = bakongQuery.data?.registeredEmail ?? '';
-  const bakongState = !savedEmail ? 'notSetUp' : bakongHasToken ? 'connected' : 'notUsed';
+  // Bakong: the registered email is a server setting (BAKONG_REGISTERED_EMAIL),
+  // never shown or edited here -- only whether it's set (and where), masked,
+  // and whether a token has been obtained with it.
+  const bakong = bakongQuery.data;
+  const bakongState = !bakong?.configured ? 'notSetUp' : bakong.hasToken ? 'connected' : 'notUsed';
   const bakongBadge = {
     connected: <StatusBadge tone="good">{t.settings.bakong.statusConnected}</StatusBadge>,
     notUsed: <StatusBadge tone="neutral">{t.settings.bakong.statusNotUsed}</StatusBadge>,
@@ -400,19 +377,21 @@ export default function SettingsPage() {
       <Section
         title={t.settings.bakong.title}
         hint={t.settings.bakong.hint}
-        badge={bakongBadge}
-        footer={<SaveBar dirty={bakongDirty} saving={saving.bakong} status={status.bakong} canSave={Boolean(bakongEmail.trim())} onSave={saveBakong} />}
+        badge={bakongQuery.isSuccess ? bakongBadge : null}
       >
-        <Field label={t.settings.bakong.email} htmlFor="bakong-email" help={t.settings.bakong.statusHint[bakongState]}>
-          <input
-            id="bakong-email"
-            type="email"
-            placeholder={t.settings.bakong.emailPlaceholder}
-            value={bakongEmail}
-            onChange={(e) => setBakongEmail(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
+        {bakongQuery.isError ? (
+          <p className="text-sm text-red-600 dark:text-red-400">{t.settings.loadFailed}</p>
+        ) : (
+          <Field label={t.settings.bakong.email} help={t.settings.bakong.statusHint[bakongState]}>
+            <p className="text-sm text-[var(--text-h)] sm:pt-2">
+              {!bakong
+                ? t.common.loading
+                : !bakong.configured
+                  ? t.settings.bakong.notConfigured
+                  : (bakong.source === 'server' ? t.settings.bakong.onServer : t.settings.bakong.onStore).replace('{email}', bakong.maskedEmail)}
+            </p>
+          </Field>
+        )}
       </Section>
 
       <OnlinePosImport storeId={storeId} onImported={handleImported} />

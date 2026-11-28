@@ -34,16 +34,18 @@ export default {
     },
     bakong: {
       title: 'Bakong KHQR',
-      hint: "The email registered with this store's Bakong merchant account. Used to mint the token that lets POS terminals generate KHQR codes and check payment status — never shown again once saved.",
-      emailPlaceholder: 'owner@yourstore.com',
+      hint: "The email registered with Bakong's Open API, used to check KHQR payments. It's a secret, so it's set on the server (BAKONG_REGISTERED_EMAIL) and never shown here in full.",
       email: 'Registered email',
+      onServer: '{email} (set on the server)',
+      onStore: '{email} (saved for this store; move it to the server setting BAKONG_REGISTERED_EMAIL)',
+      notConfigured: 'Not set',
       statusConnected: 'Connected',
       statusNotUsed: 'Not used yet',
       statusNotSetUp: 'Not set up',
       statusHint: {
         connected: 'Registers can generate KHQR codes.',
         notUsed: 'Connects the first time a register takes a KHQR payment.',
-        notSetUp: 'Save the email to let registers take KHQR payments.',
+        notSetUp: 'Set BAKONG_REGISTERED_EMAIL on the server to let registers check KHQR payments.',
       },
     },
     custom: {
@@ -88,16 +90,18 @@ export default {
     },
     bakong: {
       title: 'Bakong KHQR',
-      hint: 'អ៊ីមែលដែលបានចុះឈ្មោះជាមួយគណនីអាជីវករ Bakong របស់ហាងនេះ។ ប្រើសម្រាប់បង្កើត token ដែលអនុញ្ញាតឱ្យម៉ាស៊ីនលក់ POS បង្កើតកូដ KHQR និងពិនិត្យស្ថានភាពការទូទាត់ — នឹងមិនបង្ហាញម្តងទៀតទេបន្ទាប់ពីរក្សាទុក។',
-      emailPlaceholder: 'owner@yourstore.com',
+      hint: 'អ៊ីមែលដែលបានចុះឈ្មោះជាមួយ Bakong Open API ប្រើសម្រាប់ពិនិត្យការទូទាត់ KHQR។ វាជាព័ត៌មានសម្ងាត់ ដូច្នេះត្រូវកំណត់នៅលើម៉ាស៊ីនមេ (BAKONG_REGISTERED_EMAIL) ហើយមិនបង្ហាញពេញនៅទីនេះទេ។',
       email: 'អ៊ីមែលដែលបានចុះឈ្មោះ',
+      onServer: '{email} (កំណត់នៅលើម៉ាស៊ីនមេ)',
+      onStore: '{email} (រក្សាទុកសម្រាប់ហាងនេះ៖ សូមផ្លាស់ទៅការកំណត់ម៉ាស៊ីនមេ BAKONG_REGISTERED_EMAIL)',
+      notConfigured: 'មិនទាន់កំណត់',
       statusConnected: 'បានភ្ជាប់',
       statusNotUsed: 'មិនទាន់ប្រើ',
       statusNotSetUp: 'មិនទាន់កំណត់',
       statusHint: {
         connected: 'ម៉ាស៊ីនលក់អាចបង្កើតកូដ KHQR បាន។',
         notUsed: 'នឹងភ្ជាប់នៅពេលម៉ាស៊ីនលក់ទទួលការទូទាត់ KHQR លើកដំបូង។',
-        notSetUp: 'រក្សាទុកអ៊ីមែល ដើម្បីឱ្យម៉ាស៊ីនលក់អាចទទួលការទូទាត់ KHQR។',
+        notSetUp: 'កំណត់ BAKONG_REGISTERED_EMAIL នៅលើម៉ាស៊ីនមេ ដើម្បីឱ្យម៉ាស៊ីនលក់អាចពិនិត្យការទូទាត់ KHQR។',
       },
     },
     custom: {
