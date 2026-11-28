@@ -3,7 +3,7 @@ import request from "supertest";
 import { buildApp } from "../src/app";
 import { prisma } from "../src/prisma";
 import { FIXTURE_PASSWORD, FIXTURE_TERMINAL_SECRET, resetDatabase, seedFixtures } from "./helpers";
-import { resetBakongCheckThrottle } from "../src/modules/payments/payments.service";
+import { resetBakongCheckThrottle, reverifyUnconfirmedKhqrPayment } from "../src/modules/payments/payments.service";
 
 const app = buildApp();
 
@@ -331,6 +331,110 @@ describe("GET /api/payments/khqr/:md5Hash/status", () => {
   it("rejects a request without valid terminal credentials", async () => {
     const res = await request(app).get("/api/payments/khqr/some-md5/status");
     expect(res.status).toBe(401);
+  });
+});
+
+// A synced KHQR sale whose payment the backend hasn't confirmed (e.g. a
+// cashier confirmed it by hand): an order plus a PENDING PaymentTransaction.
+async function unconfirmedKhqrSale(storeId: string, terminalId: string, md5Hash: string, amountMinor = 250) {
+  const order = await prisma.order.create({
+    data: {
+      storeId,
+      terminalId,
+      clientOrderUuid: `test-${md5Hash}`,
+      totalAmountMinor: amountMinor,
+      currency: "USD",
+      paymentMethod: "KHQR",
+      amountPaidUsdMinor: amountMinor,
+      createdAt: new Date(),
+    },
+  });
+  return prisma.paymentTransaction.create({
+    data: { orderId: order.id, md5Hash, qrString: "qr", currency: "USD", amountMinor, status: "PENDING" },
+  });
+}
+
+describe("re-checking unconfirmed KHQR payments", () => {
+  async function setup() {
+    const { store, terminal } = await seedFixtures();
+    await prisma.bakongCredential.create({
+      data: { storeId: store.id, registeredEmail: "owner@store.test", apiToken: "valid-token" },
+    });
+    return { store, terminal };
+  }
+
+  it("does nothing when every KHQR payment is settled", async () => {
+    await setup();
+    expect(await reverifyUnconfirmedKhqrPayment()).toBeNull();
+  });
+
+  it("marks a hand-confirmed payment PAID once Bakong confirms it", async () => {
+    const { store, terminal } = await setup();
+    const { md5Hash } = await issueKhqr(terminal.id, 2.5);
+    await unconfirmedKhqrSale(store.id, terminal.id, md5Hash);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data: { amount: 2.5, currency: "USD" } })));
+
+    expect(await reverifyUnconfirmedKhqrPayment()).toEqual({ md5Hash, outcome: "PAID" });
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("PAID");
+    expect((await prisma.issuedKhqr.findUnique({ where: { md5Hash } }))?.status).toBe("PAID");
+  });
+
+  it("keeps waiting while Bakong hasn't seen it, then flags it 30 minutes after the QR expired", async () => {
+    const { store, terminal } = await setup();
+    const { md5Hash } = await issueKhqr(terminal.id);
+    await unconfirmedKhqrSale(store.id, terminal.id, md5Hash);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ responseCode: 1, errorCode: 1, responseMessage: "Transaction could not be found." })));
+
+    expect((await reverifyUnconfirmedKhqrPayment())?.outcome).toBe("PENDING");
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("PENDING");
+
+    await prisma.issuedKhqr.update({ where: { md5Hash }, data: { expiresAt: new Date(Date.now() - 31 * 60 * 1000) } });
+    expect((await reverifyUnconfirmedKhqrPayment())?.outcome).toBe("EXPIRED");
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("EXPIRED");
+  });
+
+  it("flags a payment Bakong records differently from the QR", async () => {
+    const { store, terminal } = await setup();
+    const { md5Hash } = await issueKhqr(terminal.id, 2.5);
+    await unconfirmedKhqrSale(store.id, terminal.id, md5Hash);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data: { amount: 1, currency: "USD" } })));
+
+    expect((await reverifyUnconfirmedKhqrPayment())?.outcome).toBe("EXPIRED");
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("EXPIRED");
+  });
+
+  it("leaves it for a later round on a Bakong error (e.g. the request limit)", async () => {
+    const { store, terminal } = await setup();
+    const { md5Hash } = await issueKhqr(terminal.id);
+    await unconfirmedKhqrSale(store.id, terminal.id, md5Hash);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 1, errorCode: 15, responseMessage: "Too many requests" })));
+
+    expect((await reverifyUnconfirmedKhqrPayment())?.outcome).toBe("ERROR");
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("PENDING");
+  });
+
+  it("takes turns: one it can't settle yet goes to the back of the queue", async () => {
+    const { store, terminal } = await setup();
+    const first = await issueKhqr(terminal.id, 1);
+    const second = await issueKhqr(terminal.id, 2);
+    await unconfirmedKhqrSale(store.id, terminal.id, first.md5Hash, 100);
+    await new Promise((r) => setTimeout(r, 5));
+    await unconfirmedKhqrSale(store.id, terminal.id, second.md5Hash, 200);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ responseCode: 1, errorCode: 1 })));
+
+    expect((await reverifyUnconfirmedKhqrPayment())?.md5Hash).toBe(first.md5Hash);
+    expect((await reverifyUnconfirmedKhqrPayment())?.md5Hash).toBe(second.md5Hash);
+  });
+
+  it("a register's status check that finds the QR paid also settles its synced sale", async () => {
+    const { store, terminal } = await setup();
+    const { md5Hash } = await issueKhqr(terminal.id, 2.5);
+    await unconfirmedKhqrSale(store.id, terminal.id, md5Hash);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse({ responseCode: 0, data: { amount: 2.5, currency: "USD" } })));
+
+    const res = await request(app).get(`/api/payments/khqr/${md5Hash}/status`).set(terminalHeaders(terminal.id));
+    expect(res.body.status).toBe("PAID");
+    expect((await prisma.paymentTransaction.findUnique({ where: { md5Hash } }))?.status).toBe("PAID");
   });
 });
 

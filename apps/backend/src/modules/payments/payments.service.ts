@@ -3,6 +3,7 @@ import type { Currency, KhqrStatus } from "@mart-system/shared-types";
 import { prisma } from "../../prisma";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/httpError";
 import { toMinorUnits } from "../../lib/money";
+import { logger } from "../../lib/logger";
 
 const BAKONG_RENEW_TOKEN_URL = "https://api-bakong.nbc.gov.kh/v1/renew_token";
 const BAKONG_CHECK_STATUS_URL = "https://api-bakong.nbc.gov.kh/v1/check_transaction_by_md5";
@@ -201,6 +202,27 @@ function isNotFound(body: BakongStatusBody | null): boolean {
   return /not\s*(be\s*)?found/i.test(body.responseMessage ?? "");
 }
 
+// Asks Bakong about one QR with the store's token, renewing it (once per
+// store) and retrying if it has expired.
+async function askBakong(storeId: string, md5Hash: string): Promise<{ response: Response; body: BakongStatusBody | null }> {
+  const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
+  let token = credential?.apiToken ?? (await renewTokenOnce(storeId));
+  let response = await callBakongCheckStatus(token, md5Hash);
+  if (response.status === 401) {
+    token = await renewTokenOnce(storeId, token);
+    response = await callBakongCheckStatus(token, md5Hash);
+  }
+  const body = (await response.json().catch(() => null)) as BakongStatusBody | null;
+  return { response, body };
+}
+
+// Bakong confirmed this QR paid: the issued QR, and the payment of any sale
+// already synced for it (e.g. one a cashier confirmed by hand).
+async function markKhqrPaid(md5Hash: string) {
+  await prisma.issuedKhqr.updateMany({ where: { md5Hash, status: { not: "PAID" } }, data: { status: "PAID", paidAt: new Date() } });
+  await prisma.paymentTransaction.updateMany({ where: { md5Hash, status: { not: "PAID" } }, data: { status: "PAID" } });
+}
+
 // When Bakong was last asked about each QR, and what the register was told:
 // the status, or the error (so a throttled check repeats the error rather
 // than hiding it behind "pending").
@@ -231,17 +253,7 @@ export async function checkKhqrStatus(
     return last.status!;
   }
 
-  const credential = await prisma.bakongCredential.findUnique({ where: { storeId } });
-  let token = credential?.apiToken ?? (await renewTokenOnce(storeId));
-
-  let response = await callBakongCheckStatus(token, md5Hash);
-  if (response.status === 401) {
-    // Cached token expired: renew (once per store) and retry.
-    token = await renewTokenOnce(storeId, token);
-    response = await callBakongCheckStatus(token, md5Hash);
-  }
-
-  const body = (await response.json().catch(() => null)) as BakongStatusBody | null;
+  const { response, body } = await askBakong(storeId, md5Hash);
   const ref = md5Hash.slice(0, 8);
   if (!response.ok) {
     console.warn(`[khqr] ${ref}: Bakong HTTP ${response.status}`, body?.responseMessage ?? "");
@@ -258,7 +270,7 @@ export async function checkKhqrStatus(
       lastBakongCheck.set(md5Hash, { at: now, error });
       throw error;
     }
-    await prisma.issuedKhqr.update({ where: { md5Hash }, data: { status: "PAID", paidAt: new Date() } });
+    await markKhqrPaid(md5Hash);
     lastBakongCheck.delete(md5Hash);
     return "PAID";
   }
@@ -286,4 +298,73 @@ export async function checkKhqrStatus(
 /** Forget the per-QR Bakong check times (tests). */
 export function resetBakongCheckThrottle() {
   lastBakongCheck.clear();
+}
+
+// A synced KHQR sale whose payment the backend hasn't confirmed itself
+// (PaymentTransaction PENDING) -- typically one a cashier confirmed by hand
+// when the register couldn't check (no connection, Bakong's limit). Such
+// payments are re-checked with Bakong in the background, slowly so they cost
+// little of its limit: PAID once Bakong confirms one, or EXPIRED -- Bakong
+// never saw it, someone should look -- if it still hasn't 30 minutes after
+// the QR expired. A Bakong error leaves it for a later round.
+const REVERIFY_INTERVAL_MS = 5 * 60 * 1000;
+const REVERIFY_GIVE_UP_AFTER_EXPIRY_MS = 30 * 60 * 1000;
+
+export type ReverifyOutcome = "PAID" | "PENDING" | "EXPIRED" | "ERROR";
+
+/** Re-checks the longest-waiting unconfirmed KHQR payment; null when there's none. */
+export async function reverifyUnconfirmedKhqrPayment(): Promise<{ md5Hash: string; outcome: ReverifyOutcome } | null> {
+  const payment = await prisma.paymentTransaction.findFirst({
+    where: { status: "PENDING" },
+    orderBy: { updatedAt: "asc" },
+    include: { order: { select: { storeId: true } } },
+  });
+  if (!payment) return null;
+
+  const { md5Hash } = payment;
+  const ref = md5Hash.slice(0, 8);
+  const issued = await prisma.issuedKhqr.findUnique({ where: { md5Hash } });
+  // Moves it to the back of the queue (updatedAt), so one that can't be
+  // settled yet doesn't block the others.
+  const later = () => prisma.paymentTransaction.update({ where: { id: payment.id }, data: { status: "PENDING" } });
+  const flag = async (why: string) => {
+    logger.warn(`[khqr] ${ref}: unconfirmed payment flagged for review: ${why}`);
+    await prisma.paymentTransaction.update({ where: { id: payment.id }, data: { status: "EXPIRED" } });
+  };
+
+  try {
+    const { response, body } = await askBakong(issued?.storeId ?? payment.order.storeId, md5Hash);
+    if (response.ok && body?.responseCode === 0) {
+      const mismatch = issued ? paymentMismatch(issued, body.data) : null;
+      if (mismatch) {
+        await flag(`Bakong's record doesn't match the QR: ${mismatch}`);
+        return { md5Hash, outcome: "EXPIRED" };
+      }
+      await markKhqrPaid(md5Hash);
+      logger.info(`[khqr] ${ref}: unconfirmed payment confirmed by Bakong`);
+      return { md5Hash, outcome: "PAID" };
+    }
+    if (response.ok && isNotFound(body)) {
+      const deadline = (issued?.expiresAt ?? payment.createdAt).getTime() + REVERIFY_GIVE_UP_AFTER_EXPIRY_MS;
+      if (Date.now() > deadline) {
+        await flag("Bakong has no record of this payment");
+        return { md5Hash, outcome: "EXPIRED" };
+      }
+      await later();
+      return { md5Hash, outcome: "PENDING" };
+    }
+    logger.warn(`[khqr] ${ref}: re-check failed, Bakong ${response.status} ${body?.errorCode ?? ""} ${body?.responseMessage ?? ""}`);
+  } catch (err) {
+    logger.warn(`[khqr] ${ref}: re-check failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  await later();
+  return { md5Hash, outcome: "ERROR" };
+}
+
+/** Runs reverifyUnconfirmedKhqrPayment every few minutes (server start; not in tests). */
+export function startKhqrReverifier() {
+  const timer = setInterval(() => {
+    reverifyUnconfirmedKhqrPayment().catch((err) => logger.error(err, "[khqr] re-check round failed"));
+  }, REVERIFY_INTERVAL_MS);
+  timer.unref();
 }
