@@ -8,6 +8,7 @@ import { useSearch } from '../hooks/useSearch';
 import { usePagination } from '../hooks/usePagination';
 import { useDateRangeState, useStoreFilterState } from '../hooks/useFilterState';
 import DataTable from '../components/DataTable.jsx';
+import ChangeBadge from '../components/ChangeBadge.jsx';
 import DateRangeFilter from '../components/DateRangeFilter.jsx';
 import StoreSelect from '../components/StoreSelect.jsx';
 import SearchInput from '../components/SearchInput.jsx';
@@ -134,22 +135,6 @@ function isPreviousPeriodOf(prev, current) {
   if (!prev || !current) return false;
   const expected = previousRange(current.dateFrom, current.dateTo);
   return prev.dateFrom === expected.from && prev.dateTo === expected.to;
-}
-
-/** "▲ 12.3% vs previous period": up is good for every figure shown here. */
-function Change({ current, previous, label }) {
-  if (!previous) {
-    return current ? <p className="text-xs mt-1 text-slate-400 dark:text-slate-500">— {label}</p> : null;
-  }
-  const change = (current - previous) / Math.abs(previous);
-  const flat = Math.abs(change) < 0.0005;
-  const tone = flat ? 'text-slate-500 dark:text-slate-400' : change > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
-  return (
-    <p className={`text-xs mt-1 tabular-nums ${tone}`}>
-      {flat ? '=' : change > 0 ? '▲' : '▼'} {Math.abs(change * 100).toFixed(1)}%{' '}
-      <span className="text-slate-400 dark:text-slate-500">{label}</span>
-    </p>
-  );
 }
 
 export default function ReportsPage() {
@@ -333,7 +318,7 @@ export default function ReportsPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400">{c.label}</p>
                 <p className="text-xl font-semibold text-[var(--text-h)] mt-1 tabular-nums">{c.value.primary}</p>
                 {c.value.secondary && <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{c.value.secondary}</p>}
-                {prevReport && <Change current={c.amount(report.combined)} previous={c.amount(prevReport.combined)} label={t.reports.vsPrevious} />}
+                {prevReport && <ChangeBadge current={c.amount(report.combined)} previous={c.amount(prevReport.combined)} label={t.reports.vsPrevious} />}
               </div>
             ))}
           </div>

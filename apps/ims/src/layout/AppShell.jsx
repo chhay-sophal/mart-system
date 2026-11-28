@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { to: '/transfers', key: 'transfers' },
   { to: '/sales', key: 'sales' },
   { to: '/reports', key: 'reports' },
+  { to: '/analytics', key: 'analytics' },
   { to: '/reconciliation', key: 'reconciliation' },
   { to: '/settings', key: 'settings', adminOnly: true },
 ];

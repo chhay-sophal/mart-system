@@ -13,6 +13,7 @@ import terminals from './terminals';
 import transfers from './transfers';
 import sales from './sales';
 import reports from './reports';
+import analytics from './analytics';
 import reconciliation from './reconciliation';
 import settings from './settings';
 
@@ -29,6 +30,7 @@ const sections = {
   transfers,
   sales,
   reports,
+  analytics,
   reconciliation,
   settings,
 };

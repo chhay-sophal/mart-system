@@ -57,7 +57,8 @@ export function SalesOverTimeChart({ buckets, previous = null, unit, mainCurrenc
   const intlLocale = locale === 'km' ? 'km-KH' : 'en-US';
   const dayFmt = new Intl.DateTimeFormat(intlLocale, { month: 'short', day: 'numeric' });
   const monthFmt = new Intl.DateTimeFormat(intlLocale, { month: 'short', year: 'numeric' });
-  const label = (b) => (unit === 'hour' ? `${b.key}:00` : unit === 'day' ? dayFmt.format(b.date) : monthFmt.format(b.date));
+  // A week is labelled by the date it starts (Monday).
+  const label = (b) => (unit === 'hour' ? `${b.key}:00` : unit === 'month' ? monthFmt.format(b.date) : dayFmt.format(b.date));
 
   const khr = mainCurrency === 'KHR';
   const revenueOf = (b) => (khr ? b.revenueKhr : b.revenue);

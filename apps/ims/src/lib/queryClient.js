@@ -63,4 +63,5 @@ export const queryKeys = {
   orders: (params) => ['orders', params],
   dailySummary: (params) => ['reports', 'daily-summary', params],
   negativeStock: () => ['reports', 'negative-stock'],
+  analytics: (params) => ['analytics', params],
 };

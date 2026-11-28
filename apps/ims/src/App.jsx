@@ -13,6 +13,7 @@ import SettingsPage from './pages/SettingsPage.jsx';
 import ReconciliationPage from './pages/ReconciliationPage.jsx';
 import TransfersPage from './pages/TransfersPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import SalesHistoryPage from './pages/SalesHistoryPage.jsx';
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/transfers" element={<TransfersPage />} />
         <Route path="/sales" element={<SalesHistoryPage />} />
         <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/settings" element={isAdmin ? <SettingsPage /> : <Navigate to="/products" replace />} />
         <Route path="*" element={<Navigate to="/products" replace />} />
       </Route>
