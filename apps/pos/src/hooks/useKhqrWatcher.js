@@ -4,17 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // reports each payment exactly once -- while spending as few Bakong status
 // checks as possible, since Bakong limits them:
 //
-// - The cashier presses Check payment once the customer says they've paid:
-//   one check, right away (checkNow).
-// - The QR on screen is also checked every 20 seconds, as a backup.
-// - A QR that's off screen (replaced for a new total, expired off screen, or
-//   the cashier moved on) is not checked again until after it expires: one
-//   final check then catches a payment made to it late.
+// - Cashiers check the payment once the customer shows it on their phone:
+//   Check payment does one check, right away (checkNow). There are no
+//   automatic checks in between.
+// - Every QR still gets one final check after it expires, so a payment that
+//   wasn't checked (made after switching to Cash, or after a too-early
+//   Check payment) is still caught: the sale completes, or it's flagged.
 // - One check at a time: a slow answer can never overlap another (overlapping
 //   "paid" answers once saved one payment as two sales).
 
 const TICK_MS = 1000;
-const AUTO_CHECK_MS = 20 * 1000;
 // The backend calls an unpaid QR EXPIRED two minutes after expiry; the final
 // check of an off-screen QR comes just after that, so it gets a definite answer.
 const FINAL_CHECK_AFTER_EXPIRY_MS = 2.5 * 60 * 1000;
@@ -38,12 +37,10 @@ export function createKhqrWatcher({
   setError,
   setChecking = () => {},
   tickMs = TICK_MS,
-  autoCheckMs = AUTO_CHECK_MS,
   finalCheckAfterExpiryMs = FINAL_CHECK_AFTER_EXPIRY_MS,
   now = Date.now,
 }) {
   const watches = new Map();
-  let activeMd5 = null;
   let stopped = false;
   let timer = null;
 
@@ -53,10 +50,10 @@ export function createKhqrWatcher({
     for (const resolve of qr.waiters.splice(0)) resolve(status);
   };
 
-  // When this QR should next be checked, if it's still pending.
+  // Still pending: the next automatic check is the final one, after expiry
+  // (a failed final check is retried a minute later, until GIVE_UP).
   const schedule = (qr) => {
-    if (qr.md5_hash === activeMd5) qr.nextCheckAt = now() + autoCheckMs;
-    else qr.nextCheckAt = Math.max(now() + autoCheckMs, qr.expiresAt + finalCheckAfterExpiryMs);
+    qr.nextCheckAt = Math.max(now() + 60 * 1000, qr.expiresAt + finalCheckAfterExpiryMs);
   };
 
   const check = async (qr) => {
@@ -107,14 +104,7 @@ export function createKhqrWatcher({
   return {
     watch(qr) {
       const expiresAt = Date.parse(qr.expires_at) || now() + DEFAULT_LIFETIME_MS;
-      watches.set(qr.md5_hash, { ...qr, expiresAt, nextCheckAt: now() + autoCheckMs, manual: false, waiters: [] });
-    },
-    /** The QR now on screen (or null): only it gets the regular checks. */
-    setActive(md5) {
-      if (md5 === activeMd5) return;
-      const previous = watches.get(activeMd5);
-      activeMd5 = md5;
-      if (previous) schedule(previous);
+      watches.set(qr.md5_hash, { ...qr, expiresAt, nextCheckAt: expiresAt + finalCheckAfterExpiryMs, manual: false, waiters: [] });
     },
     /** Check this QR right away; resolves to PAID / PENDING / EXPIRED / ERROR (null if not watched). */
     checkNow(md5) {
@@ -132,7 +122,7 @@ export function createKhqrWatcher({
 
 /**
  * watch(qr): start watching a QR ({ md5_hash, amount, currency, expires_at }).
- * setActive(md5 | null): the QR on screen. checkNow(md5): Check payment.
+ * checkNow(md5): Check payment.
  * onPaid(qr) / onExpired(qr): see createKhqrWatcher; the latest ones are
  * always used, since they read the current cart and total.
  * checkErrors / checking: { [md5_hash]: message } and { [md5_hash]: true }.
@@ -166,7 +156,6 @@ export function useKhqrWatcher(client, { onPaid, onExpired }) {
   }, [client]);
 
   const watch = useCallback((qr) => watcher.current?.watch(qr), []);
-  const setActive = useCallback((md5) => watcher.current?.setActive(md5), []);
   const checkNow = useCallback((md5) => watcher.current?.checkNow(md5) ?? Promise.resolve(null), []);
-  return { watch, setActive, checkNow, checkErrors, checking };
+  return { watch, checkNow, checkErrors, checking };
 }

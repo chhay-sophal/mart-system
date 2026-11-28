@@ -98,6 +98,9 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [activeKhqr, setActiveKhqr] = useState(null);
   const [khqrLoading, setKhqrLoading] = useState(false);
+  // Which QR method the cashier was last on ('KHQR' | 'STATIC_QR'): the QR
+  // button goes back to it, even after switching to Cash or a new sale.
+  const [lastQrMode, setLastQrMode] = useState('KHQR');
   // Why a KHQR couldn't be made just now (offline, terminal not paired...).
   // While set, the QR panel stops retrying on its own: it falls back to Bank
   // QR, or offers a retry when there are no bank QRs to fall back to.
@@ -630,7 +633,6 @@ export default function App() {
   };
   const {
     watch: watchKhqr,
-    setActive: setActiveWatchedKhqr,
     checkNow: checkKhqrNow,
     checkErrors: khqrCheckErrors,
     checking: khqrChecking,
@@ -644,11 +646,6 @@ export default function App() {
     },
   });
   const khqrCheckError = activeKhqr ? khqrCheckErrors[activeKhqr.md5_hash] : null;
-  // Only the QR on screen gets regular checks; the rest wait for one final
-  // check after they expire (useKhqrWatcher), to save Bakong's limited checks.
-  useEffect(() => {
-    setActiveWatchedKhqr(activeKhqr?.md5_hash ?? null);
-  }, [activeKhqr, setActiveWatchedKhqr]);
   // Check payment: the customer says they've paid, so ask right away.
   const checkKhqrPayment = async () => {
     if (!activeKhqr) return;
@@ -678,6 +675,7 @@ export default function App() {
       // With no bank QRs set up, the panel offers a retry instead.
       if (staticQrBanks.length > 0) {
         setPaymentMethod('STATIC_QR');
+        setLastQrMode('STATIC_QR');
         setStaticQrBank(staticQrBanks[0]);
       }
     }
@@ -707,17 +705,27 @@ export default function App() {
   // end of the sale retires it.
   const switchToBankQr = () => {
     setPaymentMethod('STATIC_QR');
+    setLastQrMode('STATIC_QR');
     setStaticQrBank('');
     setCheckoutResult(null);
   };
   const switchToKhqr = () => {
     setPaymentMethod('KHQR');
+    setLastQrMode('KHQR');
     setKhqrError(null);
     setKhqrReplaced(null);
     setCheckoutResult(null);
   };
+  // The QR button: back to whichever QR method the cashier was last on, not
+  // always KHQR. Bank QR keeps the bank already picked for this sale.
+  const openQr = () => {
+    if (lastQrMode !== 'STATIC_QR') return switchToKhqr();
+    setPaymentMethod('STATIC_QR');
+    setCheckoutResult(null);
+  };
 
-  // In the Cash and Bank QR panels while this sale still has a KHQR open.
+  // In the Bank QR panel while this sale still has a KHQR open (not in Cash:
+  // the KHQR is still checked in the background there, without a reminder).
   const openKhqrReminder = activeKhqr && (
     <div role="status" className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 p-3 rounded-xl text-[11px] space-y-2">
       <p className="font-semibold">{t[locale].khqrStillOpen.replace('{ref}', activeKhqr.md5_hash.substring(0, 8).toUpperCase())}</p>
@@ -1671,7 +1679,7 @@ export default function App() {
                   {t[locale].cash}
                 </button>
                 <button
-                  onClick={() => { if (paymentMethod === 'CASH') switchToKhqr(); }}
+                  onClick={() => { if (paymentMethod === 'CASH') openQr(); }}
                   className={`py-3 px-2 rounded-xl border font-bold text-xs transition-all flex items-center justify-center gap-1 cursor-pointer ${paymentMethod !== 'CASH' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   {t[locale].qr}
@@ -1681,7 +1689,6 @@ export default function App() {
 
             {paymentMethod === 'CASH' ? (
               <div className="space-y-2">
-                {openKhqrReminder}
                 <div className="space-y-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-700 flex flex-col">
                   {/* Main currency's field always shows; the other currency's
                       field (Settings > Payment > Tendered Amount Presets) is
